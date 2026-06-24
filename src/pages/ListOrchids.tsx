@@ -113,7 +113,7 @@ export default function ListOrchids({ categoryId, onNavigate }: ListOrchidsProps
 
       // 3. Saved Only filter
       if (showSavedOnly) {
-        if (!savedOrchids.includes(orchid.id)) {
+        if (!orchid.id || !savedOrchids.includes(orchid.id)) {
           return false;
         }
       }
@@ -337,7 +337,7 @@ export default function ListOrchids({ categoryId, onNavigate }: ListOrchidsProps
                     key={orchid.id}
                     orchid={orchid}
                     onSelect={(id) => onNavigate('orchid_detail', id)}
-                    isBookmarked={savedOrchids.includes(orchid.id)}
+                    isBookmarked={!!orchid.id && savedOrchids.includes(orchid.id)}
                     onToggleBookmark={handleToggleBookmark}
                   />
                 ))}

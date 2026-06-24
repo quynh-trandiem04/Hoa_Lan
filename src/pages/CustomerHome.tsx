@@ -19,7 +19,7 @@ import {
   MessageSquare,
   Bookmark
 } from "lucide-react";
-import { orchidData, pillarDetails, INITIAL_ORCHIDS } from "../data";
+import { orchidData, pillarDetails, INITIAL_ORCHIDS, INITIAL_CATEGORIES } from "../data";
 import { OrchidItem, PillarDetail } from "../types";
 
 // Import custom interactive components

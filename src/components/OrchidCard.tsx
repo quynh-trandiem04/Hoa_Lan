@@ -17,7 +17,7 @@ const OrchidCard: React.FC<OrchidCardProps> = ({
 }) => {
   return (
     <div 
-      onClick={() => onSelect(orchid.id)}
+      onClick={() => orchid.id && onSelect(orchid.id)}
       className="group bg-white border border-[#747878]/10 hover:border-[#56642b]/30 rounded-md overflow-hidden flex flex-col transition-all duration-500 cursor-pointer hover:shadow-xl hover:-translate-y-1"
     >
       {/* Image container */}
@@ -45,7 +45,7 @@ const OrchidCard: React.FC<OrchidCardProps> = ({
 
         {/* Favorite/Bookmark Toggle overlay */}
         <button
-          onClick={(e) => onToggleBookmark(orchid.id, e)}
+          onClick={(e) => orchid.id && onToggleBookmark(orchid.id, e)}
           className="absolute top-3 right-3 p-1.5 rounded-full bg-white/80 backdrop-blur-sm text-[#1a1c1b] hover:text-red-500 hover:bg-white transition-all shadow-sm z-10"
           title={isBookmarked ? 'Bỏ lưu' : 'Lưu hoa lan'}
         >
