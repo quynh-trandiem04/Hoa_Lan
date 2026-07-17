@@ -75,6 +75,18 @@ export interface Category {
   scientificName?: string;
   description: string;
   orchidCount: number;
+  slug?: string;
+  parentId?: string | null;
+}
+
+export interface PaginatedCategories {
+  items: Category[];
+  pageNumber: number;
+  totalPages: number;
+  totalCount: number;
+  pageSize: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
 }
 
 export interface Comment {

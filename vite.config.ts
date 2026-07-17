@@ -12,6 +12,13 @@ export default defineConfig(() => {
       },
     },
     server: {
+      proxy: {
+        '/backend-api': {
+          target: 'https://quan-ly-hoa-lan.onrender.com',
+          changeOrigin: true,
+          rewrite: (requestPath) => requestPath.replace(/^\/backend-api/, ''),
+        },
+      },
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',

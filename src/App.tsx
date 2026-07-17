@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import CustomerHome from './pages/CustomerHome';
 import Discussion from './pages/Discussion';
 import PlantingAndCare from './pages/PlantingAndCare';
@@ -44,7 +44,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 // Domain Imports
 import { Orchid, Question, Category, CommunityPost, CareArticle, PaginatedDocuments, DocumentItem } from './types';
-import { getArticles, createArticle, updateArticle, deleteArticle, getOrchids, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, deleteDocument } from './services/api';
+import { login, loginWithGoogle, refreshAuthToken, getCategories, getArticles, createArticle, updateArticle, deleteArticle, getOrchids, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, deleteDocument, type LoginResponse } from './services/api';
 import {
   INITIAL_ORCHIDS,
   INITIAL_QUESTIONS,
@@ -63,8 +63,36 @@ import { AddOrchidModal, AddCategoryModal } from './components/OrchidForms';
 import { ModerationModal } from './components/ModerationModal';
 import ListOrchids from './pages/ListOrchids';
 import OrchidDetail from './pages/OrchidDetail';
+import GoogleLoginButton from './components/GoogleLoginButton';
+
+const decodeJwtPayload = (token: string): Record<string, unknown> | null => {
+  try {
+    const encodedPayload = token.split('.')[1];
+    if (!encodedPayload) return null;
+    const normalizedPayload = encodedPayload.replace(/-/g, '+').replace(/_/g, '/');
+    const paddedPayload = normalizedPayload.padEnd(Math.ceil(normalizedPayload.length / 4) * 4, '=');
+    const payloadBytes = Uint8Array.from(atob(paddedPayload), (character) => character.charCodeAt(0));
+    const payload: unknown = JSON.parse(new TextDecoder().decode(payloadBytes));
+    return payload !== null && typeof payload === 'object'
+      ? payload as Record<string, unknown>
+      : null;
+  } catch {
+    return null;
+  }
+};
+
+const getEmailFromGoogleIdToken = (idToken: string): string => {
+  const email = decodeJwtPayload(idToken)?.email;
+  return typeof email === 'string' ? email : 'google-user';
+};
+
+const getJwtExpiration = (token: string): number | null => {
+  const expiration = decodeJwtPayload(token)?.exp;
+  return typeof expiration === 'number' ? expiration * 1000 : null;
+};
 
 export default function App() {
+  const { toasts, addToast, removeToast } = useToasts();
 
   
   type ScreenType = "home" | "signup" | "login" | "forgot_password" | "dashboard" | "discussion" | "planting_and_care" | "document" | "list_orchids" | "orchid_detail";
@@ -124,10 +152,75 @@ export default function App() {
 
   useEffect(() => {
     const handlePopState = () => {
-      setScreenState(getInitialScreen());
+      const nextScreen = getInitialScreen();
+      const storedUser = localStorage.getItem("orchidee_admin_user")
+        || sessionStorage.getItem("orchidee_admin_user");
+
+      if (nextScreen === "dashboard" && !storedUser) {
+        window.history.replaceState({}, '', '/login');
+        setScreenState("login");
+        return;
+      }
+
+      setScreenState(nextScreen);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const refreshStoredSession = async () => {
+      const storage = localStorage.getItem("orchidee_auth")
+        ? localStorage
+        : sessionStorage.getItem("orchidee_auth")
+          ? sessionStorage
+          : null;
+      if (!storage) return;
+
+      try {
+        const storedAuth = storage.getItem("orchidee_auth");
+        if (!storedAuth) return;
+
+        const session = JSON.parse(storedAuth) as LoginResponse;
+        const token = session.accessToken || session.token || storage.getItem("orchidee_auth_token");
+        const storedRefreshToken = session.refreshToken;
+        if (!token || !storedRefreshToken) return;
+
+        const expiresAt = getJwtExpiration(token);
+        const fiveMinutesFromNow = Date.now() + 5 * 60 * 1000;
+        if (expiresAt !== null && expiresAt > fiveMinutesFromNow) return;
+
+        const refreshedSession = await refreshAuthToken({
+          token,
+          refreshToken: storedRefreshToken,
+        });
+        if (!isActive) return;
+
+        const refreshedToken = refreshedSession.accessToken || refreshedSession.token || token;
+        const mergedSession: LoginResponse = {
+          ...session,
+          ...refreshedSession,
+          token: refreshedSession.token || session.token,
+          accessToken: refreshedSession.accessToken || session.accessToken,
+          refreshToken: refreshedSession.refreshToken || storedRefreshToken,
+        };
+
+        storage.setItem("orchidee_auth", JSON.stringify(mergedSession));
+        storage.setItem("orchidee_auth_token", refreshedToken);
+      } catch (error) {
+        console.error("Không thể làm mới phiên đăng nhập:", error);
+      }
+    };
+
+    void refreshStoredSession();
+    const refreshInterval = window.setInterval(refreshStoredSession, 60 * 1000);
+
+    return () => {
+      isActive = false;
+      window.clearInterval(refreshInterval);
+    };
   }, []);
 
   const [fullName, setFullName] = useState("");
@@ -139,12 +232,17 @@ export default function App() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("orchidee_admin_user");
+    const storedUser = localStorage.getItem("orchidee_admin_user")
+      || sessionStorage.getItem("orchidee_admin_user");
     if (storedUser) {
       setCurrentUser(storedUser);
       setScreen("dashboard");
+    } else if (getInitialScreen() === "dashboard") {
+      window.history.replaceState({}, '', '/login');
+      setScreenState("login");
     }
   }, []);
 
@@ -169,24 +267,95 @@ export default function App() {
     addToast("Đăng ký thành công!", "success");
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       addToast("Hãy nhập đầy đủ Email và Mật khẩu của bạn.", "error");
       return;
     }
     
-    localStorage.setItem("orchidee_admin_user", email);
-    setCurrentUser(email);
-    setScreen("dashboard");
-    addToast("Đăng nhập thành công!", "success");
+    setIsLoggingIn(true);
+    try {
+      const normalizedEmail = email.trim();
+      const authData = await login({ email: normalizedEmail, password });
+      const storage = rememberMe ? localStorage : sessionStorage;
+      const token = authData.accessToken || authData.token;
+
+      localStorage.removeItem("orchidee_admin_user");
+      sessionStorage.removeItem("orchidee_admin_user");
+      storage.setItem("orchidee_admin_user", normalizedEmail);
+      storage.setItem("orchidee_auth", JSON.stringify(authData));
+
+      if (token) {
+        storage.setItem("orchidee_auth_token", token);
+      }
+
+      setCurrentUser(normalizedEmail);
+      setPassword("");
+      setScreen("dashboard");
+      addToast("Đăng nhập thành công!", "success");
+    } catch (error) {
+      addToast(
+        error instanceof Error ? error.message : "Không thể kết nối đến máy chủ đăng nhập.",
+        "error"
+      );
+    } finally {
+      setIsLoggingIn(false);
+    }
   };
+
+  const handleGoogleLogin = useCallback(async (idToken: string) => {
+    setIsLoggingIn(true);
+    try {
+      const authData = await loginWithGoogle(idToken);
+      const googleEmail = getEmailFromGoogleIdToken(idToken);
+      const storage = rememberMe ? localStorage : sessionStorage;
+      const token = authData.accessToken || authData.token;
+
+      localStorage.removeItem("orchidee_admin_user");
+      localStorage.removeItem("orchidee_auth");
+      localStorage.removeItem("orchidee_auth_token");
+      sessionStorage.removeItem("orchidee_admin_user");
+      sessionStorage.removeItem("orchidee_auth");
+      sessionStorage.removeItem("orchidee_auth_token");
+
+      storage.setItem("orchidee_admin_user", googleEmail);
+      storage.setItem("orchidee_auth", JSON.stringify(authData));
+      if (token) storage.setItem("orchidee_auth_token", token);
+
+      setCurrentUser(googleEmail);
+      setScreen("dashboard");
+      addToast("Đăng nhập Google thành công!", "success");
+    } catch (error) {
+      addToast(
+        error instanceof Error ? error.message : "Không thể đăng nhập bằng Google.",
+        "error"
+      );
+    } finally {
+      setIsLoggingIn(false);
+    }
+  }, [addToast, rememberMe]);
 
   const handleLogOut = () => {
     localStorage.removeItem("orchidee_admin_user");
+    localStorage.removeItem("orchidee_auth");
+    localStorage.removeItem("orchidee_auth_token");
+    localStorage.removeItem("orchidee_user");
+    sessionStorage.removeItem("orchidee_admin_user");
+    sessionStorage.removeItem("orchidee_auth");
+    sessionStorage.removeItem("orchidee_auth_token");
+    sessionStorage.removeItem("orchidee_user");
+
+    try {
+      window.google?.accounts?.id?.disableAutoSelect?.();
+    } catch (error) {
+      console.warn("Không thể tắt tự động chọn tài khoản Google:", error);
+    }
+
     setCurrentUser(null);
-    setScreen("login");
-    addToast("Đã đăng xuất", "info");
+    setEmail("");
+    setPassword("");
+    window.location.replace('/login');
   };
 
   const BG_IMAGE_URL = "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?auto=format&fit=crop&q=80&w=1200";
@@ -249,6 +418,35 @@ export default function App() {
     const saved = localStorage.getItem('ol_categories');
     return saved ? JSON.parse(saved) : INITIAL_CATEGORIES;
   });
+  const [loadingCategories, setLoadingCategories] = useState(false);
+
+  useEffect(() => {
+    if (screen !== 'dashboard') return;
+
+    let isActive = true;
+    const loadCategories = async () => {
+      setLoadingCategories(true);
+      try {
+        const data = await getCategories({
+          pageNumber: 1,
+          pageSize: 100,
+          sortBy: 'name',
+          sortDescending: false,
+        });
+        if (isActive) setCategories(data.items);
+      } catch (error) {
+        console.error('Lỗi tải danh sách danh mục:', error);
+        if (isActive) addToast('Không thể tải danh mục từ máy chủ.', 'error');
+      } finally {
+        if (isActive) setLoadingCategories(false);
+      }
+    };
+
+    void loadCategories();
+    return () => {
+      isActive = false;
+    };
+  }, [addToast, screen]);
 
   const [communityPosts, setCommunityPosts] = useState<CommunityPost[]>(() => {
     const saved = localStorage.getItem('ol_community_posts');
@@ -388,8 +586,6 @@ export default function App() {
   const [selectedPendingPost, setSelectedPendingPost] = useState<CommunityPost | null>(null);
 
   // --- Toast notifications mechanism ---
-  const { toasts, addToast, removeToast } = useToasts();
-
   // --- Orchid Tab Search & Filter States ---
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('All');
   const [selectedFeatureFilter, setSelectedFeatureFilter] = useState('All');
@@ -786,21 +982,7 @@ export default function App() {
 
               {/* Social buttons */}
               <div className="grid grid-cols-1 gap-4">
-                <button
-                  id="btn_signup_google"
-                  type="button"
-                  onClick={() => {
-                    localStorage.setItem("orchidee_user", "gmail_member@google.com");
-                    setCurrentUser("gmail_member@google.com");
-                    setScreen("dashboard");
-                  }}
-                  className="flex items-center justify-center space-x-2 py-2 border border-[#e2e3e1] hover:border-[#1a1c1b] rounded-[2px] bg-white text-xs font-medium cursor-pointer transition-colors"
-                >
-                  <svg className="w-4 h-4 text-red-500" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12.24 10.285V13.4h6.887c-.275 1.565-1.88 4.604-6.887 4.604-4.33 0-7.86-3.577-7.86-8s3.53-8 7.86-8c2.46 0 4.105 1.025 5.047 1.926l2.427-2.334C18.155 1.513 15.44 0 12.24 0 5.58 0 0 5.373 0 12s5.58 12 12.24 12c6.96 0 11.57-4.854 11.57-11.79 0-.795-.085-1.4-.195-1.925H12.24z"/>
-                  </svg>
-                  <span>Google</span>
-                </button>
+                <GoogleLoginButton onCredential={handleGoogleLogin} disabled={isLoggingIn} />
               </div>
 
               {/* Login toggle links */}
@@ -963,9 +1145,10 @@ export default function App() {
                 <button
                   id="btn_submit_login"
                   type="submit"
-                  className="w-full py-2.5 bg-[#56642b] hover:bg-[#3f4b1e] text-white rounded-[2px] font-semibold text-[11px] tracking-wider uppercase text-center cursor-pointer transition-all duration-300 shadow-sm"
+                  disabled={isLoggingIn}
+                  className="w-full py-2.5 bg-[#56642b] hover:bg-[#3f4b1e] disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-[2px] font-semibold text-[11px] tracking-wider uppercase text-center cursor-pointer transition-all duration-300 shadow-sm"
                 >
-                  ĐĂNG NHẬP
+                  {isLoggingIn ? "ĐANG ĐĂNG NHẬP..." : "ĐĂNG NHẬP"}
                 </button>
               </form>
 
@@ -978,22 +1161,7 @@ export default function App() {
 
               {/* Social login buttons */}
               <div className="grid grid-cols-1 gap-4">
-                <button
-                  id="btn_login_google"
-                  type="button"
-                  onClick={() => {
-                    localStorage.setItem("orchidee_user", "gmail_member@google.com");
-                    setCurrentUser("gmail_member@google.com");
-                    setScreen("dashboard");
-                  }}
-                  className="flex items-center justify-center space-x-2 py-2 border border-[#e2e3e1] hover:border-[#1a1c1b] rounded-[2px] bg-white text-xs font-medium cursor-pointer transition-colors"
-                >
-                  <svg className="w-4 h-4 text-red-500" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12.24 10.285V13.4h6.887c-.275 1.565-1.88 4.604-6.887 4.604-4.33 0-7.86-3.577-7.86-8s3.53-8 7.86-8c2.46 0 4.105 1.025 5.047 1.926l2.427-2.334C18.155 1.513 15.44 0 12.24 0 5.58 0 0 5.373 0 12s5.58 12 12.24 12c6.96 0 11.57-4.854 11.57-11.79 0-.795-.085-1.4-.195-1.925H12.24z"/>
-                  </svg>
-                  <span>Google</span>
-                </button>
-                
+                <GoogleLoginButton onCredential={handleGoogleLogin} disabled={isLoggingIn} />
               </div>
 
               {/* Toggle to Signup */}
@@ -1263,17 +1431,14 @@ export default function App() {
             </AnimatePresence>
           </div>
 
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              addToast('Đăng xuất thành công khỏi Orchids.', 'info');
-            }}
+          <button
+            type="button"
+            onClick={handleLogOut}
             className="flex items-center gap-3 px-4 py-2 mt-3 text-error hover:bg-error/10 transition-all duration-300 rounded text-left"
           >
             <LogOut className="w-5 h-5" />
             <span className="text-xs uppercase tracking-wider font-semibold font-sans">Đăng xuất</span>
-          </a>
+          </button>
         </div>
       </aside>
 
@@ -1648,6 +1813,16 @@ export default function App() {
 
               {/* Category Grid Section */}
               <div className="space-y-4">
+                {loadingCategories && (
+                  <p className="py-8 text-center text-sm text-on-surface-variant">
+                    Đang tải danh mục từ máy chủ...
+                  </p>
+                )}
+                {!loadingCategories && filteredCategories.length === 0 && (
+                  <p className="py-8 text-center text-sm text-on-surface-variant">
+                    Chưa có danh mục nào.
+                  </p>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {filteredCategories.map((cat) => (
                     <div key={cat.id} className="bg-white p-5 border border-outline-variant/40 rounded-xl relative overflow-hidden group hover:border-[#56642b]/50 transition-all flex flex-col justify-between">
