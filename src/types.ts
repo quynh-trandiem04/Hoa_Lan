@@ -15,6 +15,12 @@ export interface Orchid {
   slug: string;
   uploadedImageIds: string[];
   displayOrder: number;
+  highlightDescription?: string;
+  lightDetail?: string;
+  tempDetail?: string;
+  watering?: string;
+  fertilizer?: string;
+  soilType?: string;
 }
 
 export interface Question {
