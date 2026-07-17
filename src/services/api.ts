@@ -18,6 +18,20 @@ export interface LoginResponse {
   [key: string]: unknown;
 }
 
+const getApiErrorMessage = (responseBody: LoginResponse, fallback: string): string => {
+  const validationErrors = responseBody.validationErrors;
+  if (validationErrors && typeof validationErrors === 'object') {
+    for (const value of Object.values(validationErrors)) {
+      if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
+      if (typeof value === 'string') return value;
+    }
+  }
+
+  return typeof responseBody.message === 'string' && responseBody.message
+    ? responseBody.message
+    : fallback;
+};
+
 export const login = async (credentials: LoginCredentials): Promise<LoginResponse> => {
   const response = await fetch(`${API_BASE_URL}/api/v1/Auth/login`, {
     method: 'POST',
@@ -43,11 +57,7 @@ export const login = async (credentials: LoginCredentials): Promise<LoginRespons
   }
 
   if (!response.ok) {
-    throw new Error(
-      typeof responseBody.message === 'string' && responseBody.message
-        ? responseBody.message
-        : 'Email hoặc mật khẩu không chính xác.'
-    );
+    throw new Error(getApiErrorMessage(responseBody, 'Email hoặc mật khẩu không chính xác.'));
   }
 
   return responseBody;
@@ -78,11 +88,7 @@ export const loginWithGoogle = async (idToken: string): Promise<LoginResponse> =
   }
 
   if (!response.ok) {
-    throw new Error(
-      typeof responseBody.message === 'string' && responseBody.message
-        ? responseBody.message
-        : 'Không thể đăng nhập bằng Google.'
-    );
+    throw new Error(getApiErrorMessage(responseBody, 'Không thể đăng nhập bằng Google.'));
   }
 
   return responseBody;
@@ -120,11 +126,7 @@ export const refreshAuthToken = async (
   }
 
   if (!response.ok) {
-    throw new Error(
-      typeof responseBody.message === 'string' && responseBody.message
-        ? responseBody.message
-        : 'Không thể làm mới phiên đăng nhập.'
-    );
+    throw new Error(getApiErrorMessage(responseBody, 'Không thể làm mới phiên đăng nhập.'));
   }
 
   return responseBody;
@@ -299,15 +301,29 @@ export const deleteArticle = async (id: string | number) => {
 // ======================= ORCHIDS API =======================
 
 export const getOrchids = async () => {
-  const response = await fetch(`${API_BASE_URL}/api/Orchids`);
+  const token = getStoredAuthToken();
+  const params = new URLSearchParams({ PageNumber: '1', PageSize: '100' });
+  const response = await fetch(`${API_BASE_URL}/api/v1/Orchids?${params.toString()}`, {
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    }
+  });
   if (!response.ok) {
-    throw new Error('Failed to fetch orchids');
+    throw new Error('Không thể tải danh sách hoa lan.');
   }
-  return response.json();
+  const data = await response.json();
+  return Array.isArray(data) ? data : data.items ?? [];
 };
 
 export const getOrchidById = async (id: string | number) => {
-  const response = await fetch(`${API_BASE_URL}/api/Orchids/${id}`);
+  const token = getStoredAuthToken();
+  const response = await fetch(`${API_BASE_URL}/api/v1/Orchids/${id}`, {
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    }
+  });
   if (!response.ok) {
     throw new Error('Failed to fetch orchid');
   }
@@ -315,10 +331,12 @@ export const getOrchidById = async (id: string | number) => {
 };
 
 export const createOrchid = async (data: any) => {
-  const response = await fetch(`${API_BASE_URL}/api/Orchids`, {
+  const token = getStoredAuthToken();
+  const response = await fetch(`${API_BASE_URL}/api/v1/Orchids`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
     body: JSON.stringify(data)
   });
@@ -329,10 +347,12 @@ export const createOrchid = async (data: any) => {
 };
 
 export const updateOrchid = async (id: string | number, data: any) => {
-  const response = await fetch(`${API_BASE_URL}/api/Orchids/${id}`, {
+  const token = getStoredAuthToken();
+  const response = await fetch(`${API_BASE_URL}/api/v1/Orchids/${id}`, {
     method: 'PUT',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
     body: JSON.stringify(data)
   });
@@ -350,8 +370,12 @@ export const updateOrchid = async (id: string | number, data: any) => {
 };
 
 export const deleteOrchid = async (id: string | number) => {
-  const response = await fetch(`${API_BASE_URL}/api/Orchids/${id}`, {
-    method: 'DELETE'
+  const token = getStoredAuthToken();
+  const response = await fetch(`${API_BASE_URL}/api/v1/Orchids/${id}`, {
+    method: 'DELETE',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    }
   });
   if (!response.ok) {
     throw new Error('Failed to delete orchid');
