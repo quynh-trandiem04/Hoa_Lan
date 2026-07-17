@@ -3,6 +3,7 @@ import { Search, ChevronLeft, ChevronRight, X, Heart, HelpCircle, ArrowLeft, Use
 import OrchidCard from '../components/OrchidCard';
 import { INITIAL_ORCHIDS, INITIAL_CATEGORIES, orchidData } from '../data';
 import { Orchid } from '../types';
+import SearchModal from '../components/SearchModal';
 
 interface ListOrchidsProps {
   categoryId?: string | null;
@@ -12,6 +13,7 @@ interface ListOrchidsProps {
 export default function ListOrchids({ categoryId, onNavigate }: ListOrchidsProps) {
   // Search and Filter states
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<Record<string, boolean>>({});
   const [showSavedOnly, setShowSavedOnly] = useState(false);
 
@@ -187,6 +189,7 @@ export default function ListOrchids({ categoryId, onNavigate }: ListOrchidsProps
           {/* Action Icons */}
           <div className="flex items-center space-x-5">
             <button
+              onClick={() => setIsSearchModalOpen(true)}
               className="p-1.5 hover:bg-[#56642b]/5 text-botanical-green rounded-full transition-colors cursor-pointer"
               title="Tìm kiếm loài lan"
             >
@@ -202,6 +205,12 @@ export default function ListOrchids({ categoryId, onNavigate }: ListOrchidsProps
           </div>
         </div>
       </nav>
+
+      <SearchModal 
+        isOpen={isSearchModalOpen} 
+        onClose={() => setIsSearchModalOpen(false)} 
+        onNavigate={onNavigate} 
+      />
 
       <div className="max-w-7xl mx-auto px-4 md:px-16 py-8 animate-fade-in">
         

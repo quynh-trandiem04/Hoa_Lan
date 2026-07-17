@@ -26,8 +26,10 @@ import { OrchidItem, PillarDetail } from "../types";
 import OrchidDetailModal from "../components/OrchidDetailModal";
 import PillarDetailModal from "../components/PillarDetailModal";
 import ResearchViewer from "../components/ResearchViewer";
-import CareCalculator from "../components/CareCalculator";
+
 import BotAdvisor from "../components/BotAdvisor";
+
+import SearchModal from "../components/SearchModal";
 
 export default function CustomerHome({ onNavigate }: { onNavigate: (screen: string, id?: string) => void }) {
   // Modal states
@@ -38,7 +40,6 @@ export default function CustomerHome({ onNavigate }: { onNavigate: (screen: stri
   
   // Custom interactive panels (header overlays)
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
@@ -49,13 +50,7 @@ export default function CustomerHome({ onNavigate }: { onNavigate: (screen: stri
   // We can show indices. On desktop, show 3 items. On mobile, show 1.
   const cardsRef = useRef<HTMLDivElement>(null);
 
-  // Auto notification after a while to guide the user to the advisor
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      triggerToast("💡 Chào mừng bạn! Trò chuyện cùng Cố vấn Hoa lan ở góc dưới để bắt đầu trồng thử nghiệm.");
-    }, 4000);
-    return () => clearTimeout(timer);
-  }, []);
+
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
@@ -153,67 +148,11 @@ export default function CustomerHome({ onNavigate }: { onNavigate: (screen: stri
       </nav>
 
       {/* 1b. Search Overlay Panels */}
-      <AnimatePresence>
-        {isSearchOpen && (
-          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-start justify-center pt-24 px-4">
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="bg-white rounded-xl shadow-2xl w-full max-w-xl border border-antique-gold/10 overflow-hidden"
-            >
-              <div className="p-5 flex items-center justify-between border-b border-surface-container">
-                <span className="text-xs font-mono uppercase tracking-widest text-antique-gold font-bold">Tìm kiếm bách khoa toàn thư</span>
-                <button 
-                  onClick={() => { setIsSearchOpen(false); setSearchQuery(""); }}
-                  className="p-1 text-on-surface-variant hover:text-charcoal-text cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="p-4">
-                <input
-                  type="text"
-                  placeholder="Nhập tên loài lan (ví dụ: hồ điệp, cát lan, phi điệp,ột biến...)"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full text-sm font-sans p-3 bg-surface-cream rounded border border-outline-variant/30 focus:border-botanical-green outline-none"
-                  autoFocus
-                />
-              </div>
-              <div className="p-4 pt-1 max-h-60 overflow-y-auto space-y-2">
-                {searchQuery.trim().length > 0 ? (
-                  orchidData
-                    .filter(item => 
-                      item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                      item.vietnameseName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                      item.scientificName.toLowerCase().includes(searchQuery.toLowerCase())
-                    )
-                    .map((item: any) => (
-                      <div
-                        key={item.id}
-                        onClick={() => {
-                          onNavigate('orchid_detail', item.id);
-                          setIsSearchOpen(false);
-                          setSearchQuery("");
-                        }}
-                        className="p-3 bg-surface-cream hover:bg-botanical-green/5 hover:text-botanical-green cursor-pointer rounded flex justify-between items-center group font-sans text-xs transition-colors"
-                      >
-                        <div>
-                          <p className="font-semibold">{item.name}</p>
-                          <p className="text-[10px] text-on-surface-variant/70 italic">{item.scientificName}</p>
-                        </div>
-                        <span className="text-[10px] uppercase font-semibold text-antique-gold">{item.vietnameseName}</span>
-                      </div>
-                    ))
-                ) : (
-                  <p className="text-xs text-on-surface-variant text-center py-4 font-sans">Nhập từ khóa để bắt đầu tra cứu nhanh giống hoa lan...</p>
-                )}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <SearchModal 
+        isOpen={isSearchOpen} 
+        onClose={() => setIsSearchOpen(false)} 
+        onNavigate={onNavigate} 
+      />
 
       {/* 1c. Profile Overlay Panel */}
       <AnimatePresence>
@@ -405,7 +344,7 @@ export default function CustomerHome({ onNavigate }: { onNavigate: (screen: stri
             <div className="aspect-[4/5] bg-surface-container overflow-hidden rounded-lg shadow-xl relative group">
               <img 
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-103" 
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDL6jH6o73b2DS3Gd_bf73iw93DVZMWz8kEewI_xrEXhyIvekDcyqn4nshzJcLTCozqex_hY46qqRMnihAjocQadgu-Nzt3gmIP-pbkDEKLXiIcRep-UstL2hnF4LJE5svArj2qzVrJvAmWbjJCIlyKzhfqr3i4TWfsuKYZPqznT2hDuhvQBUFVr3zlgMFsEPM1q3Khz3QDyBkP7a_T9DXS16KRazGfK2r9BdyRnk1gDZOOrHxezp7DwcDp1u-FRI4m4aQ3J43wcC6d"
+                src="/research-botanist.png"
                 alt="Professional botanist investigating Phalaenopsis orchid in laboratory greenhouse"
                 referrerPolicy="no-referrer"
               />
@@ -464,7 +403,7 @@ export default function CustomerHome({ onNavigate }: { onNavigate: (screen: stri
             {orchidData.map((item: any, index: number) => (
               <div 
                 key={item.id} 
-                className="w-full sm:w-[380px] shrink-0 group flex flex-col justify-between h-[480px]"
+                className="w-full sm:w-[380px] shrink-0 group flex flex-col justify-between"
                 style={{ width: "380px" }}
               >
                 <div>
@@ -505,19 +444,6 @@ export default function CustomerHome({ onNavigate }: { onNavigate: (screen: stri
         </div>
       </section>
 
-      {/* 5. Care Simulator Section (Cách Trồng & Chăm Sóc) */}
-      <section className="py-24 px-6 md:px-16 max-w-7xl mx-auto" id="care-calculator">
-        <div className="mb-12">
-          <span className="text-xs font-mono uppercase tracking-widest text-[#735c00] font-bold">CẨM NANG LÂM KHOA 2026</span>
-          <h2 className="font-serif text-3xl md:text-4xl text-charcoal-text mt-2 font-medium">
-            Môi trường sinh học & Kỹ năng chăm dưỡng
-          </h2>
-          <p className="font-sans text-sm text-on-surface-variant max-w-2xl mt-2 leading-relaxed">
-            Duy trì chu kỳ dưỡng thọ phong lan khoa học. Chọn loài cây của bạn và thử nghiệm các hạt số vi khí hậu như lượng nước bón và độ thấu quang để đánh giá sự hòa hợp.
-          </p>
-        </div>
-        <CareCalculator />
-      </section>
 
       {/* 6. Footer section */}
       <footer className="bg-surface-cream w-full py-16 border-t border-botanical-green/10">

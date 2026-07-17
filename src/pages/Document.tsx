@@ -32,11 +32,13 @@ import DownloadModal from '../components/DocDownloadModal';
 
 import { DOCUMENTS } from '../data';
 import { OrchidDocument as Document } from '../types';
+import SearchModal from '../components/SearchModal';
 
 export default function DocumentPage() {
   // Navigation State
   const [activeScreen, setActiveScreen] = useState<'library' | 'detail'>('library');
   const [selectedDoc, setSelectedDoc] = useState<Document>(DOCUMENTS[0]);
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
 
   // Search & Filter State
   const [keyword, setKeyword] = useState('');
@@ -205,7 +207,7 @@ export default function DocumentPage() {
             </a>
           </div>
           <div className="flex items-center space-x-5">
-            <button className="p-1.5 hover:bg-[#56642b]/5 text-[#56642b] rounded-full transition-colors cursor-pointer" title="Tìm kiếm loài lan">
+            <button onClick={() => setIsSearchModalOpen(true)} className="p-1.5 hover:bg-[#56642b]/5 text-[#56642b] rounded-full transition-colors cursor-pointer" title="Tìm kiếm loài lan">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-search w-5 h-5" aria-hidden="true"><path d="m21 21-4.34-4.34"></path><circle cx="11" cy="11" r="8"></circle></svg>
             </button>
             <button onClick={() => window.location.href = '/login'} className="p-1.5 hover:bg-[#56642b]/5 text-[#56642b] rounded-full transition-colors cursor-pointer" title="Trang quản lý hồ sơ">
@@ -214,6 +216,16 @@ export default function DocumentPage() {
           </div>
         </div>
       </header>
+
+      <SearchModal 
+        isOpen={isSearchModalOpen} 
+        onClose={() => setIsSearchModalOpen(false)} 
+        onNavigate={(screen, id) => {
+          if (screen === 'orchid_detail' && id) window.location.href = `/orchids/${id}`;
+          else if (screen === 'list_orchids') window.location.href = '/list-orchids';
+          else if (screen === 'home') window.location.href = '/';
+        }}
+      />
 
       {/* Main Container */}
       <main className="flex-grow mt-16 py-12">

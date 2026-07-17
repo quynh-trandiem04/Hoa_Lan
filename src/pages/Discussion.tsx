@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { MessageSquare, Heart, Send, Camera, X, ShieldAlert, BadgeCheck, Flame, Trash2, Milestone } from "lucide-react";
 import { DiscussionPost as Post, DiscussionComment as Comment } from "../types";
+import SearchModal from "../components/SearchModal";
 
 // Static premium images referenced in original layout for easy community mock attaches
 const PHOTO_ATTACH_OPTIONS = [
@@ -76,6 +77,7 @@ export default function CommunityTab() {
   const [attachedImageUrl, setAttachedImageUrl] = useState<string | null>(null);
   const [activeHashtagFilter, setActiveHashtagFilter] = useState<string | null>(null);
   const [showPhotoOptions, setShowPhotoOptions] = useState(false);
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   
   // Comment states indexed by post ID
   const [commentInputs, setCommentInputs] = useState<{ [postId: string]: string }>({});
@@ -267,7 +269,7 @@ export default function CommunityTab() {
             </button>
           </div>
           <div className="flex items-center space-x-5">
-            <button className="p-1.5 hover:bg-[#56642b]/5 text-[#56642b] rounded-full transition-colors cursor-pointer" title="Tìm kiếm loài lan">
+            <button onClick={() => setIsSearchModalOpen(true)} className="p-1.5 hover:bg-[#56642b]/5 text-[#56642b] rounded-full transition-colors cursor-pointer" title="Tìm kiếm loài lan">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-search w-5 h-5" aria-hidden="true"><path d="m21 21-4.34-4.34"></path><circle cx="11" cy="11" r="8"></circle></svg>
             </button>
             <button onClick={() => window.location.href = '/login'} className="p-1.5 hover:bg-[#56642b]/5 text-[#56642b] rounded-full transition-colors cursor-pointer" title="Trang quản lý hồ sơ">
@@ -276,6 +278,16 @@ export default function CommunityTab() {
           </div>
         </div>
       </header>
+
+      <SearchModal 
+        isOpen={isSearchModalOpen} 
+        onClose={() => setIsSearchModalOpen(false)} 
+        onNavigate={(screen, id) => {
+          if (screen === 'orchid_detail' && id) window.location.href = `/orchids/${id}`;
+          else if (screen === 'list_orchids') window.location.href = '/list-orchids';
+          else if (screen === 'home') window.location.href = '/';
+        }}
+      />
 
       {/* Main Content */}
       <main className="max-w-4xl mx-auto py-8 px-4 sm:px-6">

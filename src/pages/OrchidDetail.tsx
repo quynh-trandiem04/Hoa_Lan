@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Heart, Download, MapPin, Calendar, Sun, Thermometer, UserCheck, Search, User, ChevronRight, ThumbsUp } from 'lucide-react';
 import { INITIAL_ORCHIDS, INITIAL_CATEGORIES, orchidData } from '../data';
 import { Orchid } from '../types';
+import SearchModal from '../components/SearchModal';
 
 interface OrchidDetailProps {
   id: string;
@@ -9,9 +10,10 @@ interface OrchidDetailProps {
 }
 
 export default function OrchidDetail({ id, onNavigate }: OrchidDetailProps) {
-  const [orchid, setOrchid] = useState<any>(null);
+  const [orchid, setOrchid] = useState<Orchid | null>(null);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [activeImageIdx, setActiveImageIdx] = useState(0);
   
   // comments state
@@ -205,6 +207,7 @@ ${orchid.detailedDescription}
           {/* Action Icons */}
           <div className="flex items-center space-x-5">
             <button
+              onClick={() => setIsSearchModalOpen(true)}
               className="p-1.5 hover:bg-[#56642b]/5 text-botanical-green rounded-full transition-colors cursor-pointer"
               title="Tìm kiếm loài lan"
             >
@@ -220,6 +223,12 @@ ${orchid.detailedDescription}
           </div>
         </div>
       </nav>
+
+      <SearchModal 
+        isOpen={isSearchModalOpen} 
+        onClose={() => setIsSearchModalOpen(false)} 
+        onNavigate={onNavigate} 
+      />
 
       <div className="max-w-7xl mx-auto px-4 md:px-16 py-8">
         
