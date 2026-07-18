@@ -207,8 +207,8 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1">
+          <div className="w-full">
+            <div className="space-y-1 w-full">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Thuộc danh mục *</label>
               <div className="max-h-32 overflow-y-auto bg-surface-container-low border border-outline-variant rounded px-3 py-2 space-y-2">
                 {categories.length === 0 && (
