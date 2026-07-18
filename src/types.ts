@@ -114,11 +114,15 @@ export interface CommunityPost {
 }
 
 export interface CareArticle {
-  id?: string | number;
+  id?: string;
   title: string;
+  slug: string;
+  summary: string;
   content: string;
-  imageUrl?: string;
-  // Các trường khác có thể được bổ sung dựa theo schema thực tế của backend
+  thumbnailImageId: string | null;
+  isPublished: boolean;
+  orchidIds: string[];
+  documentIds: string[];
 }
 export interface OrchidItem {
   id: string;

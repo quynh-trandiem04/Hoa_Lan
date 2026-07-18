@@ -28,6 +28,7 @@ import {
 import { OrchidCareArticle as Article, ChatMessage } from "../types";
 import { CARE_ARTICLES as INITIAL_ARTICLES, CARE_CATEGORIES as CATEGORIES, HIGHLIGHTED_STATIONERY_QUOTES } from "../data";
 import SearchModal from "../components/SearchModal";
+import { getArticles } from "../services/api";
 
 export default function PlantingAndCare() {
   // Navigation tabs: 'care' (default), 'find', 'docs'
@@ -35,17 +36,7 @@ export default function PlantingAndCare() {
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
 
   // Articles & filtering state
-  const [articles, setArticles] = useState<Article[]>(() => {
-    const saved = localStorage.getItem("orchidee_luxe_articles");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return INITIAL_ARTICLES;
-      }
-    }
-    return INITIAL_ARTICLES;
-  });
+  const [articles, setArticles] = useState<Article[]>([]);
 
   const [selectedCategory, setSelectedCategory] = useState<string>("Tất cả bài viết");
   const [searchQuery, setSearchQuery] = useState("");
@@ -111,11 +102,42 @@ export default function PlantingAndCare() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Save to local storage on key hooks
   useEffect(() => {
-    localStorage.setItem("orchidee_luxe_articles", JSON.stringify(articles));
-  }, [articles]);
+    let isActive = true;
+    const loadPublishedArticles = async () => {
+      try {
+        const apiArticles = await getArticles({
+          isPublished: true,
+          pageNumber: 1,
+          pageSize: 100,
+          sortBy: "title",
+          sortDescending: false,
+        });
+        if (!isActive) return;
+        setArticles(apiArticles.map((article, index) => ({
+          id: article.id ?? article.slug,
+          category: "Kỹ thuật",
+          title: article.title,
+          author: "Ban biên tập Orchids",
+          date: "",
+          description: article.summary,
+          content: article.content,
+          imageUrl: INITIAL_ARTICLES[index % Math.max(INITIAL_ARTICLES.length, 1)]?.imageUrl ?? "",
+          featured: index === 0,
+          comments: [],
+        })));
+      } catch (error) {
+        console.error("Không thể tải bài viết đã xuất bản:", error);
+        if (isActive) setArticles([]);
+      }
+    };
+    void loadPublishedArticles();
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
+  // Save user-specific state on key hooks
   useEffect(() => {
     localStorage.setItem("orchidee_luxe_chat", JSON.stringify(chatMessages));
     if (chatBottomRef.current) {

@@ -1,6 +1,6 @@
 // src/services/api.ts
 
-import type { Category, Orchid, PaginatedCategories } from '../types';
+import type { CareArticle, Category, Orchid, PaginatedCategories } from '../types';
 
 const DEFAULT_API_BASE_URL = '/backend-api';
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL).replace(/\/$/, '');
@@ -376,72 +376,135 @@ export const deleteDocument = async (id: string | number) => {
 
 // ======================= ARTICLES API (Care Guide) =======================
 
-export const getArticles = async () => {
-  const response = await fetch(`${API_BASE_URL}/api/Articles`);
-  if (!response.ok) {
-    throw new Error('Failed to fetch articles');
-  }
-  return response.json();
+export interface ArticleQuery {
+  orchidId?: string;
+  isPublished?: boolean;
+  pageNumber?: number;
+  pageSize?: number;
+  searchTerm?: string;
+  sortBy?: string;
+  sortDescending?: boolean;
+  apiVersion?: string;
+}
+
+export type CreateArticlePayload = Omit<CareArticle, 'id'>;
+
+const normalizeArticle = (
+  article: Partial<CareArticle> & { id: string; title: string }
+): CareArticle => ({
+  id: article.id,
+  title: article.title,
+  slug: article.slug ?? '',
+  summary: article.summary ?? '',
+  content: article.content ?? '',
+  thumbnailImageId: article.thumbnailImageId ?? null,
+  isPublished: article.isPublished ?? false,
+  orchidIds: article.orchidIds ?? [],
+  documentIds: article.documentIds ?? [],
+});
+
+const throwArticleApiError = (body: unknown, fallback: string): never => {
+  const errorBody = body !== null && typeof body === 'object'
+    ? body as LoginResponse
+    : {};
+  throw new Error(getApiErrorMessage(errorBody, fallback));
 };
 
-export const getArticleById = async (id: string | number) => {
-  const response = await fetch(`${API_BASE_URL}/api/Articles/${id}`);
-  if (!response.ok) {
-    throw new Error('Failed to fetch article');
-  }
-  return response.json();
+export const getArticles = async (query: ArticleQuery = {}): Promise<CareArticle[]> => {
+  const params = new URLSearchParams({
+    PageNumber: String(query.pageNumber ?? 1),
+    PageSize: String(query.pageSize ?? 100),
+  });
+  if (query.orchidId) params.set('OrchidId', query.orchidId);
+  if (query.isPublished !== undefined) params.set('IsPublished', String(query.isPublished));
+  if (query.searchTerm) params.set('SearchTerm', query.searchTerm);
+  if (query.sortBy) params.set('SortBy', query.sortBy);
+  if (query.sortDescending !== undefined) params.set('SortDescending', String(query.sortDescending));
+  if (query.apiVersion) params.set('api-version', query.apiVersion);
+  const token = getStoredAuthToken();
+  const response = await fetch(`${API_BASE_URL}/api/Articles?${params.toString()}`, {
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    }
+  });
+  const body = await readApiResponse(response);
+  if (!response.ok) throwArticleApiError(body, 'Không thể tải danh sách bài viết.');
+  const data = body as { items?: Array<Partial<CareArticle> & { id: string; title: string }> } | Array<Partial<CareArticle> & { id: string; title: string }>;
+  const items = Array.isArray(data) ? data : data.items ?? [];
+  return items.map(normalizeArticle);
 };
 
-export const createArticle = async (data: any) => {
-  const response = await fetch(`${API_BASE_URL}/api/Articles`, {
+export const getArticleById = async (id: string, apiVersion?: string): Promise<CareArticle> => {
+  const params = new URLSearchParams();
+  if (apiVersion) params.set('api-version', apiVersion);
+  const query = params.toString();
+  const token = getStoredAuthToken();
+  const response = await fetch(
+    `${API_BASE_URL}/api/Articles/${encodeURIComponent(id)}${query ? `?${query}` : ''}`,
+    { headers: { Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) } }
+  );
+  const body = await readApiResponse(response);
+  if (!response.ok) throwArticleApiError(body, 'Không thể tải thông tin bài viết.');
+  return normalizeArticle(body as Partial<CareArticle> & { id: string; title: string });
+};
+
+export const createArticle = async (data: CreateArticlePayload, apiVersion?: string): Promise<unknown> => {
+  const params = new URLSearchParams();
+  if (apiVersion) params.set('api-version', apiVersion);
+  const query = params.toString();
+  const token = getStoredAuthToken();
+  const response = await fetch(`${API_BASE_URL}/api/Articles${query ? `?${query}` : ''}`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
     body: JSON.stringify(data)
   });
-  if (!response.ok) {
-    throw new Error('Failed to create article');
-  }
-  return response.json();
+  const body = await readApiResponse(response);
+  if (!response.ok) throwArticleApiError(body, 'Không thể tạo bài viết mới.');
+  return body;
 };
 
-export const updateArticle = async (id: string | number, data: any) => {
-  const response = await fetch(`${API_BASE_URL}/api/Articles/${id}`, {
+export const updateArticle = async (
+  id: string,
+  data: CreateArticlePayload,
+  apiVersion?: string
+): Promise<unknown> => {
+  const params = new URLSearchParams();
+  if (apiVersion) params.set('api-version', apiVersion);
+  const query = params.toString();
+  const token = getStoredAuthToken();
+  const response = await fetch(`${API_BASE_URL}/api/Articles/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
     method: 'PUT',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
-    body: JSON.stringify(data)
+    body: JSON.stringify({ ...data, id })
   });
-  if (!response.ok) {
-    throw new Error('Failed to update article');
-  }
-  if (response.status !== 204) {
-    try {
-      return await response.json();
-    } catch {
-      return null;
-    }
-  }
-  return null;
+  const body = await readApiResponse(response);
+  if (!response.ok) throwArticleApiError(body, 'Không thể cập nhật bài viết.');
+  return body;
 };
 
-export const deleteArticle = async (id: string | number) => {
-  const response = await fetch(`${API_BASE_URL}/api/Articles/${id}`, {
-    method: 'DELETE'
-  });
-  if (!response.ok) {
-    throw new Error('Failed to delete article');
-  }
-  if (response.status !== 204) {
-    try {
-      return await response.json();
-    } catch {
-      return null;
+export const deleteArticle = async (id: string, apiVersion?: string): Promise<void> => {
+  const params = new URLSearchParams();
+  if (apiVersion) params.set('api-version', apiVersion);
+  const query = params.toString();
+  const token = getStoredAuthToken();
+  const response = await fetch(`${API_BASE_URL}/api/Articles/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
+    method: 'DELETE',
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
     }
-  }
-  return null;
+  });
+  const body = await readApiResponse(response);
+  if (!response.ok) throwArticleApiError(body, 'Không thể xóa bài viết.');
 };
 
 

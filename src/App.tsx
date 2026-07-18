@@ -44,7 +44,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 // Domain Imports
 import { Orchid, Question, Category, CommunityPost, CareArticle, PaginatedDocuments, DocumentItem } from './types';
-import { login, loginWithGoogle, refreshAuthToken, getCategories, createCategory, getCategoryById, updateCategory, deleteCategory, getArticles, createArticle, updateArticle, deleteArticle, getOrchids, getOrchidById, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, deleteDocument, type LoginResponse } from './services/api';
+import { login, loginWithGoogle, refreshAuthToken, getCategories, createCategory, getCategoryById, updateCategory, deleteCategory, getArticles, getArticleById, createArticle, updateArticle, deleteArticle, getOrchids, getOrchidById, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, deleteDocument, type LoginResponse } from './services/api';
 import {
   INITIAL_ORCHIDS,
   INITIAL_QUESTIONS,
@@ -516,7 +516,18 @@ export default function App() {
   const [loadingCareArticles, setLoadingCareArticles] = useState(false);
   const [showCareArticleEditor, setShowCareArticleEditor] = useState(false);
   const [editingCareArticle, setEditingCareArticle] = useState<CareArticle | null>(null);
-  const [careArticleForm, setCareArticleForm] = useState({ title: '', content: '', imageUrl: '' });
+  const emptyCareArticleForm = {
+    title: '',
+    slug: '',
+    summary: '',
+    content: '',
+    thumbnailImageId: '',
+    isPublished: true,
+    orchidIds: [] as string[],
+    documentIds: [] as string[],
+  };
+  const [careArticleForm, setCareArticleForm] = useState(emptyCareArticleForm);
+  const [savingCareArticle, setSavingCareArticle] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'care') {
@@ -542,32 +553,80 @@ export default function App() {
       addToast('Vui lòng nhập đủ thông tin', 'error');
       return;
     }
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (careArticleForm.thumbnailImageId && !uuidPattern.test(careArticleForm.thumbnailImageId.trim())) {
+      addToast('ID ảnh đại diện phải là UUID hợp lệ.', 'error');
+      return;
+    }
+    if (careArticleForm.documentIds.some((id) => !uuidPattern.test(id))) {
+      addToast('Danh sách tài liệu chứa UUID không hợp lệ.', 'error');
+      return;
+    }
 
+    const slug = careArticleForm.slug.trim() || careArticleForm.title
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+    const payload = {
+      ...careArticleForm,
+      title: careArticleForm.title.trim(),
+      slug,
+      summary: careArticleForm.summary.trim(),
+      content: careArticleForm.content.trim(),
+      thumbnailImageId: careArticleForm.thumbnailImageId.trim() || null,
+    };
+
+    setSavingCareArticle(true);
     try {
       if (editingCareArticle && editingCareArticle.id) {
-        await updateArticle(editingCareArticle.id, careArticleForm);
+        await updateArticle(editingCareArticle.id, payload);
         addToast('Cập nhật thành công', 'success');
       } else {
-        await createArticle(careArticleForm);
+        await createArticle(payload);
         addToast('Thêm mới thành công', 'success');
       }
       setShowCareArticleEditor(false);
       setEditingCareArticle(null);
-      setCareArticleForm({ title: '', content: '', imageUrl: '' });
-      loadCareArticles();
+      setCareArticleForm(emptyCareArticleForm);
+      await loadCareArticles();
     } catch (error) {
-      addToast('Có lỗi xảy ra khi lưu', 'error');
+      addToast(error instanceof Error ? error.message : 'Có lỗi xảy ra khi lưu.', 'error');
+    } finally {
+      setSavingCareArticle(false);
     }
   };
 
-  const handleDeleteCareArticle = async (id: string | number) => {
+  const handleOpenEditCareArticle = async (id: string) => {
+    try {
+      const article = await getArticleById(id);
+      setEditingCareArticle(article);
+      setCareArticleForm({
+        title: article.title,
+        slug: article.slug,
+        summary: article.summary,
+        content: article.content,
+        thumbnailImageId: article.thumbnailImageId ?? '',
+        isPublished: article.isPublished,
+        orchidIds: article.orchidIds,
+        documentIds: article.documentIds,
+      });
+      setShowCareArticleEditor(true);
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Không thể tải thông tin bài viết.', 'error');
+    }
+  };
+
+  const handleDeleteCareArticle = async (id: string) => {
     if (!window.confirm('Bạn có chắc chắn muốn xóa bài hướng dẫn này?')) return;
     try {
       await deleteArticle(id);
       addToast('Xóa thành công', 'info');
       loadCareArticles();
     } catch (error) {
-      addToast('Có lỗi xảy ra khi xóa', 'error');
+      addToast(error instanceof Error ? error.message : 'Có lỗi xảy ra khi xóa.', 'error');
     }
   };
 
@@ -2409,7 +2468,7 @@ export default function App() {
                   <button
                     onClick={() => {
                       setEditingCareArticle(null);
-                      setCareArticleForm({ title: '', content: '', imageUrl: '' });
+                      setCareArticleForm(emptyCareArticleForm);
                       setShowCareArticleEditor(true);
                     }}
                     className="px-5 py-2.5 bg-botanical-green text-white font-sans text-xs font-semibold uppercase tracking-wider rounded-lg hover:shadow cursor-pointer"
@@ -2438,32 +2497,82 @@ export default function App() {
                   </div>
 
                   <form onSubmit={handleSaveCareArticle} className="space-y-4">
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tiêu đề hướng dẫn</label>
-                      <input
-                        type="text"
-                        value={careArticleForm.title}
-                        onChange={(e) => setCareArticleForm({ ...careArticleForm, title: e.target.value })}
-                        placeholder="Ví dụ: Kỹ thuật thay chậu cho lan Hồ Điệp..."
-                        className="w-full bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green font-semibold"
-                        required
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tiêu đề hướng dẫn</label>
+                        <input
+                          type="text"
+                          value={careArticleForm.title}
+                          onChange={(e) => setCareArticleForm({ ...careArticleForm, title: e.target.value })}
+                          placeholder="Ví dụ: Kỹ thuật thay chậu cho lan Hồ Điệp..."
+                          className="w-full bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green font-semibold"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Slug</label>
+                        <input
+                          type="text"
+                          value={careArticleForm.slug}
+                          onChange={(e) => setCareArticleForm({ ...careArticleForm, slug: e.target.value })}
+                          placeholder="Để trống để tự tạo"
+                          className="w-full bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green"
+                        />
+                      </div>
                     </div>
 
                     <div className="space-y-1">
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Liên kết ảnh minh họa (URL)</label>
-                      <input
-                        type="url"
-                        value={careArticleForm.imageUrl}
-                        onChange={(e) => setCareArticleForm({ ...careArticleForm, imageUrl: e.target.value })}
-                        placeholder="https://..."
-                        className="w-full bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green"
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tóm tắt</label>
+                      <textarea
+                        value={careArticleForm.summary}
+                        onChange={(e) => setCareArticleForm({ ...careArticleForm, summary: e.target.value })}
+                        rows={3}
+                        className="w-full bg-[#f4f4f2] border border-outline-variant rounded p-3 text-sm focus:outline-none focus:border-botanical-green resize-none"
                       />
-                      {careArticleForm.imageUrl && (
-                        <div className="mt-2 rounded-lg overflow-hidden border border-outline-variant bg-surface-container h-40 max-w-md">
-                          <img src={careArticleForm.imageUrl} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                        </div>
-                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">ID ảnh đại diện (UUID)</label>
+                        <input
+                          type="text"
+                          value={careArticleForm.thumbnailImageId}
+                          onChange={(e) => setCareArticleForm({ ...careArticleForm, thumbnailImageId: e.target.value })}
+                          placeholder="Có thể để trống"
+                          className="w-full bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tài liệu liên quan (UUID, cách nhau dấu phẩy)</label>
+                        <input
+                          type="text"
+                          value={careArticleForm.documentIds.join(', ')}
+                          onChange={(e) => setCareArticleForm({
+                            ...careArticleForm,
+                            documentIds: e.target.value.split(',').map((id) => id.trim()).filter(Boolean),
+                          })}
+                          placeholder="Có thể để trống"
+                          className="w-full bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Hoa lan liên quan</label>
+                      <select
+                        multiple
+                        value={careArticleForm.orchidIds}
+                        onChange={(e) => setCareArticleForm({
+                          ...careArticleForm,
+                          orchidIds: Array.from(e.currentTarget.selectedOptions, (option) => option.value),
+                        })}
+                        className="w-full min-h-24 bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green"
+                      >
+                        {orchids.filter((orchid) => orchid.id).map((orchid) => (
+                          <option key={orchid.id} value={orchid.id}>{orchid.name}</option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-outline">Giữ Ctrl để chọn nhiều hoa lan.</p>
                     </div>
 
                     <div className="space-y-1">
@@ -2479,18 +2588,28 @@ export default function App() {
                     </div>
 
                     <div className="pt-4 border-t border-outline-variant flex justify-end gap-2">
+                      <label className="mr-auto flex items-center gap-2 text-xs font-semibold text-on-surface-variant cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={careArticleForm.isPublished}
+                          onChange={(e) => setCareArticleForm({ ...careArticleForm, isPublished: e.target.checked })}
+                        />
+                        Đã xuất bản
+                      </label>
                       <button
                         type="button"
                         onClick={() => setShowCareArticleEditor(false)}
+                        disabled={savingCareArticle}
                         className="px-4 py-2 border border-outline text-outline font-medium text-xs uppercase hover:bg-surface-container transition-all cursor-pointer"
                       >
                         Hủy
                       </button>
                       <button
                         type="submit"
-                        className="px-5 py-2 bg-botanical-green text-white font-medium text-xs uppercase hover:opacity-90 transition-all rounded cursor-pointer"
+                        disabled={savingCareArticle}
+                        className="px-5 py-2 bg-botanical-green text-white font-medium text-xs uppercase hover:opacity-90 transition-all rounded cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        {editingCareArticle ? 'Cập nhật' : 'Xuất bản'}
+                        {savingCareArticle ? 'Đang lưu...' : (editingCareArticle ? 'Cập nhật' : 'Lưu bài viết')}
                       </button>
                     </div>
                   </form>
@@ -2515,26 +2634,24 @@ export default function App() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {careArticles.map((art) => (
                         <div key={art.id} className="bg-white rounded-xl border border-outline-variant/30 overflow-hidden flex flex-col hover:shadow-md transition-all">
-                          {art.imageUrl && (
-                            <div className="h-48 w-full bg-surface-container overflow-hidden">
-                              <img src={art.imageUrl} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" />
-                            </div>
-                          )}
                           <div className="p-5 flex-1 flex flex-col">
                             <h3 className="font-serif text-lg font-bold text-on-surface line-clamp-2 leading-tight">
                               {art.title}
                             </h3>
+                            <span className={`mt-2 w-fit px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                              art.isPublished
+                                ? 'bg-[#d6e7a0]/30 text-[#5a682f]'
+                                : 'bg-surface-container text-outline'
+                            }`}>
+                              {art.isPublished ? 'Đã xuất bản' : 'Bản nháp'}
+                            </span>
                             <p className="text-xs text-on-surface-variant leading-relaxed mt-2 line-clamp-3 flex-1">
-                              {art.content}
+                              {art.summary || art.content}
                             </p>
                             
                             <div className="pt-4 border-t border-[#f4f4f2] mt-4 flex items-center justify-end gap-2">
                               <button
-                                onClick={() => {
-                                  setEditingCareArticle(art);
-                                  setCareArticleForm({ title: art.title, content: art.content, imageUrl: art.imageUrl || '' });
-                                  setShowCareArticleEditor(true);
-                                }}
+                                onClick={() => art.id && void handleOpenEditCareArticle(art.id)}
                                 className="p-1.5 px-3 bg-soft-olive text-[#5a682f] border border-secondary/15 rounded hover:bg-secondary hover:text-white transition-all font-bold text-[10px] uppercase font-sans cursor-pointer"
                               >
                                 Sửa
