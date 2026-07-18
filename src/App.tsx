@@ -49,7 +49,6 @@ import {
   INITIAL_ORCHIDS,
   INITIAL_QUESTIONS,
   INITIAL_ARTICLES,
-  INITIAL_CATEGORIES,
   INITIAL_COMMUNITY_POSTS
 } from './data';
 
@@ -420,10 +419,9 @@ export default function App() {
     }
   }, [activeTab, docPage]);
 
-  const [categories, setCategories] = useState<Category[]>(() => {
-    const saved = localStorage.getItem('ol_categories');
-    return saved ? JSON.parse(saved) : INITIAL_CATEGORIES;
-  });
+  // Categories are server-owned. Starting empty prevents stale demo/localStorage
+  // entries from appearing while the API request is still in flight.
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
 
   useEffect(() => {
@@ -481,11 +479,6 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('ol_questions', JSON.stringify(questions));
   }, [questions]);
-
-
-  useEffect(() => {
-    localStorage.setItem('ol_categories', JSON.stringify(categories));
-  }, [categories]);
 
   useEffect(() => {
     try {
