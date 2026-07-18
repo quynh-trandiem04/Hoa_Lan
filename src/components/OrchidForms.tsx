@@ -28,13 +28,13 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
   const isEditing = !!editOrchidData;
   const [name, setName] = useState('');
   const [englishName, setEnglishName] = useState('');
-  const [categoryId, setCategoryId] = useState('');
+  const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [shortDescription, setShortDescription] = useState('');
   const [detailedDescription, setDetailedDescription] = useState('');
   const [hasFragrance, setHasFragrance] = useState(false);
   const [isPopular, setIsPopular] = useState(false);
   const [slug, setSlug] = useState('');
-  const [uploadedImageId, setUploadedImageId] = useState('');
+  const [uploadedImageIdsText, setUploadedImageIdsText] = useState('');
   const [displayOrder, setDisplayOrder] = useState(0);
 
   const [errorMsg, setErrorMsg] = useState('');
@@ -44,24 +44,24 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
     if (editOrchidData) {
       setName(editOrchidData.name);
       setEnglishName(editOrchidData.englishName);
-      setCategoryId(editOrchidData.categoryIds[0] || '');
+      setCategoryIds(editOrchidData.categoryIds);
       setShortDescription(editOrchidData.shortDescription);
       setDetailedDescription(editOrchidData.detailedDescription);
       setHasFragrance(editOrchidData.hasFragrance);
       setIsPopular(editOrchidData.isPopular);
       setSlug(editOrchidData.slug);
-      setUploadedImageId(editOrchidData.uploadedImageIds[0] || '');
+      setUploadedImageIdsText(editOrchidData.uploadedImageIds.join('\n'));
       setDisplayOrder(editOrchidData.displayOrder);
     } else {
       setName('');
       setEnglishName('');
-      setCategoryId(categories[0]?.id || '');
+      setCategoryIds([]);
       setShortDescription('');
       setDetailedDescription('');
       setHasFragrance(false);
       setIsPopular(false);
       setSlug('');
-      setUploadedImageId('');
+      setUploadedImageIdsText('');
       setDisplayOrder(0);
     }
   }, [editOrchidData, isOpen, categories]);
@@ -78,12 +78,17 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
       setErrorMsg('Vui lòng bổ sung tên tiếng Anh / Danh pháp khoa học.');
       return;
     }
-    if (!categoryId) {
-      setErrorMsg('Vui lòng chọn danh mục cho hoa lan.');
+    if (categoryIds.length === 0) {
+      setErrorMsg('Vui lòng chọn ít nhất một danh mục cho hoa lan.');
       return;
     }
-    if (uploadedImageId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(uploadedImageId)) {
-      setErrorMsg('ID ảnh phải là UUID hợp lệ theo API.');
+    const uploadedImageIds = Array.from(new Set(uploadedImageIdsText
+      .split(/[\s,;]+/)
+      .map((id) => id.trim())
+      .filter(Boolean)));
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uploadedImageIds.some((id) => !uuidPattern.test(id))) {
+      setErrorMsg('Danh sách ảnh chứa UUID không hợp lệ.');
       return;
     }
 
@@ -96,15 +101,15 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
       .replace(/^-|-$/g, '');
 
     const orchidPayload = {
-      name,
-      englishName,
-      categoryIds: [categoryId],
-      shortDescription,
-      detailedDescription,
+      name: name.trim(),
+      englishName: englishName.trim(),
+      categoryIds,
+      shortDescription: shortDescription.trim(),
+      detailedDescription: detailedDescription.trim(),
       hasFragrance,
       isPopular,
       slug: finalSlug,
-      uploadedImageIds: uploadedImageId ? [uploadedImageId] : [],
+      uploadedImageIds,
       displayOrder
     };
 
@@ -167,7 +172,7 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
             </div>
 
             <div className="space-y-1">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tên Tiếng Anh *</label>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tên tiếng Anh / Danh pháp khoa học *</label>
               <input
                 type="text"
                 value={englishName}
@@ -180,16 +185,26 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Thuộc Danh mục</label>
-              <select
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-[#56642b] text-charcoal-text"
-              >
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Thuộc danh mục *</label>
+              <div className="max-h-32 overflow-y-auto bg-surface-container-low border border-outline-variant rounded px-3 py-2 space-y-2">
+                {categories.length === 0 && (
+                  <p className="text-xs text-outline">Chưa có danh mục. Hãy tạo danh mục trước.</p>
+                )}
                 {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  <label key={cat.id} className="flex items-center gap-2 text-sm text-charcoal-text cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={categoryIds.includes(cat.id)}
+                      onChange={(e) => setCategoryIds((current) => e.target.checked
+                        ? [...current, cat.id]
+                        : current.filter((id) => id !== cat.id))}
+                      className="w-4 h-4 text-[#56642b] rounded border-outline focus:ring-[#56642b]"
+                    />
+                    <span>{cat.name}</span>
+                  </label>
                 ))}
-              </select>
+              </div>
+              <p className="text-[10px] text-outline">Có thể chọn nhiều danh mục.</p>
             </div>
 
             <div className="space-y-1">
@@ -259,14 +274,15 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
 
           <div className="space-y-2">
             <div className="space-y-1 mt-2">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">ID ảnh đã tải lên (UUID)</label>
-              <input
-                type="text"
-                value={uploadedImageId}
-                onChange={(e) => setUploadedImageId(e.target.value)}
-                className="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-[#56642b]"
-                placeholder="Ví dụ: 3fa85f64-5717-4562-b3fc-2c963f66afa6"
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Danh sách ID ảnh đã tải lên (UUID)</label>
+              <textarea
+                value={uploadedImageIdsText}
+                onChange={(e) => setUploadedImageIdsText(e.target.value)}
+                rows={3}
+                className="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm font-mono focus:outline-none focus:border-[#56642b] resize-y"
+                placeholder={'Mỗi UUID một dòng, ví dụ:\n3fa85f64-5717-4562-b3fc-2c963f66afa6'}
               />
+              <p className="text-[10px] text-outline">Nhập nhiều UUID, ngăn cách bằng xuống dòng, dấu phẩy hoặc dấu chấm phẩy.</p>
             </div>
           </div>
 
