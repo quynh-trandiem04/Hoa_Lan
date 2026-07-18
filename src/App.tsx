@@ -421,6 +421,7 @@ export default function App() {
   const [docPage, setDocPage] = useState(1);
   const [showDocumentForm, setShowDocumentForm] = useState(false);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [uploadingDocument, setUploadingDocument] = useState(false);
   const [documentForm, setDocumentForm] = useState<Omit<DocumentItem, 'id' | 'createdAt'>>({
     title: '', description: '', originalName: '', extension: '', sizeBytes: 0, url: ''
   });
@@ -971,7 +972,12 @@ export default function App() {
       addToast('Vui lòng nhập tiêu đề và chọn tệp tài liệu', 'error');
       return;
     }
+    if (documentFile.size > 50 * 1024 * 1024) {
+      addToast('Tệp tài liệu không được vượt quá 50 MB', 'error');
+      return;
+    }
 
+    setUploadingDocument(true);
     try {
       await createDocument({
         file: documentFile,
@@ -985,6 +991,8 @@ export default function App() {
       await loadDocuments(docPage);
     } catch (error) {
       addToast(error instanceof Error ? error.message : 'Có lỗi xảy ra khi tải lên tài liệu', 'error');
+    } finally {
+      setUploadingDocument(false);
     }
   };
 
@@ -2247,14 +2255,14 @@ export default function App() {
                 <motion.div
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-white p-6 rounded-xl border border-outline-variant max-w-3xl mx-auto space-y-5"
+                  className="bg-white p-8 rounded-xl border border-outline-variant max-w-2xl mx-auto space-y-6 shadow-sm"
                 >
                   <div className="flex justify-between items-center pb-3 border-b border-outline-variant">
                     <h3 className="font-serif text-xl font-bold text-on-surface">
                       Thêm tài liệu mới
                     </h3>
                     <button
-                      onClick={() => setShowDocumentForm(false)}
+                      onClick={() => { setShowDocumentForm(false); setDocumentFile(null); }}
                       className="p-1 rounded-full text-outline hover:text-charcoal-text transition-all cursor-pointer"
                     >
                       <X className="w-5 h-5" />
@@ -2267,6 +2275,7 @@ export default function App() {
                       <input
                         type="text"
                         required
+                        placeholder="Nhập tiêu đề tài liệu"
                         value={documentForm.title}
                         onChange={(e) => setDocumentForm({ ...documentForm, title: e.target.value })}
                         className="w-full bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green font-semibold"
@@ -2275,21 +2284,32 @@ export default function App() {
                     <div className="space-y-1">
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tệp tài liệu *</label>
                       <input
+                        id="document-file-upload"
                         type="file"
                         required
                         accept=".pdf,.doc,.docx,.xls,.xlsx,.zip,.txt"
                         onChange={(e) => setDocumentFile(e.target.files?.[0] ?? null)}
-                        className="w-full bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green file:mr-3 file:border-0 file:bg-[#56642b] file:text-white file:px-3 file:py-1.5 file:rounded"
+                        className="sr-only"
                       />
-                      {documentFile && (
-                        <p className="text-[10px] text-outline">
-                          {documentFile.name} — {(documentFile.size / 1024 / 1024).toFixed(2)} MB
-                        </p>
-                      )}
+                      <label
+                        htmlFor="document-file-upload"
+                        className="min-h-32 border-2 border-dashed border-outline-variant rounded-lg flex flex-col items-center justify-center gap-2 px-5 py-6 cursor-pointer hover:border-[#56642b] hover:bg-[#f7f8f2] transition-colors"
+                      >
+                        <FilePlus className="w-7 h-7 text-[#56642b]" />
+                        <span className="text-sm font-semibold text-charcoal-text">
+                          {documentFile ? documentFile.name : 'Chọn tệp từ máy tính'}
+                        </span>
+                        <span className="text-[10px] text-outline">
+                          {documentFile
+                            ? `${(documentFile.size / 1024 / 1024).toFixed(2)} MB`
+                            : 'PDF, DOCX, XLSX, ZIP hoặc TXT'}
+                        </span>
+                      </label>
                     </div>
                     <div className="space-y-1">
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Mô tả</label>
                       <textarea
+                        placeholder="Nhập mô tả ngắn cho tài liệu"
                         value={documentForm.description}
                         onChange={(e) => setDocumentForm({ ...documentForm, description: e.target.value })}
                         rows={3}
@@ -2330,16 +2350,18 @@ export default function App() {
                     <div className="pt-4 border-t border-outline-variant flex justify-end gap-2">
                       <button
                         type="button"
-                        onClick={() => setShowDocumentForm(false)}
-                        className="px-4 py-2 border border-outline text-outline font-medium text-xs uppercase hover:bg-surface-container transition-all cursor-pointer"
+                        disabled={uploadingDocument}
+                        onClick={() => { setShowDocumentForm(false); setDocumentFile(null); }}
+                        className="px-4 py-2 border border-outline text-outline font-medium text-xs uppercase hover:bg-surface-container transition-all cursor-pointer disabled:opacity-60"
                       >
                         Hủy
                       </button>
                       <button
                         type="submit"
-                        className="px-5 py-2 bg-botanical-green text-white font-medium text-xs uppercase hover:opacity-90 transition-all rounded cursor-pointer"
+                        disabled={uploadingDocument}
+                        className="min-w-28 px-5 py-2 bg-botanical-green text-white font-medium text-xs uppercase hover:opacity-90 transition-all rounded cursor-pointer disabled:opacity-60 disabled:cursor-wait"
                       >
-                        Tải lên
+                        {uploadingDocument ? 'Đang tải...' : 'Tải lên'}
                       </button>
                     </div>
                   </form>
