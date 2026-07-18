@@ -159,7 +159,7 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
             <div className="space-y-1">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tên thường gọi *</label>
               <input
@@ -205,17 +205,6 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
                 ))}
               </div>
               <p className="text-[10px] text-outline">Có thể chọn nhiều danh mục.</p>
-            </div>
-
-            <div className="space-y-1">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Định danh (Slug)</label>
-              <input
-                type="text"
-                value={slug}
-                onChange={(e) => setSlug(e.target.value)}
-                placeholder="vd: hoang-thao-ken (để trống tự tạo)"
-                className="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-[#56642b]"
-              />
             </div>
           </div>
 
