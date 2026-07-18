@@ -33,14 +33,28 @@ const getApiErrorMessage = (responseBody: LoginResponse, fallback: string): stri
 };
 
 export const login = async (credentials: LoginCredentials): Promise<LoginResponse> => {
-  const response = await fetch(`${API_BASE_URL}/api/v1/Auth/login`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json'
-    },
-    body: JSON.stringify(credentials)
-  });
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 30_000);
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}/api/v1/Auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      },
+      body: JSON.stringify(credentials),
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('Máy chủ phản hồi quá lâu. Vui lòng thử đăng nhập lại.');
+    }
+    throw new Error('Không thể kết nối đến máy chủ đăng nhập.');
+  } finally {
+    window.clearTimeout(timeout);
+  }
 
   const rawBody = await response.text();
   let responseBody: LoginResponse = {};

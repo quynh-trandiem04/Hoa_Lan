@@ -2519,15 +2519,15 @@ export default function App() {
         onBan={handleRejectPost}
       />
 
-      {/* Global Visual Toasts Display container */}
-      <Toasts toasts={toasts} removeToast={removeToast} />
-
       </div>
       )}
 
           {screen === 'discussion' && <Discussion />}
           {screen === 'planting_and_care' && <PlantingAndCare />}
           {screen === 'document' && <DocumentPage />}
+
+      {/* Global notifications for login, signup and dashboard screens. */}
+      <Toasts toasts={toasts} removeToast={removeToast} />
     </div>
   );
 }
