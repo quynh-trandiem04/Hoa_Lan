@@ -44,7 +44,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 // Domain Imports
 import { Orchid, Question, Category, CommunityPost, CareArticle, PaginatedDocuments, DocumentItem } from './types';
-import { login, loginWithGoogle, refreshAuthToken, getCategories, createCategory, getArticles, createArticle, updateArticle, deleteArticle, getOrchids, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, deleteDocument, type LoginResponse } from './services/api';
+import { login, loginWithGoogle, refreshAuthToken, getCategories, createCategory, getCategoryById, updateCategory, deleteCategory, getArticles, createArticle, updateArticle, deleteArticle, getOrchids, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, deleteDocument, type LoginResponse } from './services/api';
 import {
   INITIAL_ORCHIDS,
   INITIAL_QUESTIONS,
@@ -503,6 +503,7 @@ export default function App() {
   const [openAddOrchid, setOpenAddOrchid] = useState(false);
   const [editingOrchid, setEditingOrchid] = useState<Orchid | null>(null);
   const [openAddCategory, setOpenAddCategory] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [openReport, setOpenReport] = useState(false);
   const [openDocUpload, setOpenDocUpload] = useState(false);
   const [openInviteAdmin, setOpenInviteAdmin] = useState(false);
@@ -770,6 +771,57 @@ export default function App() {
       const message = error instanceof Error ? error.message : 'Không thể tạo danh mục mới.';
       addToast(message, 'error');
       throw error;
+    }
+  };
+
+  const handleOpenEditCategory = async (id: string) => {
+    try {
+      const category = await getCategoryById(id);
+      setEditingCategory(category);
+      setOpenAddCategory(true);
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Không thể tải thông tin danh mục.', 'error');
+    }
+  };
+
+  const handleUpdateCategory = async (
+    id: string,
+    payload: Omit<Category, 'id' | 'orchidCount'>
+  ) => {
+    const slug = payload.slug || payload.name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+
+    try {
+      await updateCategory(id, {
+        id,
+        name: payload.name.trim(),
+        description: payload.description.trim(),
+        slug,
+        parentId: payload.parentId ?? null,
+      });
+      const refreshedCategories = await getCategories({ pageNumber: 1, pageSize: 100, sortBy: 'name' });
+      setCategories(refreshedCategories.items);
+      setEditingCategory(null);
+      addToast(`Đã cập nhật danh mục: ${payload.name}`, 'success');
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Không thể cập nhật danh mục.', 'error');
+      throw error;
+    }
+  };
+
+  const handleDeleteCategory = async (category: Category) => {
+    if (!window.confirm(`Bạn có chắc muốn xóa danh mục “${category.name}”?`)) return;
+    try {
+      await deleteCategory(category.id);
+      setCategories((current) => current.filter((item) => item.id !== category.id));
+      addToast(`Đã xóa danh mục: ${category.name}`, 'success');
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Không thể xóa danh mục.', 'error');
     }
   };
 
@@ -1563,7 +1615,7 @@ export default function App() {
                 </div>
                 <div className="flex flex-wrap gap-2.5">
                   <button
-                    onClick={() => setOpenAddCategory(true)}
+                    onClick={() => { setEditingCategory(null); setOpenAddCategory(true); }}
                     className="flex items-center gap-1.5 px-4 py-2 bg-[#56642b] text-white rounded-lg font-sans text-xs font-semibold uppercase tracking-wider hover:shadow-md transition-all shrink-0 cursor-pointer"
                   >
                     <Plus className="w-4 h-4" /> THÊM DANH MỤC
@@ -1825,7 +1877,7 @@ export default function App() {
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => setOpenAddCategory(true)}
+                    onClick={() => { setEditingCategory(null); setOpenAddCategory(true); }}
                     className="px-4 py-2 bg-botanical-green text-white font-sans text-xs font-semibold uppercase tracking-wider rounded-lg hover:shadow transition-all shrink-0 cursor-pointer"
                   >
                     Tạo danh mục mới
@@ -1864,18 +1916,38 @@ export default function App() {
                         </p>
                       </div>
                       
-                      <div className="pt-4 border-t border-[#f4f4f2] mt-4 flex justify-between items-center">
+                      <div className="pt-4 border-t border-[#f4f4f2] mt-4 flex justify-between items-center gap-2">
                         <span className="text-[9px] text-[#735c00] font-sans font-semibold tracking-wider">HỒ SƠ BẢO TRỢ</span>
-                        <button
-                          onClick={() => {
-                            setSelectedCategoryFilter(cat.name);
-                            setActiveTab('orchids');
-                            addToast(`Đang lọc hiển thị đơn loài thuộc ${cat.name}`, 'info');
-                          }}
-                          className="text-[10px] text-secondary font-bold font-sans hover:underline cursor-pointer"
-                        >
-                          Xem đơn loài →
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => void handleOpenEditCategory(cat.id)}
+                            className="p-1.5 text-outline hover:text-botanical-green hover:bg-surface-container rounded transition-colors"
+                            title="Chỉnh sửa danh mục"
+                            aria-label={`Chỉnh sửa ${cat.name}`}
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteCategory(cat)}
+                            className="p-1.5 text-outline hover:text-error hover:bg-error-container/20 rounded transition-colors"
+                            title="Xóa danh mục"
+                            aria-label={`Xóa ${cat.name}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedCategoryFilter(cat.name);
+                              setActiveTab('orchids');
+                              addToast(`Đang lọc hiển thị đơn loài thuộc ${cat.name}`, 'info');
+                            }}
+                            className="text-[10px] text-secondary font-bold font-sans hover:underline cursor-pointer ml-1"
+                          >
+                            Xem →
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -2505,9 +2577,11 @@ export default function App() {
 
       <AddCategoryModal
         isOpen={openAddCategory}
-        onClose={() => setOpenAddCategory(false)}
+        onClose={() => { setOpenAddCategory(false); setEditingCategory(null); }}
         categories={categories}
         onAddCategory={handleAddCategory}
+        editCategoryData={editingCategory}
+        onEditCategory={handleUpdateCategory}
       />
 
       <ReportModal

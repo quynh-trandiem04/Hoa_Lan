@@ -281,14 +281,31 @@ interface AddCategoryModalProps {
   onClose: () => void;
   categories: Category[];
   onAddCategory: (category: Omit<Category, 'id' | 'orchidCount'>) => Promise<void>;
+  editCategoryData?: Category | null;
+  onEditCategory?: (id: string, category: Omit<Category, 'id' | 'orchidCount'>) => Promise<void>;
 }
 
-export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({ isOpen, onClose, categories, onAddCategory }) => {
+export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
+  isOpen,
+  onClose,
+  categories,
+  onAddCategory,
+  editCategoryData,
+  onEditCategory,
+}) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [parentId, setParentId] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setName(editCategoryData?.name ?? '');
+    setDescription(editCategoryData?.description ?? '');
+    setParentId(editCategoryData?.parentId ?? '');
+    setErrorMsg('');
+  }, [isOpen, editCategoryData]);
 
   if (!isOpen) return null;
 
@@ -301,11 +318,17 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({ isOpen, onCl
     setErrorMsg('');
     setIsSubmitting(true);
     try {
-      await onAddCategory({
+      const payload = {
         name,
         description,
         parentId: parentId || null,
-      });
+        slug: editCategoryData?.slug,
+      };
+      if (editCategoryData && onEditCategory) {
+        await onEditCategory(editCategoryData.id, payload);
+      } else {
+        await onAddCategory(payload);
+      }
       setName('');
       setDescription('');
       setParentId('');
@@ -328,7 +351,9 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({ isOpen, onCl
         <div className="px-6 py-4 border-b border-outline-variant flex items-center justify-between">
           <div className="flex items-center gap-2 text-botanical-green">
             <FolderPlus className="w-5 h-5" />
-            <h3 className="font-serif text-lg font-bold text-on-surface">Thêm Danh Mục Chi Lan</h3>
+            <h3 className="font-serif text-lg font-bold text-on-surface">
+              {editCategoryData ? 'Chỉnh Sửa Danh Mục Chi Lan' : 'Thêm Danh Mục Chi Lan'}
+            </h3>
           </div>
           <button 
             onClick={onClose}
@@ -364,7 +389,7 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({ isOpen, onCl
               className="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green"
             >
               <option value="">Không có — danh mục cấp gốc</option>
-              {categories.map((category) => (
+              {categories.filter((category) => category.id !== editCategoryData?.id).map((category) => (
                 <option key={category.id} value={category.id}>{category.name}</option>
               ))}
             </select>
@@ -395,7 +420,9 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({ isOpen, onCl
               disabled={isSubmitting}
               className="px-5 py-2 bg-botanical-green text-on-secondary font-medium text-xs uppercase hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed transition-all rounded"
             >
-              {isSubmitting ? 'Đang tạo...' : 'Tạo danh mục'}
+              {isSubmitting
+                ? (editCategoryData ? 'Đang lưu...' : 'Đang tạo...')
+                : (editCategoryData ? 'Lưu thay đổi' : 'Tạo danh mục')}
             </button>
           </div>
         </form>

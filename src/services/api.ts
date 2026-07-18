@@ -208,6 +208,37 @@ export interface CreateCategoryPayload {
   parentId: string | null;
 }
 
+export interface UpdateCategoryPayload extends CreateCategoryPayload {
+  id: string;
+}
+
+const parseCategoryResponse = (category: Partial<Category> & { id: string; name: string }): Category => ({
+  id: category.id,
+  name: category.name,
+  scientificName: category.scientificName,
+  description: category.description ?? '',
+  orchidCount: category.orchidCount ?? 0,
+  slug: category.slug,
+  parentId: category.parentId,
+});
+
+const readApiResponse = async (response: Response): Promise<unknown> => {
+  const rawBody = await response.text();
+  if (!rawBody) return null;
+  try {
+    return JSON.parse(rawBody);
+  } catch {
+    return rawBody;
+  }
+};
+
+const throwCategoryApiError = (body: unknown, fallback: string): never => {
+  const errorBody = body !== null && typeof body === 'object'
+    ? body as LoginResponse
+    : {};
+  throw new Error(getApiErrorMessage(errorBody, fallback));
+};
+
 export const createCategory = async (payload: CreateCategoryPayload): Promise<unknown> => {
   const token = getStoredAuthToken();
   const response = await fetch(`${API_BASE_URL}/api/v1/Categories`, {
@@ -238,6 +269,70 @@ export const createCategory = async (payload: CreateCategoryPayload): Promise<un
   }
 
   return responseBody;
+};
+
+export const getCategoryById = async (id: string, apiVersion?: string): Promise<Category> => {
+  const params = new URLSearchParams();
+  if (apiVersion) params.set('api-version', apiVersion);
+  const query = params.toString();
+  const token = getStoredAuthToken();
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/Categories/${encodeURIComponent(id)}${query ? `?${query}` : ''}`,
+    {
+      headers: {
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      }
+    }
+  );
+  const body = await readApiResponse(response);
+  if (!response.ok) throwCategoryApiError(body, 'Không thể tải thông tin danh mục.');
+  return parseCategoryResponse(body as Partial<Category> & { id: string; name: string });
+};
+
+export const updateCategory = async (
+  id: string,
+  payload: UpdateCategoryPayload,
+  apiVersion?: string
+): Promise<unknown> => {
+  const params = new URLSearchParams();
+  if (apiVersion) params.set('api-version', apiVersion);
+  const query = params.toString();
+  const token = getStoredAuthToken();
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/Categories/${encodeURIComponent(id)}${query ? `?${query}` : ''}`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({ ...payload, id })
+    }
+  );
+  const body = await readApiResponse(response);
+  if (!response.ok) throwCategoryApiError(body, 'Không thể cập nhật danh mục.');
+  return body;
+};
+
+export const deleteCategory = async (id: string, apiVersion?: string): Promise<void> => {
+  const params = new URLSearchParams();
+  if (apiVersion) params.set('api-version', apiVersion);
+  const query = params.toString();
+  const token = getStoredAuthToken();
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/Categories/${encodeURIComponent(id)}${query ? `?${query}` : ''}`,
+    {
+      method: 'DELETE',
+      headers: {
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      }
+    }
+  );
+  const body = await readApiResponse(response);
+  if (!response.ok) throwCategoryApiError(body, 'Không thể xóa danh mục.');
 };
 
 export const getDocuments = async (pageNumber: number = 1, pageSize: number = 10) => {
