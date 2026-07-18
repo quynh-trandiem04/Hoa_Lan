@@ -183,7 +183,7 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
             </div>
           )}
 
-          <div>
+          <div className="space-y-5">
             <div className="space-y-1">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tên thường gọi *</label>
               <input
