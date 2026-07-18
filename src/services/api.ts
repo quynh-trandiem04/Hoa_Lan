@@ -353,43 +353,80 @@ export const deleteCategory = async (id: string, apiVersion?: string): Promise<v
   if (!response.ok) throwCategoryApiError(body, 'Không thể xóa danh mục.');
 };
 
-export const getDocuments = async (pageNumber: number = 1, pageSize: number = 10) => {
-  const response = await fetch(`${API_BASE_URL}/api/Documents?pageNumber=${pageNumber}&pageSize=${pageSize}`);
-  if (!response.ok) {
-    throw new Error('Failed to fetch documents');
-  }
-  return response.json();
+export interface DocumentQuery {
+  pageNumber?: number;
+  pageSize?: number;
+  searchTerm?: string;
+  apiVersion?: string;
+}
+
+export interface UploadDocumentPayload {
+  file: File;
+  title: string;
+  description?: string;
+  apiVersion?: string;
+}
+
+export const getDocuments = async (
+  pageNumber: number = 1,
+  pageSize: number = 10,
+  searchTerm?: string,
+  apiVersion?: string
+): Promise<import('../types').PaginatedDocuments> => {
+  const params = new URLSearchParams({
+    PageNumber: String(pageNumber),
+    PageSize: String(pageSize),
+  });
+  if (searchTerm) params.set('SearchTerm', searchTerm);
+  if (apiVersion) params.set('api-version', apiVersion);
+  const token = getStoredAuthToken();
+  const response = await fetch(`${API_BASE_URL}/api/Documents?${params.toString()}`, {
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  const body = await readApiResponse(response);
+  if (!response.ok) throwArticleApiError(body, `Không thể tải danh sách tài liệu (HTTP ${response.status}).`);
+  return body as import('../types').PaginatedDocuments;
 };
 
-export const createDocument = async (data: any) => {
-  const response = await fetch(`${API_BASE_URL}/api/Documents`, {
+export const createDocument = async ({ file, title, description = '', apiVersion }: UploadDocumentPayload) => {
+  const params = new URLSearchParams();
+  if (apiVersion) params.set('api-version', apiVersion);
+  const formData = new FormData();
+  formData.append('File', file);
+  formData.append('Title', title.trim());
+  formData.append('Description', description.trim());
+  const token = getStoredAuthToken();
+  const response = await fetch(`${API_BASE_URL}/api/Documents/upload${params.size ? `?${params.toString()}` : ''}`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify(data)
+    body: formData,
   });
-  if (!response.ok) {
-    throw new Error('Failed to create document');
-  }
-  return response.json();
+  const body = await readApiResponse(response);
+  if (response.status === 401) throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại trước khi tải tài liệu.');
+  if (!response.ok) throwArticleApiError(body, `Không thể tải tài liệu lên (HTTP ${response.status}).`);
+  return body as import('../types').DocumentItem;
 };
 
-export const deleteDocument = async (id: string | number) => {
-  const response = await fetch(`${API_BASE_URL}/api/Documents/${id}`, {
-    method: 'DELETE'
+export const deleteDocument = async (id: string, apiVersion?: string): Promise<void> => {
+  const params = new URLSearchParams();
+  if (apiVersion) params.set('api-version', apiVersion);
+  const token = getStoredAuthToken();
+  const response = await fetch(`${API_BASE_URL}/api/Documents/${encodeURIComponent(id)}${params.size ? `?${params.toString()}` : ''}`, {
+    method: 'DELETE',
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
   });
-  if (!response.ok) {
-    throw new Error('Failed to delete document');
-  }
-  if (response.status !== 204) {
-    try {
-      return await response.json();
-    } catch {
-      return null;
-    }
-  }
-  return null;
+  const body = await readApiResponse(response);
+  if (response.status === 401) throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại trước khi xóa tài liệu.');
+  if (!response.ok) throwArticleApiError(body, `Không thể xóa tài liệu (HTTP ${response.status}).`);
 };
 
 // ======================= ARTICLES API (Care Guide) =======================

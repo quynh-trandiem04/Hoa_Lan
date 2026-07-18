@@ -420,6 +420,7 @@ export default function App() {
   const [loadingDocuments, setLoadingDocuments] = useState(false);
   const [docPage, setDocPage] = useState(1);
   const [showDocumentForm, setShowDocumentForm] = useState(false);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [documentForm, setDocumentForm] = useState<Omit<DocumentItem, 'id' | 'createdAt'>>({
     title: '', description: '', originalName: '', extension: '', sizeBytes: 0, url: ''
   });
@@ -943,6 +944,7 @@ export default function App() {
 
   const handleUploadDocumentSuccess = (filename: string) => {
     addToast(`Lưu trữ tài liệu thành công: "${filename}"`, 'success');
+    void loadDocuments(docPage);
     // auto append a system notification too
     setNotifications(prev => [
       { id: `sys-${Date.now()}`, text: `Tập tin ${filename} được tải lên lưu trữ`, time: 'Vừa xong', read: false },
@@ -965,19 +967,24 @@ export default function App() {
 
   const handleSaveDocument = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!documentForm.title.trim() || !documentForm.url.trim()) {
-      addToast('Vui lòng nhập Tiêu đề và URL của tài liệu', 'error');
+    if (!documentForm.title.trim() || !documentFile) {
+      addToast('Vui lòng nhập tiêu đề và chọn tệp tài liệu', 'error');
       return;
     }
 
     try {
-      await createDocument(documentForm);
+      await createDocument({
+        file: documentFile,
+        title: documentForm.title,
+        description: documentForm.description,
+      });
       addToast('Tải lên tài liệu thành công', 'success');
       setShowDocumentForm(false);
+      setDocumentFile(null);
       setDocumentForm({ title: '', description: '', originalName: '', extension: '', sizeBytes: 0, url: '' });
-      loadDocuments(docPage);
+      await loadDocuments(docPage);
     } catch (error) {
-      addToast('Có lỗi xảy ra khi tải lên tài liệu', 'error');
+      addToast(error instanceof Error ? error.message : 'Có lỗi xảy ra khi tải lên tài liệu', 'error');
     }
   };
 
@@ -989,7 +996,7 @@ export default function App() {
       addToast('Đã xóa tài liệu', 'info');
       loadDocuments(docPage);
     } catch (error) {
-      addToast('Lỗi khi xóa tài liệu', 'error');
+      addToast(error instanceof Error ? error.message : 'Lỗi khi xóa tài liệu', 'error');
     }
   };
 
@@ -2266,14 +2273,19 @@ export default function App() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">URL / Link File *</label>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tệp tài liệu *</label>
                       <input
-                        type="url"
+                        type="file"
                         required
-                        value={documentForm.url}
-                        onChange={(e) => setDocumentForm({ ...documentForm, url: e.target.value })}
-                        className="w-full bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green"
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.zip,.txt"
+                        onChange={(e) => setDocumentFile(e.target.files?.[0] ?? null)}
+                        className="w-full bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green file:mr-3 file:border-0 file:bg-[#56642b] file:text-white file:px-3 file:py-1.5 file:rounded"
                       />
+                      {documentFile && (
+                        <p className="text-[10px] text-outline">
+                          {documentFile.name} — {(documentFile.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-1">
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Mô tả</label>
@@ -2284,7 +2296,7 @@ export default function App() {
                         className="w-full bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green resize-none"
                       />
                     </div>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="hidden">
                       <div className="space-y-1">
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tên gốc (Original Name)</label>
                         <input

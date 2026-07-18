@@ -6,6 +6,7 @@
 import React, { useState, useRef } from 'react';
 import { X, UploadCloud, File, AlertCircle, CheckCircle } from 'lucide-react';
 import { motion } from 'motion/react';
+import { createDocument } from '../services/api';
 
 interface DocUploadModalProps {
   isOpen: boolean;
@@ -51,27 +52,24 @@ export const DocUploadModal: React.FC<DocUploadModalProps> = ({ isOpen, onClose,
 
     setErrorMsg('');
     setFile(selectedFile);
-    simulateProgress(selectedFile.name);
+    void uploadSelectedFile(selectedFile);
   };
 
-  const simulateProgress = (name: string) => {
-    setUploadProgress(0);
-    const interval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setTimeout(() => {
-            onUploadSuccess(name);
-            onClose();
-            // Reset state
-            setFile(null);
-            setUploadProgress(-1);
-          }, 800);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 150);
+  const uploadSelectedFile = async (selectedFile: File) => {
+    setUploadProgress(15);
+    try {
+      const title = selectedFile.name.replace(/\.[^.]+$/, '');
+      await createDocument({ file: selectedFile, title, description: '' });
+      setUploadProgress(100);
+      onUploadSuccess(selectedFile.name);
+      onClose();
+      setFile(null);
+      setUploadProgress(-1);
+    } catch (error) {
+      setUploadProgress(-1);
+      setFile(null);
+      setErrorMsg(error instanceof Error ? error.message : 'Không thể tải tài liệu lên.');
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
