@@ -427,8 +427,6 @@ export default function App() {
   const [loadingCategories, setLoadingCategories] = useState(false);
 
   useEffect(() => {
-    if (screen !== 'dashboard') return;
-
     let isActive = true;
     const loadCategories = async () => {
       setLoadingCategories(true);
@@ -452,7 +450,7 @@ export default function App() {
     return () => {
       isActive = false;
     };
-  }, [addToast, screen]);
+  }, [addToast]);
 
   const [communityPosts, setCommunityPosts] = useState<CommunityPost[]>(() => {
     const saved = localStorage.getItem('ol_community_posts');
@@ -876,7 +874,7 @@ export default function App() {
     <div className="min-h-screen bg-[#f9f9f7] text-[#1a1c1b] font-sans transition-colors duration-300">
 
       {/* =================== SCREEN 0: HOME =================== */}
-      {screen === "home" && <CustomerHome onNavigate={(s, id) => setScreen(s as any, id)} />}
+      {screen === "home" && <CustomerHome categories={categories} onNavigate={(s, id) => setScreen(s as any, id)} />}
 
       {screen === "list_orchids" && <ListOrchids categoryId={selectedCategoryId} onNavigate={(s, id) => setScreen(s as any, id)} />}
       

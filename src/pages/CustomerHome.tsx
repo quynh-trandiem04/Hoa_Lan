@@ -19,8 +19,8 @@ import {
   MessageSquare,
   Bookmark
 } from "lucide-react";
-import { orchidData, pillarDetails, INITIAL_ORCHIDS, INITIAL_CATEGORIES } from "../data";
-import { OrchidItem, PillarDetail } from "../types";
+import { orchidData, pillarDetails, INITIAL_ORCHIDS } from "../data";
+import { Category, OrchidItem, PillarDetail } from "../types";
 
 // Import custom interactive components
 import OrchidDetailModal from "../components/OrchidDetailModal";
@@ -31,7 +31,12 @@ import BotAdvisor from "../components/BotAdvisor";
 
 import SearchModal from "../components/SearchModal";
 
-export default function CustomerHome({ onNavigate }: { onNavigate: (screen: string, id?: string) => void }) {
+interface CustomerHomeProps {
+  categories: Category[];
+  onNavigate: (screen: string, id?: string) => void;
+}
+
+export default function CustomerHome({ categories, onNavigate }: CustomerHomeProps) {
   // Modal states
   const [selectedOrchid, setSelectedOrchid] = useState<OrchidItem | null>(null);
   const [selectedPillar, setSelectedPillar] = useState<PillarDetail | null>(null);
@@ -49,6 +54,7 @@ export default function CustomerHome({ onNavigate }: { onNavigate: (screen: stri
   const totalCards = orchidData.length;
   // We can show indices. On desktop, show 3 items. On mobile, show 1.
   const cardsRef = useRef<HTMLDivElement>(null);
+  const rootCategories = categories.filter((category) => !category.parentId);
 
 
 
@@ -98,16 +104,21 @@ export default function CustomerHome({ onNavigate }: { onNavigate: (screen: stri
               </button>
               <div className="absolute top-full left-0 w-64 bg-surface-cream border border-[#747878]/10 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 py-3 mt-2 rounded">
                 <ul className="flex flex-col">
-                  {INITIAL_CATEGORIES.map((cat: any) => (
+                  {rootCategories.map((cat) => (
                     <li key={cat.id}>
                       <button
                         onClick={() => onNavigate('list_orchids', cat.id)}
                         className="w-full text-left px-5 py-2.5 font-serif text-sm text-on-surface-variant hover:bg-botanical-green/5 hover:text-botanical-green transition-colors cursor-pointer"
                       >
-                        {cat.name} ({cat.scientificName.split(" ")[0]})
+                        {cat.name}
                       </button>
                     </li>
                   ))}
+                  {rootCategories.length === 0 && (
+                    <li className="px-5 py-2.5 text-sm text-on-surface-variant">
+                      Chưa có danh mục
+                    </li>
+                  )}
                 </ul>
               </div>
             </div>
