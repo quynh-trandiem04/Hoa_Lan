@@ -76,7 +76,7 @@ export default function GoogleLoginButton({ onCredential, disabled = false }: Go
         text: 'signin_with',
         shape: 'rectangular',
         locale: 'vi',
-        width: Math.min(buttonContainerRef.current.clientWidth || 400, 400),
+        width: Math.min(Math.max(window.innerWidth - 32, 200), 400),
       });
     };
 
