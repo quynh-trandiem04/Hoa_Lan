@@ -286,7 +286,6 @@ interface AddCategoryModalProps {
 export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({ isOpen, onClose, categories, onAddCategory }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [slug, setSlug] = useState('');
   const [parentId, setParentId] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -305,12 +304,10 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({ isOpen, onCl
       await onAddCategory({
         name,
         description,
-        slug: slug.trim() || undefined,
         parentId: parentId || null,
       });
       setName('');
       setDescription('');
-      setSlug('');
       setParentId('');
       onClose();
     } catch (error) {
@@ -355,17 +352,6 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({ isOpen, onCl
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ví dụ: Phalaenopsis"
-              className="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-outline font-sans">Đường dẫn Slug</label>
-            <input
-              type="text"
-              value={slug}
-              onChange={(e) => setSlug(e.target.value)}
-              placeholder="Để trống để tự tạo từ tên"
               className="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green"
             />
           </div>
