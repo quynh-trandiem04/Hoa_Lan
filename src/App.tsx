@@ -1074,7 +1074,7 @@ export default function App() {
 
           {/* Right panel: Form */}
           <div className="flex items-center justify-center p-4 md:p-8 lg:p-10 bg-white animate-fade-in h-full">
-            <div className="w-full max-w-md space-y-4">
+            <div className="w-full max-w-[400px] space-y-4">
               
               {/* Form Title & Description */}
               <div className="space-y-1.5">
