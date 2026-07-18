@@ -863,17 +863,17 @@ export default function App() {
 
   const handleOpenEditCategory = async (id: string) => {
     const cachedCategory = categories.find((category) => category.id === id);
+    if (cachedCategory) {
+      setEditingCategory(cachedCategory);
+      setOpenAddCategory(true);
+      return;
+    }
+
     try {
       const category = await getCategoryById(id);
       setEditingCategory(category);
       setOpenAddCategory(true);
     } catch (error) {
-      if (cachedCategory) {
-        setEditingCategory(cachedCategory);
-        setOpenAddCategory(true);
-        addToast('API chi tiết danh mục đang lỗi; đã dùng dữ liệu từ danh sách để chỉnh sửa.', 'info');
-        return;
-      }
       addToast(error instanceof Error ? error.message : 'Không thể tải thông tin danh mục.', 'error');
     }
   };
