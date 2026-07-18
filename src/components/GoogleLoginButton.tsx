@@ -42,6 +42,21 @@ interface GoogleLoginButtonProps {
 }
 
 const GOOGLE_SCRIPT_ID = 'google-identity-services';
+let initializedClientId: string | null = null;
+let activeCredentialHandler: ((idToken: string) => void) | null = null;
+
+const initializeGoogleIdentity = (clientId: string) => {
+  if (!window.google || initializedClientId === clientId) return;
+
+  window.google.accounts.id.initialize({
+    client_id: clientId,
+    ux_mode: 'popup',
+    callback: (response) => {
+      if (response.credential) activeCredentialHandler?.(response.credential);
+    },
+  });
+  initializedClientId = clientId;
+};
 
 export default function GoogleLoginButton({ onCredential, disabled = false }: GoogleLoginButtonProps) {
   const buttonContainerRef = useRef<HTMLDivElement>(null);
@@ -56,17 +71,12 @@ export default function GoogleLoginButton({ onCredential, disabled = false }: Go
     }
 
     let isActive = true;
+    activeCredentialHandler = onCredential;
 
     const renderGoogleButton = () => {
       if (!isActive || !window.google || !buttonContainerRef.current) return;
 
-      window.google.accounts.id.initialize({
-        client_id: clientId,
-        ux_mode: 'popup',
-        callback: (response) => {
-          if (response.credential) onCredential(response.credential);
-        },
-      });
+      initializeGoogleIdentity(clientId);
 
       buttonContainerRef.current.replaceChildren();
       window.google.accounts.id.renderButton(buttonContainerRef.current, {
@@ -100,6 +110,7 @@ export default function GoogleLoginButton({ onCredential, disabled = false }: Go
 
     return () => {
       isActive = false;
+      if (activeCredentialHandler === onCredential) activeCredentialHandler = null;
       existingScript?.removeEventListener('load', renderGoogleButton);
     };
   }, [onCredential]);
