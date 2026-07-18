@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, FolderPlus, PlusCircle, Upload, Trash2 } from 'lucide-react';
 import { Orchid, Category } from '../types';
 import { motion } from 'motion/react';
@@ -40,6 +40,7 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const imageFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (editOrchidData) {
@@ -124,6 +125,10 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
     if (files.length === 0) return;
     if (files.some((file) => !file.type.startsWith('image/'))) {
       setErrorMsg('Vui lòng chỉ chọn tệp hình ảnh.');
+      return;
+    }
+    if (files.some((file) => file.size > 10 * 1024 * 1024)) {
+      setErrorMsg('Mỗi ảnh phải có dung lượng không quá 10 MB.');
       return;
     }
 
@@ -275,23 +280,29 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
 
           <div className="space-y-3">
             <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Hình ảnh hoa lan</label>
-            <label className={`w-full min-h-24 border-2 border-dashed border-outline-variant rounded-lg flex flex-col items-center justify-center gap-2 text-sm transition-colors ${
-              isUploadingImages ? 'opacity-60 cursor-wait' : 'cursor-pointer hover:border-[#56642b] hover:bg-[#f7f8f2]'
+            <div className={`w-full min-h-28 border-2 border-dashed border-outline-variant rounded-lg flex flex-col items-center justify-center gap-2 p-4 text-sm transition-colors ${
+              isUploadingImages ? 'opacity-60 cursor-wait' : 'hover:border-[#56642b] hover:bg-[#f7f8f2]'
             }`}>
               <Upload className="w-5 h-5 text-[#56642b]" />
-              <span className="font-semibold text-charcoal-text">
+              <button
+                type="button"
+                disabled={isUploadingImages || isSubmitting}
+                onClick={() => imageFileInputRef.current?.click()}
+                className="min-w-48 px-4 py-2 rounded bg-[#56642b] text-white font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+              >
                 {isUploadingImages ? 'Đang tải ảnh lên...' : 'Chọn ảnh từ máy tính'}
-              </span>
-              <span className="text-[10px] text-outline">Có thể chọn nhiều ảnh</span>
+              </button>
+              <span className="text-[10px] text-outline">Có thể chọn nhiều ảnh JPG, PNG, WEBP (tối đa 10 MB/ảnh)</span>
               <input
+                ref={imageFileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp,image/gif"
                 multiple
                 disabled={isUploadingImages || isSubmitting}
                 onChange={(event) => void handleUploadImages(event)}
-                className="sr-only"
+                className="hidden"
               />
-            </label>
+            </div>
 
             {uploadedImages.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
