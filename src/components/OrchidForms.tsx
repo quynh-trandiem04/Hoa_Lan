@@ -279,7 +279,7 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
 interface AddCategoryModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddCategory: (category: Omit<Category, 'id' | 'orchidCount'>) => void;
+  onAddCategory: (category: Omit<Category, 'id' | 'orchidCount'>) => Promise<void>;
 }
 
 export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({ isOpen, onClose, onAddCategory }) => {
@@ -287,22 +287,29 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({ isOpen, onCl
   const [scientificName, setScientificName] = useState('');
   const [description, setDescription] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       setErrorMsg('Vui lòng cung cấp danh tính chi Lan mới.');
       return;
     }
     setErrorMsg('');
-    onAddCategory({ name, scientificName, description });
-    // Reset state & close
-    setName('');
-    setScientificName('');
-    setDescription('');
-    onClose();
+    setIsSubmitting(true);
+    try {
+      await onAddCategory({ name, scientificName, description });
+      setName('');
+      setScientificName('');
+      setDescription('');
+      onClose();
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : 'Không thể tạo danh mục mới.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -370,15 +377,17 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({ isOpen, onCl
             <button
               type="button"
               onClick={onClose}
+              disabled={isSubmitting}
               className="px-4 py-2 border border-outline text-on-surface-variant font-medium text-xs uppercase hover:bg-surface-container transition-all"
             >
               Hủy bỏ
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-botanical-green text-on-secondary font-medium text-xs uppercase hover:opacity-90 transition-all rounded"
+              disabled={isSubmitting}
+              className="px-5 py-2 bg-botanical-green text-on-secondary font-medium text-xs uppercase hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed transition-all rounded"
             >
-              Tạo danh mục
+              {isSubmitting ? 'Đang tạo...' : 'Tạo danh mục'}
             </button>
           </div>
         </form>

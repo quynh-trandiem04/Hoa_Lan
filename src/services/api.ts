@@ -201,6 +201,45 @@ export const getCategories = async (
   };
 };
 
+export interface CreateCategoryPayload {
+  name: string;
+  description: string;
+  slug: string;
+  parentId: string | null;
+}
+
+export const createCategory = async (payload: CreateCategoryPayload): Promise<unknown> => {
+  const token = getStoredAuthToken();
+  const response = await fetch(`${API_BASE_URL}/api/v1/Categories`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const rawBody = await response.text();
+  let responseBody: unknown = null;
+  if (rawBody) {
+    try {
+      responseBody = JSON.parse(rawBody);
+    } catch {
+      responseBody = rawBody;
+    }
+  }
+
+  if (!response.ok) {
+    const errorBody = responseBody !== null && typeof responseBody === 'object'
+      ? responseBody as LoginResponse
+      : {};
+    throw new Error(getApiErrorMessage(errorBody, 'Không thể tạo danh mục mới.'));
+  }
+
+  return responseBody;
+};
+
 export const getDocuments = async (pageNumber: number = 1, pageSize: number = 10) => {
   const response = await fetch(`${API_BASE_URL}/api/Documents?pageNumber=${pageNumber}&pageSize=${pageSize}`);
   if (!response.ok) {

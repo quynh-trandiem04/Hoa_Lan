@@ -44,7 +44,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 // Domain Imports
 import { Orchid, Question, Category, CommunityPost, CareArticle, PaginatedDocuments, DocumentItem } from './types';
-import { login, loginWithGoogle, refreshAuthToken, getCategories, getArticles, createArticle, updateArticle, deleteArticle, getOrchids, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, deleteDocument, type LoginResponse } from './services/api';
+import { login, loginWithGoogle, refreshAuthToken, getCategories, createCategory, getArticles, createArticle, updateArticle, deleteArticle, getOrchids, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, deleteDocument, type LoginResponse } from './services/api';
 import {
   INITIAL_ORCHIDS,
   INITIAL_QUESTIONS,
@@ -751,14 +751,35 @@ export default function App() {
     addToast(`Đã trả lời câu hỏi trực tiếp`, 'success');
   };
 
-  const handleAddCategory = (payload: Omit<Category, 'id' | 'orchidCount'>) => {
-    const newCat: Category = {
-      ...payload,
-      id: `cat-${Date.now()}`,
-      orchidCount: 0
-    };
-    setCategories(prev => [...prev, newCat]);
-    addToast(`Đã khởi tạo phân mục: ${payload.name}`, 'success');
+  const handleAddCategory = async (payload: Omit<Category, 'id' | 'orchidCount'>) => {
+    const slug = payload.slug || payload.name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+
+    try {
+      await createCategory({
+        name: payload.name.trim(),
+        description: payload.description.trim(),
+        slug,
+        parentId: payload.parentId ?? null,
+      });
+      const refreshedCategories = await getCategories({
+        pageNumber: 1,
+        pageSize: 100,
+        sortBy: 'name',
+        sortDescending: false,
+      });
+      setCategories(refreshedCategories.items);
+      addToast(`Đã khởi tạo phân mục: ${payload.name}`, 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Không thể tạo danh mục mới.';
+      addToast(message, 'error');
+      throw error;
+    }
   };
 
   const handleUploadDocumentSuccess = (filename: string) => {
