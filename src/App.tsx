@@ -44,7 +44,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 // Domain Imports
 import { Orchid, Question, Category, CommunityPost, CareArticle, PaginatedDocuments, DocumentItem } from './types';
-import { login, loginWithGoogle, refreshAuthToken, getCategories, createCategory, getCategoryById, updateCategory, deleteCategory, getArticles, createArticle, updateArticle, deleteArticle, getOrchids, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, deleteDocument, type LoginResponse } from './services/api';
+import { login, loginWithGoogle, refreshAuthToken, getCategories, createCategory, getCategoryById, updateCategory, deleteCategory, getArticles, createArticle, updateArticle, deleteArticle, getOrchids, getOrchidById, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, deleteDocument, type LoginResponse } from './services/api';
 import {
   INITIAL_ORCHIDS,
   INITIAL_QUESTIONS,
@@ -685,11 +685,7 @@ export default function App() {
 
   const handleAddNewOrchid = async (orchidPayload: Omit<Orchid, 'id' | 'createdAt'>) => {
     try {
-      const newOrchidData = {
-        ...orchidPayload,
-        createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
-      };
-      await createOrchid(newOrchidData);
+      await createOrchid(orchidPayload);
       
       // update count in categories locally
       setCategories(prevCats => prevCats.map(cat => {
@@ -702,7 +698,18 @@ export default function App() {
       addToast(`Thêm loài lan thành công: ${orchidPayload.name}`, 'success');
       loadOrchids();
     } catch (error) {
-      addToast('Lỗi hệ thống: Không thể thêm loài lan', 'error');
+      addToast(error instanceof Error ? error.message : 'Không thể thêm loài lan.', 'error');
+      throw error;
+    }
+  };
+
+  const handleOpenEditOrchid = async (id: string) => {
+    try {
+      const orchid = await getOrchidById(id);
+      setEditingOrchid(orchid);
+      setOpenAddOrchid(true);
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Không thể tải thông tin hoa lan.', 'error');
     }
   };
 
@@ -713,11 +720,13 @@ export default function App() {
       setEditingOrchid(null);
       loadOrchids();
     } catch (error) {
-      addToast('Lỗi hệ thống: Không thể cập nhật loài lan', 'error');
+      addToast(error instanceof Error ? error.message : 'Không thể cập nhật loài lan.', 'error');
+      throw error;
     }
   };
 
   const handleDeleteOrchid = async (id: string, name: string) => {
+    if (!window.confirm(`Bạn có chắc muốn xóa hoa lan “${name}”?`)) return;
     try {
       await deleteOrchid(id);
       
@@ -734,7 +743,7 @@ export default function App() {
       addToast(`Đã gỡ bỏ: ${name}`, 'info');
       loadOrchids();
     } catch (error) {
-      addToast('Lỗi hệ thống: Không thể xóa loài lan', 'error');
+      addToast(error instanceof Error ? error.message : 'Không thể xóa loài lan.', 'error');
     }
   };
 
@@ -1828,7 +1837,7 @@ export default function App() {
                             {/* Editing / Deleting toolbars */}
                             <div className="absolute right-0 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button
-                                onClick={() => { setEditingOrchid(orc); setOpenAddOrchid(true); }}
+                                onClick={() => orc.id && void handleOpenEditOrchid(orc.id)}
                                 className="p-1 rounded bg-[#f4f4f2] text-[#56642b] hover:bg-[#56642b] hover:text-white transition-all cursor-pointer"
                                 title="Sửa thông số"
                               >
@@ -2070,7 +2079,7 @@ export default function App() {
                       {/* Interactive hover administrative command tab */}
                       <div className="absolute right-4 bottom-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                         <button
-                          onClick={() => { setEditingOrchid(orc); setOpenAddOrchid(true); }}
+                          onClick={() => orc.id && void handleOpenEditOrchid(orc.id)}
                           className="p-1.5 rounded-md bg-[#f4f4f2] hover:bg-botanical-green hover:text-white text-botanical-green transition-all"
                           title="Sửa thông số thực vật"
                         >

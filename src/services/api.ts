@@ -1,6 +1,6 @@
 // src/services/api.ts
 
-import type { Category, PaginatedCategories } from '../types';
+import type { Category, Orchid, PaginatedCategories } from '../types';
 
 const DEFAULT_API_BASE_URL = '/backend-api';
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL).replace(/\/$/, '');
@@ -448,9 +448,49 @@ export const deleteArticle = async (id: string | number) => {
 
 // ======================= ORCHIDS API =======================
 
-export const getOrchids = async () => {
+export interface OrchidQuery {
+  pageNumber?: number;
+  pageSize?: number;
+  searchTerm?: string;
+  sortBy?: string;
+  sortDescending?: boolean;
+  apiVersion?: string;
+}
+
+export type CreateOrchidPayload = Omit<Orchid, 'id'>;
+export type UpdateOrchidPayload = Orchid & { id: string };
+
+const normalizeOrchid = (orchid: Partial<Orchid> & { id: string; name: string }): Orchid => ({
+  id: orchid.id,
+  name: orchid.name,
+  englishName: orchid.englishName ?? '',
+  categoryIds: orchid.categoryIds ?? [],
+  shortDescription: orchid.shortDescription ?? '',
+  detailedDescription: orchid.detailedDescription ?? '',
+  hasFragrance: orchid.hasFragrance ?? false,
+  isPopular: orchid.isPopular ?? false,
+  slug: orchid.slug ?? '',
+  uploadedImageIds: orchid.uploadedImageIds ?? [],
+  displayOrder: orchid.displayOrder ?? 0,
+});
+
+const throwOrchidApiError = (body: unknown, fallback: string): never => {
+  const errorBody = body !== null && typeof body === 'object'
+    ? body as LoginResponse
+    : {};
+  throw new Error(getApiErrorMessage(errorBody, fallback));
+};
+
+export const getOrchids = async (query: OrchidQuery = {}): Promise<Orchid[]> => {
   const token = getStoredAuthToken();
-  const params = new URLSearchParams({ PageNumber: '1', PageSize: '100' });
+  const params = new URLSearchParams({
+    PageNumber: String(query.pageNumber ?? 1),
+    PageSize: String(query.pageSize ?? 100),
+  });
+  if (query.searchTerm) params.set('SearchTerm', query.searchTerm);
+  if (query.sortBy) params.set('SortBy', query.sortBy);
+  if (query.sortDescending !== undefined) params.set('SortDescending', String(query.sortDescending));
+  if (query.apiVersion) params.set('api-version', query.apiVersion);
   const response = await fetch(`${API_BASE_URL}/api/v1/Orchids?${params.toString()}`, {
     headers: {
       Accept: 'application/json',
@@ -460,80 +500,81 @@ export const getOrchids = async () => {
   if (!response.ok) {
     throw new Error('Không thể tải danh sách hoa lan.');
   }
-  const data = await response.json();
-  return Array.isArray(data) ? data : data.items ?? [];
+  const data = await response.json() as { items?: Array<Partial<Orchid> & { id: string; name: string }> } | Array<Partial<Orchid> & { id: string; name: string }>;
+  const items = Array.isArray(data) ? data : data.items ?? [];
+  return items.map(normalizeOrchid);
 };
 
-export const getOrchidById = async (id: string | number) => {
+export const getOrchidById = async (id: string, apiVersion?: string): Promise<Orchid> => {
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/v1/Orchids/${id}`, {
+  const params = new URLSearchParams();
+  if (apiVersion) params.set('api-version', apiVersion);
+  const query = params.toString();
+  const response = await fetch(`${API_BASE_URL}/api/v1/Orchids/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
     headers: {
       Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     }
   });
-  if (!response.ok) {
-    throw new Error('Failed to fetch orchid');
-  }
-  return response.json();
+  const body = await readApiResponse(response);
+  if (!response.ok) throwOrchidApiError(body, 'Không thể tải thông tin hoa lan.');
+  return normalizeOrchid(body as Partial<Orchid> & { id: string; name: string });
 };
 
-export const createOrchid = async (data: any) => {
+export const createOrchid = async (data: CreateOrchidPayload, apiVersion?: string): Promise<unknown> => {
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/v1/Orchids`, {
+  const params = new URLSearchParams();
+  if (apiVersion) params.set('api-version', apiVersion);
+  const query = params.toString();
+  const response = await fetch(`${API_BASE_URL}/api/v1/Orchids${query ? `?${query}` : ''}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
     body: JSON.stringify(data)
   });
-  if (!response.ok) {
-    throw new Error('Failed to create orchid');
-  }
-  return response.json();
+  const body = await readApiResponse(response);
+  if (!response.ok) throwOrchidApiError(body, 'Không thể tạo hoa lan mới.');
+  return body;
 };
 
-export const updateOrchid = async (id: string | number, data: any) => {
+export const updateOrchid = async (
+  id: string,
+  data: Omit<UpdateOrchidPayload, 'id'>,
+  apiVersion?: string
+): Promise<unknown> => {
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/v1/Orchids/${id}`, {
+  const params = new URLSearchParams();
+  if (apiVersion) params.set('api-version', apiVersion);
+  const query = params.toString();
+  const response = await fetch(`${API_BASE_URL}/api/v1/Orchids/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
+      Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
-    body: JSON.stringify(data)
+    body: JSON.stringify({ ...data, id })
   });
-  if (!response.ok) {
-    throw new Error('Failed to update orchid');
-  }
-  if (response.status !== 204) {
-    try {
-      return await response.json();
-    } catch {
-      return null;
-    }
-  }
-  return null;
+  const body = await readApiResponse(response);
+  if (!response.ok) throwOrchidApiError(body, 'Không thể cập nhật hoa lan.');
+  return body;
 };
 
-export const deleteOrchid = async (id: string | number) => {
+export const deleteOrchid = async (id: string, apiVersion?: string): Promise<void> => {
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/v1/Orchids/${id}`, {
+  const params = new URLSearchParams();
+  if (apiVersion) params.set('api-version', apiVersion);
+  const query = params.toString();
+  const response = await fetch(`${API_BASE_URL}/api/v1/Orchids/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
     method: 'DELETE',
     headers: {
+      Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     }
   });
-  if (!response.ok) {
-    throw new Error('Failed to delete orchid');
-  }
-  if (response.status !== 204) {
-    try {
-      return await response.json();
-    } catch {
-      return null;
-    }
-  }
-  return null;
+  const body = await readApiResponse(response);
+  if (!response.ok) throwOrchidApiError(body, 'Không thể xóa hoa lan.');
 };

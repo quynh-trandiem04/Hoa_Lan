@@ -12,9 +12,9 @@ interface AddOrchidModalProps {
   isOpen: boolean;
   onClose: () => void;
   categories: Category[];
-  onAddOrchid: (orchid: Omit<Orchid, 'id'>) => void;
+  onAddOrchid: (orchid: Omit<Orchid, 'id'>) => Promise<void>;
   editOrchidData?: Orchid | null;
-  onEditOrchid?: (id: string, updated: Omit<Orchid, 'id'>) => void;
+  onEditOrchid?: (id: string, updated: Omit<Orchid, 'id'>) => Promise<void>;
 }
 
 export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
@@ -38,6 +38,7 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
   const [displayOrder, setDisplayOrder] = useState(0);
 
   const [errorMsg, setErrorMsg] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (editOrchidData) {
@@ -67,7 +68,7 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       setErrorMsg('Vui lòng điền tên loài hoa lan.');
@@ -77,8 +78,22 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
       setErrorMsg('Vui lòng bổ sung tên tiếng Anh / Danh pháp khoa học.');
       return;
     }
+    if (!categoryId) {
+      setErrorMsg('Vui lòng chọn danh mục cho hoa lan.');
+      return;
+    }
+    if (uploadedImageId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(uploadedImageId)) {
+      setErrorMsg('ID ảnh phải là UUID hợp lệ theo API.');
+      return;
+    }
 
-    const finalSlug = slug.trim() || name.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '');
+    const finalSlug = slug.trim() || name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
 
     const orchidPayload = {
       name,
@@ -93,13 +108,20 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
       displayOrder
     };
 
-    if (isEditing && editOrchidData && onEditOrchid) {
-      onEditOrchid(editOrchidData.id!, orchidPayload);
-    } else {
-      onAddOrchid(orchidPayload);
-    }
     setErrorMsg('');
-    onClose();
+    setIsSubmitting(true);
+    try {
+      if (isEditing && editOrchidData && onEditOrchid) {
+        await onEditOrchid(editOrchidData.id!, orchidPayload);
+      } else {
+        await onAddOrchid(orchidPayload);
+      }
+      onClose();
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : 'Không thể lưu thông tin hoa lan.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -237,36 +259,32 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
 
           <div className="space-y-2">
             <div className="space-y-1 mt-2">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">ID Ảnh / URL Ảnh</label>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">ID ảnh đã tải lên (UUID)</label>
               <input
                 type="text"
                 value={uploadedImageId}
                 onChange={(e) => setUploadedImageId(e.target.value)}
                 className="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-[#56642b]"
-                placeholder="Nhập link ảnh (hoặc ID ảnh)"
+                placeholder="Ví dụ: 3fa85f64-5717-4562-b3fc-2c963f66afa6"
               />
             </div>
-            
-            {uploadedImageId && uploadedImageId.startsWith('http') && (
-              <div className="mt-2 rounded-lg overflow-hidden border border-outline-variant bg-surface-container h-40 w-40">
-                <img src={uploadedImageId} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-              </div>
-            )}
           </div>
 
           <div className="p-4 border-t border-outline-variant bg-surface-container-low flex justify-end gap-2 -mx-6 -mb-6 mt-6 md:sticky md:bottom-0">
             <button
               type="button"
               onClick={onClose}
+              disabled={isSubmitting}
               className="px-4 py-2 text-sm font-semibold text-charcoal-text hover:bg-outline-variant/30 rounded transition-colors"
             >
               Hủy
             </button>
             <button
               type="submit"
-              className="px-6 py-2 text-sm font-bold text-white bg-[#56642b] hover:bg-[#4a5624] rounded shadow-sm transition-colors"
+              disabled={isSubmitting}
+              className="px-6 py-2 text-sm font-bold text-white bg-[#56642b] hover:bg-[#4a5624] rounded shadow-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {isEditing ? 'LƯU THAY ĐỔI' : 'THÊM MỚI'}
+              {isSubmitting ? 'ĐANG LƯU...' : (isEditing ? 'LƯU THAY ĐỔI' : 'THÊM MỚI')}
             </button>
           </div>
         </form>
