@@ -90,6 +90,16 @@ const getJwtExpiration = (token: string): number | null => {
   return typeof expiration === 'number' ? expiration * 1000 : null;
 };
 
+const createSlug = (value: string): string => value
+  .replace(/đ/g, 'd')
+  .replace(/Đ/g, 'D')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .trim()
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-|-$/g, '');
+
 export default function App() {
   const { toasts, addToast, removeToast } = useToasts();
 
@@ -819,15 +829,17 @@ export default function App() {
   };
 
   const handleAddCategory = async (payload: Omit<Category, 'id' | 'orchidCount'>) => {
-    const slug = payload.slug || payload.name
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '');
+    const normalizedName = payload.name.trim().toLocaleLowerCase('vi');
+    const slug = payload.slug || createSlug(payload.name);
 
     try {
+      const duplicate = categories.find((category) =>
+        category.name.trim().toLocaleLowerCase('vi') === normalizedName
+        || category.slug === slug
+      );
+      if (duplicate) {
+        throw new Error(`Danh mục “${duplicate.name}” đã tồn tại. Hãy dùng nút Sửa để đổi danh mục cha hoặc nội dung.`);
+      }
       await createCategory({
         name: payload.name.trim(),
         description: payload.description.trim(),
@@ -863,15 +875,17 @@ export default function App() {
     id: string,
     payload: Omit<Category, 'id' | 'orchidCount'>
   ) => {
-    const slug = payload.slug || payload.name
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '');
+    const normalizedName = payload.name.trim().toLocaleLowerCase('vi');
+    const slug = payload.slug || createSlug(payload.name);
 
     try {
+      const duplicate = categories.find((category) =>
+        category.id !== id
+        && (category.name.trim().toLocaleLowerCase('vi') === normalizedName || category.slug === slug)
+      );
+      if (duplicate) {
+        throw new Error(`Tên hoặc slug đang trùng với danh mục “${duplicate.name}”.`);
+      }
       await updateCategory(id, {
         id,
         name: payload.name.trim(),
