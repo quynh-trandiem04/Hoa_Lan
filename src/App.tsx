@@ -876,7 +876,7 @@ export default function App() {
       {/* =================== SCREEN 0: HOME =================== */}
       {screen === "home" && <CustomerHome categories={categories} onNavigate={(s, id) => setScreen(s as any, id)} />}
 
-      {screen === "list_orchids" && <ListOrchids categoryId={selectedCategoryId} onNavigate={(s, id) => setScreen(s as any, id)} />}
+      {screen === "list_orchids" && <ListOrchids categoryId={selectedCategoryId} categories={categories} onNavigate={(s, id) => setScreen(s as any, id)} />}
       
       {screen === "orchid_detail" && selectedOrchidId && <OrchidDetail id={selectedOrchidId} onNavigate={(s, id) => setScreen(s as any, id)} />}
 

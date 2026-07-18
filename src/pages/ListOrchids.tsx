@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Search, ChevronLeft, ChevronRight, X, Heart, HelpCircle, ArrowLeft, User } from 'lucide-react';
 import OrchidCard from '../components/OrchidCard';
-import { INITIAL_ORCHIDS, INITIAL_CATEGORIES, orchidData } from '../data';
-import { Orchid } from '../types';
+import { INITIAL_ORCHIDS, orchidData } from '../data';
+import { Category, Orchid } from '../types';
 import SearchModal from '../components/SearchModal';
 
 interface ListOrchidsProps {
   categoryId?: string | null;
+  categories: Category[];
   onNavigate: (screen: string, id?: string) => void;
 }
 
-export default function ListOrchids({ categoryId, onNavigate }: ListOrchidsProps) {
+export default function ListOrchids({ categoryId, categories, onNavigate }: ListOrchidsProps) {
   // Search and Filter states
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
@@ -24,17 +25,19 @@ export default function ListOrchids({ categoryId, onNavigate }: ListOrchidsProps
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 6;
 
-  // Initialize selectedCategories dynamically based on INITIAL_CATEGORIES
+  const rootCategories = categories.filter((category) => !category.parentId);
+
+  // Initialize selected categories dynamically from the Categories API.
   useEffect(() => {
     const initialCats: Record<string, boolean> = {};
-    INITIAL_CATEGORIES.forEach(cat => {
+    categories.forEach(cat => {
       initialCats[cat.id] = false;
     });
     if (categoryId) {
       initialCats[categoryId] = true;
     }
     setSelectedCategories(initialCats);
-  }, [categoryId]);
+  }, [categories, categoryId]);
 
   // Load bookmarks on mount
   useEffect(() => {
@@ -83,7 +86,7 @@ export default function ListOrchids({ categoryId, onNavigate }: ListOrchidsProps
   const handleClearFilters = () => {
     setSearchQuery('');
     const resetCats: Record<string, boolean> = {};
-    INITIAL_CATEGORIES.forEach(cat => {
+    categories.forEach(cat => {
       resetCats[cat.id] = false;
     });
     setSelectedCategories(resetCats);
@@ -157,16 +160,21 @@ export default function ListOrchids({ categoryId, onNavigate }: ListOrchidsProps
               </button>
               <div className="absolute top-full left-0 w-64 bg-white border border-[#747878]/10 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 py-3 mt-2 rounded">
                 <ul className="flex flex-col">
-                  {INITIAL_CATEGORIES.map((cat: any) => (
+                  {rootCategories.map((cat) => (
                     <li key={cat.id}>
                       <button
                         onClick={() => onNavigate('list_orchids', cat.id)}
                         className="w-full text-left px-5 py-2.5 font-serif text-sm text-[#1a1c1b] hover:bg-[#56642b]/5 hover:text-botanical-green transition-colors cursor-pointer"
                       >
-                        {cat.name} ({cat.scientificName.split(" ")[0]})
+                        {cat.name}
                       </button>
                     </li>
                   ))}
+                  {rootCategories.length === 0 && (
+                    <li className="px-5 py-2.5 text-sm text-on-surface-variant">
+                      Chưa có danh mục
+                    </li>
+                  )}
                 </ul>
               </div>
             </div>
@@ -257,7 +265,7 @@ export default function ListOrchids({ categoryId, onNavigate }: ListOrchidsProps
                 PHÂN LOẠI DÒNG LAN
               </h4>
               <div className="space-y-2.5">
-                {INITIAL_CATEGORIES.map((cat) => (
+                {rootCategories.map((cat) => (
                   <label key={cat.id} className="flex items-center space-x-3 text-xs text-[#1a1c1b]/80 font-sans cursor-pointer group select-none">
                     <input
                       type="checkbox"
@@ -265,9 +273,12 @@ export default function ListOrchids({ categoryId, onNavigate }: ListOrchidsProps
                       onChange={() => handleCategoryChange(cat.id)}
                       className="w-4 h-4 rounded-[2px] border-[#747878]/30 text-botanical-green focus:ring-botanical-green/20 accent-botanical-green transition-all"
                     />
-                    <span className="group-hover:text-botanical-green transition-colors">{cat.name} <span className="text-[10px] text-[#747878]">({cat.scientificName})</span></span>
+                    <span className="group-hover:text-botanical-green transition-colors">{cat.name}</span>
                   </label>
                 ))}
+                {rootCategories.length === 0 && (
+                  <p className="text-xs text-[#747878]">Chưa có danh mục từ máy chủ.</p>
+                )}
               </div>
             </div>
 
