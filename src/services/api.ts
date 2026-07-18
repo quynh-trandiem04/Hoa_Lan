@@ -567,7 +567,7 @@ const readImageUrlCache = (): Record<string, CachedImage> => {
 };
 
 const rememberUploadedImage = (image: UploadedImage) => {
-  if (typeof window === 'undefined' || !image.url) return;
+  if (typeof window === 'undefined' || !/^https?:\/\//i.test(image.url)) return;
   try {
     const cache = readImageUrlCache();
     cache[image.id] = { url: image.url, publicId: image.publicId };
@@ -727,16 +727,22 @@ export interface UploadedImage {
 }
 
 const normalizeUploadedImage = (body: unknown): UploadedImage => {
+  if (typeof body === 'string' && body) {
+    return { id: body, publicId: '', url: '' };
+  }
   const root = body !== null && typeof body === 'object'
     ? body as Record<string, unknown>
     : {};
   const nestedValue = root.data ?? root.result ?? root.image;
+  if (typeof nestedValue === 'string' && nestedValue) {
+    return { id: nestedValue, publicId: '', url: '' };
+  }
   const data = nestedValue !== null && typeof nestedValue === 'object'
     ? nestedValue as Record<string, unknown>
     : root;
-  const id = data.id ?? data.imageId ?? data.uploadedImageId;
+  const id = data.id ?? data.imageId ?? data.uploadedImageId ?? data.value;
   const publicId = data.publicId ?? data.public_id;
-  const url = data.secureUrl ?? data.secure_url ?? data.url ?? data.imageUrl;
+  const url = data.secureUrl ?? data.secure_url ?? data.url ?? data.imageUrl ?? data.displayUrl ?? data.path;
 
   if (typeof id !== 'string' || !id) {
     throw new Error('API upload ảnh không trả về ID ảnh.');
@@ -754,22 +760,33 @@ export const uploadImage = async (file: File): Promise<UploadedImage> => {
   const token = getStoredAuthToken();
   const formData = new FormData();
   formData.append('file', file);
-  const response = await fetch(`${API_BASE_URL}/api/v1/Images/upload`, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    },
-    body: formData,
-  });
-  const body = await readApiResponse(response);
-  if (response.status === 401) {
-    throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại trước khi tải ảnh.');
+  const previewUrl = URL.createObjectURL(file);
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/Images/upload`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: formData,
+    });
+    const body = await readApiResponse(response);
+    if (response.status === 401) {
+      throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng xuất rồi đăng nhập lại trước khi tải ảnh.');
+    }
+    if (!response.ok) throwOrchidApiError(body, `Không thể tải ảnh lên (HTTP ${response.status}).`);
+    const normalized = normalizeUploadedImage(body);
+    const uploaded = {
+      ...normalized,
+      url: normalized.url || previewUrl,
+      fileName: file.name,
+    };
+    rememberUploadedImage(uploaded);
+    return uploaded;
+  } catch (error) {
+    URL.revokeObjectURL(previewUrl);
+    throw error;
   }
-  if (!response.ok) throwOrchidApiError(body, 'Không thể tải ảnh lên.');
-  const uploaded = { ...normalizeUploadedImage(body), fileName: file.name };
-  rememberUploadedImage(uploaded);
-  return uploaded;
 };
 
 export const deleteUploadedImage = async (publicId: string): Promise<void> => {

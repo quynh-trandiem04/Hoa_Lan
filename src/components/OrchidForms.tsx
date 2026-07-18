@@ -311,6 +311,12 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
               />
             </div>
 
+            {errorMsg && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+                {errorMsg}
+              </p>
+            )}
+
             {uploadedImages.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {uploadedImages.map((image) => (
