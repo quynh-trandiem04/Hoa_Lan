@@ -830,7 +830,7 @@ export default function App() {
 
   const handleAddCategory = async (payload: Omit<Category, 'id' | 'orchidCount'>) => {
     const normalizedName = payload.name.trim().toLocaleLowerCase('vi');
-    const slug = createSlug(payload.name);
+    const slug = payload.slug || createSlug(payload.name);
 
     try {
       const duplicate = categories.find((category) =>
@@ -883,7 +883,9 @@ export default function App() {
     payload: Omit<Category, 'id' | 'orchidCount'>
   ) => {
     const normalizedName = payload.name.trim().toLocaleLowerCase('vi');
-    const slug = createSlug(payload.name);
+    // Preserve an existing slug while moving a category. Some backend records
+    // were created with legacy slugs and fail when slug + parent change together.
+    const slug = payload.slug || createSlug(payload.name);
 
     try {
       const duplicate = categories.find((category) =>
