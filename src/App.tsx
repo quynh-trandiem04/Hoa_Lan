@@ -2515,6 +2515,7 @@ export default function App() {
       <AddCategoryModal
         isOpen={openAddCategory}
         onClose={() => setOpenAddCategory(false)}
+        categories={categories}
         onAddCategory={handleAddCategory}
       />
 

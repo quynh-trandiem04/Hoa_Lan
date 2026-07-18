@@ -279,13 +279,15 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
 interface AddCategoryModalProps {
   isOpen: boolean;
   onClose: () => void;
+  categories: Category[];
   onAddCategory: (category: Omit<Category, 'id' | 'orchidCount'>) => Promise<void>;
 }
 
-export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({ isOpen, onClose, onAddCategory }) => {
+export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({ isOpen, onClose, categories, onAddCategory }) => {
   const [name, setName] = useState('');
-  const [scientificName, setScientificName] = useState('');
   const [description, setDescription] = useState('');
+  const [slug, setSlug] = useState('');
+  const [parentId, setParentId] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -300,10 +302,16 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({ isOpen, onCl
     setErrorMsg('');
     setIsSubmitting(true);
     try {
-      await onAddCategory({ name, scientificName, description });
+      await onAddCategory({
+        name,
+        description,
+        slug: slug.trim() || undefined,
+        parentId: parentId || null,
+      });
       setName('');
-      setScientificName('');
       setDescription('');
+      setSlug('');
+      setParentId('');
       onClose();
     } catch (error) {
       setErrorMsg(error instanceof Error ? error.message : 'Không thể tạo danh mục mới.');
@@ -352,14 +360,28 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({ isOpen, onCl
           </div>
 
           <div className="space-y-1">
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-outline font-sans">Danh pháp Latinh</label>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-outline font-sans">Đường dẫn Slug</label>
             <input
               type="text"
-              value={scientificName}
-              onChange={(e) => setScientificName(e.target.value)}
-              placeholder="Phalaenopsis Blume"
-              className="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm italic focus:outline-none focus:border-botanical-green"
+              value={slug}
+              onChange={(e) => setSlug(e.target.value)}
+              placeholder="Để trống để tự tạo từ tên"
+              className="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green"
             />
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-outline font-sans">Danh mục cha</label>
+            <select
+              value={parentId}
+              onChange={(e) => setParentId(e.target.value)}
+              className="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green"
+            >
+              <option value="">Không có — danh mục cấp gốc</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>{category.name}</option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-1">
