@@ -15,11 +15,13 @@ export interface LoginResponse {
   accessToken?: string;
   refreshToken?: string;
   message?: string;
+  title?: string;
+  detail?: string;
   [key: string]: unknown;
 }
 
 const getApiErrorMessage = (responseBody: LoginResponse, fallback: string): string => {
-  const validationErrors = responseBody.validationErrors;
+  const validationErrors = responseBody.validationErrors ?? responseBody.errors;
   if (validationErrors && typeof validationErrors === 'object') {
     for (const value of Object.values(validationErrors)) {
       if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
@@ -27,9 +29,17 @@ const getApiErrorMessage = (responseBody: LoginResponse, fallback: string): stri
     }
   }
 
-  return typeof responseBody.message === 'string' && responseBody.message
-    ? responseBody.message
-    : fallback;
+  if (typeof responseBody.message === 'string' && responseBody.message) return responseBody.message;
+  if (typeof responseBody.detail === 'string' && responseBody.detail) return responseBody.detail;
+  if (typeof responseBody.title === 'string' && responseBody.title) return responseBody.title;
+  return fallback;
+};
+
+const normalizeAuthResponse = (responseBody: LoginResponse): LoginResponse => {
+  const nested = responseBody.data ?? responseBody.result;
+  return nested !== null && typeof nested === 'object'
+    ? { ...responseBody, ...nested as LoginResponse }
+    : responseBody;
 };
 
 export const login = async (credentials: LoginCredentials): Promise<LoginResponse> => {
@@ -74,7 +84,7 @@ export const login = async (credentials: LoginCredentials): Promise<LoginRespons
     throw new Error(getApiErrorMessage(responseBody, 'Email hoặc mật khẩu không chính xác.'));
   }
 
-  return responseBody;
+  return normalizeAuthResponse(responseBody);
 };
 
 export const loginWithGoogle = async (idToken: string): Promise<LoginResponse> => {
@@ -105,7 +115,7 @@ export const loginWithGoogle = async (idToken: string): Promise<LoginResponse> =
     throw new Error(getApiErrorMessage(responseBody, 'Không thể đăng nhập bằng Google.'));
   }
 
-  return responseBody;
+  return normalizeAuthResponse(responseBody);
 };
 
 export interface RefreshTokenCredentials {
@@ -143,7 +153,7 @@ export const refreshAuthToken = async (
     throw new Error(getApiErrorMessage(responseBody, 'Không thể làm mới phiên đăng nhập.'));
   }
 
-  return responseBody;
+  return normalizeAuthResponse(responseBody);
 };
 
 export interface CategoryQuery {
@@ -261,6 +271,12 @@ export const createCategory = async (payload: CreateCategoryPayload): Promise<un
     }
   }
 
+  if (response.status === 401) {
+    throw new Error('Phiên đăng nhập không hợp lệ hoặc đã hết hạn. Vui lòng đăng xuất rồi đăng nhập lại.');
+  }
+  if (response.status === 403) {
+    throw new Error('Tài khoản không có quyền tạo danh mục.');
+  }
   if (!response.ok) {
     const errorBody = responseBody !== null && typeof responseBody === 'object'
       ? responseBody as LoginResponse

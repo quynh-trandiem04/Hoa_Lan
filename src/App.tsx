@@ -236,12 +236,18 @@ export default function App() {
   useEffect(() => {
     const storedUser = localStorage.getItem("orchidee_admin_user")
       || sessionStorage.getItem("orchidee_admin_user");
-    if (storedUser) {
+    const storedToken = localStorage.getItem("orchidee_auth_token")
+      || sessionStorage.getItem("orchidee_auth_token");
+    if (storedUser && storedToken) {
       setCurrentUser(storedUser);
       setScreen("dashboard");
-    } else if (getInitialScreen() === "dashboard") {
-      window.history.replaceState({}, '', '/login');
-      setScreenState("login");
+    } else {
+      localStorage.removeItem("orchidee_admin_user");
+      sessionStorage.removeItem("orchidee_admin_user");
+      if (getInitialScreen() === "dashboard") {
+        window.history.replaceState({}, '', '/login');
+        setScreenState("login");
+      }
     }
   }, []);
 
@@ -260,10 +266,7 @@ export default function App() {
       return;
     }
     
-    localStorage.setItem("orchidee_admin_user", email);
-    setCurrentUser(email);
-    setScreen("dashboard");
-    addToast("Đăng ký thành công!", "success");
+    addToast("Backend chưa cung cấp API đăng ký tài khoản. Vui lòng đăng nhập bằng tài khoản đã được cấp.", "error");
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -279,6 +282,9 @@ export default function App() {
       const authData = await login({ email: normalizedEmail, password });
       const storage = rememberMe ? localStorage : sessionStorage;
       const token = authData.accessToken || authData.token;
+      if (!token) {
+        throw new Error('Máy chủ không trả về access token. Không thể mở trang quản trị.');
+      }
 
       localStorage.removeItem("orchidee_admin_user");
       sessionStorage.removeItem("orchidee_admin_user");
@@ -291,9 +297,7 @@ export default function App() {
         localStorage.removeItem("orchidee_remembered_email");
       }
 
-      if (token) {
-        storage.setItem("orchidee_auth_token", token);
-      }
+      storage.setItem("orchidee_auth_token", token);
 
       setCurrentUser(normalizedEmail);
       setPassword("");
@@ -316,6 +320,9 @@ export default function App() {
       const googleEmail = getEmailFromGoogleIdToken(idToken);
       const storage = rememberMe ? localStorage : sessionStorage;
       const token = authData.accessToken || authData.token;
+      if (!token) {
+        throw new Error('Máy chủ không trả về access token Google.');
+      }
 
       localStorage.removeItem("orchidee_admin_user");
       localStorage.removeItem("orchidee_auth");
@@ -326,7 +333,7 @@ export default function App() {
 
       storage.setItem("orchidee_admin_user", googleEmail);
       storage.setItem("orchidee_auth", JSON.stringify(authData));
-      if (token) storage.setItem("orchidee_auth_token", token);
+      storage.setItem("orchidee_auth_token", token);
 
       setCurrentUser(googleEmail);
       setScreen("dashboard");
