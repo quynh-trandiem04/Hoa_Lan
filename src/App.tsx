@@ -224,11 +224,11 @@ export default function App() {
   }, []);
 
   const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => localStorage.getItem("orchidee_remembered_email") || "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [agreeTerms, setAgreeTerms] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(() => Boolean(localStorage.getItem("orchidee_remembered_email")));
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
@@ -285,6 +285,12 @@ export default function App() {
       sessionStorage.removeItem("orchidee_admin_user");
       storage.setItem("orchidee_admin_user", normalizedEmail);
       storage.setItem("orchidee_auth", JSON.stringify(authData));
+
+      if (rememberMe) {
+        localStorage.setItem("orchidee_remembered_email", normalizedEmail);
+      } else {
+        localStorage.removeItem("orchidee_remembered_email");
+      }
 
       if (token) {
         storage.setItem("orchidee_auth_token", token);
@@ -1094,7 +1100,9 @@ export default function App() {
                   <span className="absolute -top-2.5 left-0 text-[10px] uppercase tracking-widest text-[#8c8e8c] font-semibold">Email của bạn</span>
                   <input
                     id="login_email"
+                    name="email"
                     type="email"
+                    autoComplete={rememberMe ? "email" : "off"}
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -1108,7 +1116,9 @@ export default function App() {
                   <span className="absolute -top-2.5 left-0 text-[10px] uppercase tracking-widest text-[#8c8e8c] font-semibold">Mật khẩu</span>
                   <input
                     id="login_password"
+                    name="password"
                     type={showPassword ? "text" : "password"}
+                    autoComplete={rememberMe ? "current-password" : "off"}
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -1136,7 +1146,7 @@ export default function App() {
                       onChange={(e) => setRememberMe(e.target.checked)}
                       className="w-4 h-4 rounded-[1px] border-[#e2e3e1] text-[#56642b] focus:ring-[#56642b]"
                     />
-                    <span>Ghi nhớ đăng nhập</span>
+                    <span>Ghi nhớ mật khẩu</span>
                   </label>
                   <button type="button" onClick={() => setScreen("forgot_password")} className="text-[11px] text-[#56642b] hover:underline font-medium">Quên mật khẩu?</button>
                 </div>
