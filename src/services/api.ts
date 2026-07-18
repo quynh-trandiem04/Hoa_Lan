@@ -29,8 +29,10 @@ const getApiErrorMessage = (responseBody: LoginResponse, fallback: string): stri
     }
   }
 
-  if (typeof responseBody.message === 'string' && responseBody.message) return responseBody.message;
-  if (typeof responseBody.detail === 'string' && responseBody.detail) return responseBody.detail;
+  const isGenericServerError = (value: unknown) => typeof value === 'string'
+    && value.toLowerCase().includes('lỗi hệ thống cục bộ');
+  if (typeof responseBody.message === 'string' && responseBody.message && !isGenericServerError(responseBody.message)) return responseBody.message;
+  if (typeof responseBody.detail === 'string' && responseBody.detail && !isGenericServerError(responseBody.detail)) return responseBody.detail;
   if (typeof responseBody.title === 'string' && responseBody.title) return responseBody.title;
   return fallback;
 };
@@ -673,7 +675,7 @@ export const createOrchid = async (data: CreateOrchidPayload, apiVersion?: strin
     body: JSON.stringify(createData)
   });
   const body = await readApiResponse(response);
-  if (!response.ok) throwOrchidApiError(body, 'Không thể tạo hoa lan mới.');
+  if (!response.ok) throwOrchidApiError(body, `Không thể tạo hoa lan mới (HTTP ${response.status}).`);
   return body;
 };
 
@@ -697,7 +699,7 @@ export const updateOrchid = async (
     body: JSON.stringify({ ...updateData, id })
   });
   const body = await readApiResponse(response);
-  if (!response.ok) throwOrchidApiError(body, 'Không thể cập nhật hoa lan.');
+  if (!response.ok) throwOrchidApiError(body, `Không thể cập nhật hoa lan (HTTP ${response.status}).`);
   return body;
 };
 
@@ -773,6 +775,9 @@ export const uploadImage = async (file: File): Promise<UploadedImage> => {
     const body = await readApiResponse(response);
     if (response.status === 401) {
       throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng xuất rồi đăng nhập lại trước khi tải ảnh.');
+    }
+    if (response.status >= 500) {
+      throw new Error(`API lưu trữ ảnh đang lỗi (HTTP ${response.status}). Vui lòng kiểm tra cấu hình Cloudinary trên máy chủ Render.`);
     }
     if (!response.ok) throwOrchidApiError(body, `Không thể tải ảnh lên (HTTP ${response.status}).`);
     const normalized = normalizeUploadedImage(body);
