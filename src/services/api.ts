@@ -605,6 +605,8 @@ export const createOrchid = async (data: CreateOrchidPayload, apiVersion?: strin
   const params = new URLSearchParams();
   if (apiVersion) params.set('api-version', apiVersion);
   const query = params.toString();
+  // displayOrder is assigned by the backend/database for new orchids.
+  const { displayOrder: _displayOrder, ...createData } = data;
   const response = await fetch(`${API_BASE_URL}/api/v1/Orchids${query ? `?${query}` : ''}`, {
     method: 'POST',
     headers: {
@@ -612,7 +614,7 @@ export const createOrchid = async (data: CreateOrchidPayload, apiVersion?: strin
       Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
-    body: JSON.stringify(data)
+    body: JSON.stringify(createData)
   });
   const body = await readApiResponse(response);
   if (!response.ok) throwOrchidApiError(body, 'Không thể tạo hoa lan mới.');
@@ -656,4 +658,73 @@ export const deleteOrchid = async (id: string, apiVersion?: string): Promise<voi
   });
   const body = await readApiResponse(response);
   if (!response.ok) throwOrchidApiError(body, 'Không thể xóa hoa lan.');
+};
+
+// ======================= IMAGES API =======================
+
+export interface UploadedImage {
+  id: string;
+  publicId: string;
+  url: string;
+  fileName?: string;
+}
+
+const normalizeUploadedImage = (body: unknown): UploadedImage => {
+  const root = body !== null && typeof body === 'object'
+    ? body as Record<string, unknown>
+    : {};
+  const nestedValue = root.data ?? root.result ?? root.image;
+  const data = nestedValue !== null && typeof nestedValue === 'object'
+    ? nestedValue as Record<string, unknown>
+    : root;
+  const id = data.id ?? data.imageId ?? data.uploadedImageId;
+  const publicId = data.publicId ?? data.public_id;
+  const url = data.secureUrl ?? data.secure_url ?? data.url ?? data.imageUrl;
+
+  if (typeof id !== 'string' || !id) {
+    throw new Error('API upload ảnh không trả về ID ảnh.');
+  }
+
+  return {
+    id,
+    publicId: typeof publicId === 'string' ? publicId : '',
+    url: typeof url === 'string' ? url : '',
+    fileName: typeof data.fileName === 'string' ? data.fileName : undefined,
+  };
+};
+
+export const uploadImage = async (file: File): Promise<UploadedImage> => {
+  const token = getStoredAuthToken();
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await fetch(`${API_BASE_URL}/api/v1/Images/upload`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: formData,
+  });
+  const body = await readApiResponse(response);
+  if (response.status === 401) {
+    throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại trước khi tải ảnh.');
+  }
+  if (!response.ok) throwOrchidApiError(body, 'Không thể tải ảnh lên.');
+  return { ...normalizeUploadedImage(body), fileName: file.name };
+};
+
+export const deleteUploadedImage = async (publicId: string): Promise<void> => {
+  const token = getStoredAuthToken();
+  const response = await fetch(`${API_BASE_URL}/api/v1/Images/${encodeURIComponent(publicId)}`, {
+    method: 'DELETE',
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+  });
+  const body = await readApiResponse(response);
+  if (response.status === 401) {
+    throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại trước khi xóa ảnh.');
+  }
+  if (!response.ok) throwOrchidApiError(body, 'Không thể xóa ảnh.');
 };

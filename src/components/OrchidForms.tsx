@@ -4,9 +4,10 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { X, FolderPlus, PlusCircle } from 'lucide-react';
+import { X, FolderPlus, PlusCircle, Upload, Trash2 } from 'lucide-react';
 import { Orchid, Category } from '../types';
 import { motion } from 'motion/react';
+import { deleteUploadedImage, uploadImage, type UploadedImage } from '../services/api';
 
 interface AddOrchidModalProps {
   isOpen: boolean;
@@ -34,11 +35,11 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
   const [hasFragrance, setHasFragrance] = useState(false);
   const [isPopular, setIsPopular] = useState(false);
   const [slug, setSlug] = useState('');
-  const [uploadedImageIdsText, setUploadedImageIdsText] = useState('');
-  const [displayOrder, setDisplayOrder] = useState(0);
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
 
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
 
   useEffect(() => {
     if (editOrchidData) {
@@ -50,8 +51,7 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
       setHasFragrance(editOrchidData.hasFragrance);
       setIsPopular(editOrchidData.isPopular);
       setSlug(editOrchidData.slug);
-      setUploadedImageIdsText(editOrchidData.uploadedImageIds.join('\n'));
-      setDisplayOrder(editOrchidData.displayOrder);
+      setUploadedImages(editOrchidData.uploadedImageIds.map((id) => ({ id, publicId: '', url: '' })));
     } else {
       setName('');
       setEnglishName('');
@@ -61,8 +61,7 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
       setHasFragrance(false);
       setIsPopular(false);
       setSlug('');
-      setUploadedImageIdsText('');
-      setDisplayOrder(0);
+      setUploadedImages([]);
     }
   }, [editOrchidData, isOpen, categories]);
 
@@ -82,16 +81,6 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
       setErrorMsg('Vui lòng chọn ít nhất một danh mục cho hoa lan.');
       return;
     }
-    const uploadedImageIds = Array.from(new Set(uploadedImageIdsText
-      .split(/[\s,;]+/)
-      .map((id) => id.trim())
-      .filter(Boolean)));
-    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (uploadedImageIds.some((id) => !uuidPattern.test(id))) {
-      setErrorMsg('Danh sách ảnh chứa UUID không hợp lệ.');
-      return;
-    }
-
     const finalSlug = slug.trim() || name
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
@@ -109,8 +98,8 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
       hasFragrance,
       isPopular,
       slug: finalSlug,
-      uploadedImageIds,
-      displayOrder
+      uploadedImageIds: uploadedImages.map((image) => image.id),
+      displayOrder: editOrchidData?.displayOrder ?? 0,
     };
 
     setErrorMsg('');
@@ -126,6 +115,41 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
       setErrorMsg(error instanceof Error ? error.message : 'Không thể lưu thông tin hoa lan.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleUploadImages = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    if (files.length === 0) return;
+    if (files.some((file) => !file.type.startsWith('image/'))) {
+      setErrorMsg('Vui lòng chỉ chọn tệp hình ảnh.');
+      return;
+    }
+
+    setErrorMsg('');
+    setIsUploadingImages(true);
+    try {
+      for (const file of files) {
+        const uploaded = await uploadImage(file);
+        setUploadedImages((current) => current.some((image) => image.id === uploaded.id)
+          ? current
+          : [...current, uploaded]);
+      }
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : 'Không thể tải ảnh lên.');
+    } finally {
+      setIsUploadingImages(false);
+    }
+  };
+
+  const handleRemoveImage = async (image: UploadedImage) => {
+    setErrorMsg('');
+    try {
+      if (image.publicId) await deleteUploadedImage(image.publicId);
+      setUploadedImages((current) => current.filter((item) => item.id !== image.id));
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : 'Không thể xóa ảnh.');
     }
   };
 
@@ -208,18 +232,7 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Thứ tự hiển thị</label>
-              <input
-                type="number"
-                value={displayOrder}
-                onChange={(e) => setDisplayOrder(Number(e.target.value))}
-                className="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-[#56642b]"
-              />
-            </div>
-            
-            <div className="flex items-center gap-6 mt-6">
+          <div className="flex items-center gap-6">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -238,7 +251,6 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
                 />
                 <span className="text-sm font-semibold text-charcoal-text">Phổ biến</span>
               </label>
-            </div>
           </div>
 
           <div className="space-y-1">
@@ -261,32 +273,65 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
             />
           </div>
 
-          <div className="space-y-2">
-            <div className="space-y-1 mt-2">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Danh sách ID ảnh đã tải lên (UUID)</label>
-              <textarea
-                value={uploadedImageIdsText}
-                onChange={(e) => setUploadedImageIdsText(e.target.value)}
-                rows={3}
-                className="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm font-mono focus:outline-none focus:border-[#56642b] resize-y"
-                placeholder={'Mỗi UUID một dòng, ví dụ:\n3fa85f64-5717-4562-b3fc-2c963f66afa6'}
+          <div className="space-y-3">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Hình ảnh hoa lan</label>
+            <label className={`w-full min-h-24 border-2 border-dashed border-outline-variant rounded-lg flex flex-col items-center justify-center gap-2 text-sm transition-colors ${
+              isUploadingImages ? 'opacity-60 cursor-wait' : 'cursor-pointer hover:border-[#56642b] hover:bg-[#f7f8f2]'
+            }`}>
+              <Upload className="w-5 h-5 text-[#56642b]" />
+              <span className="font-semibold text-charcoal-text">
+                {isUploadingImages ? 'Đang tải ảnh lên...' : 'Chọn ảnh từ máy tính'}
+              </span>
+              <span className="text-[10px] text-outline">Có thể chọn nhiều ảnh</span>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                disabled={isUploadingImages || isSubmitting}
+                onChange={(event) => void handleUploadImages(event)}
+                className="sr-only"
               />
-              <p className="text-[10px] text-outline">Nhập nhiều UUID, ngăn cách bằng xuống dòng, dấu phẩy hoặc dấu chấm phẩy.</p>
-            </div>
+            </label>
+
+            {uploadedImages.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {uploadedImages.map((image) => (
+                  <div key={image.id} className="relative border border-outline-variant rounded-lg overflow-hidden bg-surface-container-low min-h-28">
+                    {image.url ? (
+                      <img src={image.url} alt={image.fileName || 'Ảnh hoa lan'} className="w-full h-28 object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="h-28 p-3 flex items-center justify-center text-center text-[10px] text-outline break-all">
+                        Ảnh đã liên kết<br />{image.id}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => void handleRemoveImage(image)}
+                      disabled={isUploadingImages || isSubmitting}
+                      className="absolute top-1.5 right-1.5 p-1.5 rounded-full bg-white/90 text-error shadow hover:bg-error hover:text-white transition-colors disabled:opacity-50"
+                      title="Xóa ảnh"
+                      aria-label={`Xóa ${image.fileName || image.id}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="p-4 border-t border-outline-variant bg-surface-container-low flex justify-end gap-2 -mx-6 -mb-6 mt-6 md:sticky md:bottom-0">
             <button
               type="button"
               onClick={onClose}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isUploadingImages}
               className="px-4 py-2 text-sm font-semibold text-charcoal-text hover:bg-outline-variant/30 rounded transition-colors"
             >
               Hủy
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isUploadingImages}
               className="px-6 py-2 text-sm font-bold text-white bg-[#56642b] hover:bg-[#4a5624] rounded shadow-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {isSubmitting ? 'ĐANG LƯU...' : (isEditing ? 'LƯU THAY ĐỔI' : 'THÊM MỚI')}
