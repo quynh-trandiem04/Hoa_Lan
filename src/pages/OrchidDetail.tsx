@@ -3,6 +3,7 @@ import { ArrowLeft, Heart, Download, MapPin, Calendar, Sun, Thermometer, UserChe
 import { INITIAL_ORCHIDS, INITIAL_CATEGORIES, orchidData } from '../data';
 import { Orchid } from '../types';
 import SearchModal from '../components/SearchModal';
+import { getOrchidImageUrls } from '../utils/orchidImages';
 
 interface OrchidDetailProps {
   id: string;
@@ -140,7 +141,7 @@ ${orchid.detailedDescription}
   const categoryName = INITIAL_CATEGORIES.find(c => c.id === orchid.categoryIds?.[0])?.name || 'Chưa phân loại';
 
   // Format images
-  const images = orchid.uploadedImageIds ? [...orchid.uploadedImageIds] : [];
+  const images = getOrchidImageUrls(orchid);
   const placeholders = [
     'https://images.unsplash.com/photo-1525310072745-f49212b5ac6d?auto=format&fit=crop&w=800&q=80',
     'https://images.unsplash.com/photo-1596401057633-54a8fe8ef647?auto=format&fit=crop&w=800&q=80',

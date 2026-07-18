@@ -1,6 +1,7 @@
 import React from 'react';
 import { MapPin, Heart } from 'lucide-react';
 import { Orchid } from '../types';
+import { getOrchidImageUrls } from '../utils/orchidImages';
 
 interface OrchidCardProps {
   orchid: Orchid;
@@ -23,7 +24,7 @@ const OrchidCard: React.FC<OrchidCardProps> = ({
       {/* Image container */}
       <div className="relative aspect-[4/3] bg-surface-container overflow-hidden border-b border-[#747878]/10">
         <img
-          src={orchid.uploadedImageIds?.[0] || 'https://images.unsplash.com/photo-1525310072745-f49212b5ac6d?auto=format&fit=crop&w=800&q=80'}
+          src={getOrchidImageUrls(orchid)[0] || 'https://images.unsplash.com/photo-1525310072745-f49212b5ac6d?auto=format&fit=crop&w=800&q=80'}
           alt={orchid.name}
           referrerPolicy="no-referrer"
           className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"

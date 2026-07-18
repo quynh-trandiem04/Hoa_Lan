@@ -45,6 +45,7 @@ import { motion, AnimatePresence } from 'motion/react';
 // Domain Imports
 import { Orchid, Question, Category, CommunityPost, CareArticle, PaginatedDocuments, DocumentItem } from './types';
 import { login, loginWithGoogle, refreshAuthToken, getCategories, createCategory, getCategoryById, updateCategory, deleteCategory, getArticles, getArticleById, createArticle, updateArticle, deleteArticle, getOrchids, getOrchidById, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, deleteDocument, type LoginResponse } from './services/api';
+import { getOrchidImageUrls } from './utils/orchidImages';
 import {
   INITIAL_ORCHIDS,
   INITIAL_QUESTIONS,
@@ -390,7 +391,15 @@ export default function App() {
     setLoadingOrchids(true);
     try {
       const data = await getOrchids();
-      setOrchids(data);
+      setOrchids((current) => data.map((orchid) => {
+        const previous = current.find((item) =>
+          (orchid.id && item.id === orchid.id) ||
+          (orchid.slug && item.slug === orchid.slug)
+        );
+        return getOrchidImageUrls(orchid).length === 0 && previous
+          ? { ...orchid, imageUrls: getOrchidImageUrls(previous) }
+          : orchid;
+      }));
     } catch (error) {
       console.error('Lỗi tải danh sách hoa lan:', error);
     } finally {
@@ -761,7 +770,16 @@ export default function App() {
 
   const handleAddNewOrchid = async (orchidPayload: Omit<Orchid, 'id' | 'createdAt'>) => {
     try {
-      await createOrchid(orchidPayload);
+      const created = await createOrchid(orchidPayload);
+      const createdId = typeof created === 'string'
+        ? created
+        : created && typeof created === 'object' && 'id' in created && typeof created.id === 'string'
+          ? created.id
+          : undefined;
+      setOrchids((current) => [
+        ...current.filter((item) => item.id !== createdId && item.slug !== orchidPayload.slug),
+        { ...orchidPayload, id: createdId },
+      ]);
       
       // update count in categories locally
       setCategories(prevCats => prevCats.map(cat => {
@@ -1655,7 +1673,7 @@ export default function App() {
                         }}
                         className="flex items-center gap-2 p-1.5 hover:bg-surface-container rounded w-full text-left transition-colors"
                       >
-                        <img src={orc.uploadedImageIds[0] || "https://images.unsplash.com/photo-1525310072745-f49212b5ac6d?q=80&w=300"} className="w-6 h-6 rounded object-cover" alt="" referrerPolicy="no-referrer" />
+                        <img src={getOrchidImageUrls(orc)[0] || "https://images.unsplash.com/photo-1525310072745-f49212b5ac6d?q=80&w=300"} className="w-6 h-6 rounded object-cover" alt="" referrerPolicy="no-referrer" />
                         <div>
                           <p className="font-bold">{orc.name}</p>
                           <p className="text-[10px] text-outline italic">{orc.englishName}</p>
@@ -1909,7 +1927,7 @@ export default function App() {
                           <div key={orc.id} className="flex gap-3 group relative items-center">
                             <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 border border-outline-variant/30 bg-surface-container">
                               <img
-                                src={orc.uploadedImageIds[0] || "https://images.unsplash.com/photo-1525310072745-f49212b5ac6d?q=80&w=300"}
+                                src={getOrchidImageUrls(orc)[0] || "https://images.unsplash.com/photo-1525310072745-f49212b5ac6d?q=80&w=300"}
                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                 alt={orc.name}
                                 referrerPolicy="no-referrer"
@@ -2130,7 +2148,7 @@ export default function App() {
                     <div key={orc.id} className="bg-white p-4 rounded-xl border border-outline-variant/40 hover:border-botanical-green/40 duration-300 transition-all flex gap-4 group relative">
                       <div className="w-24 h-24 rounded-lg overflow-hidden shrink-0 border border-outline-variant/30 bg-surface-container">
                         <img 
-                          src={orc.uploadedImageIds[0] || "https://images.unsplash.com/photo-1525310072745-f49212b5ac6d?q=80&w=300"} 
+                          src={getOrchidImageUrls(orc)[0] || "https://images.unsplash.com/photo-1525310072745-f49212b5ac6d?q=80&w=300"}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                           alt={orc.name}
                           onError={(e) => {

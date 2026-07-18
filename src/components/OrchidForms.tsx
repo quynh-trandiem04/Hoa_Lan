@@ -8,6 +8,7 @@ import { X, FolderPlus, PlusCircle, Upload, Trash2 } from 'lucide-react';
 import { Orchid, Category } from '../types';
 import { motion } from 'motion/react';
 import { deleteUploadedImage, uploadImage, type UploadedImage } from '../services/api';
+import { getOrchidImageUrls } from '../utils/orchidImages';
 
 interface AddOrchidModalProps {
   isOpen: boolean;
@@ -52,7 +53,12 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
       setHasFragrance(editOrchidData.hasFragrance);
       setIsPopular(editOrchidData.isPopular);
       setSlug(editOrchidData.slug);
-      setUploadedImages(editOrchidData.uploadedImageIds.map((id) => ({ id, publicId: '', url: '' })));
+      const existingUrls = getOrchidImageUrls(editOrchidData);
+      setUploadedImages(editOrchidData.uploadedImageIds.map((id, index) => ({
+        id,
+        publicId: '',
+        url: existingUrls[index] ?? '',
+      })));
     } else {
       setName('');
       setEnglishName('');
@@ -100,6 +106,7 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
       isPopular,
       slug: finalSlug,
       uploadedImageIds: uploadedImages.map((image) => image.id),
+      imageUrls: uploadedImages.map((image) => image.url).filter(Boolean),
       displayOrder: editOrchidData?.displayOrder ?? 0,
     };
 

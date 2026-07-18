@@ -14,6 +14,8 @@ export interface Orchid {
   isPopular: boolean;
   slug: string;
   uploadedImageIds: string[];
+  /** Public image URLs returned by the upload/query API; never used as image IDs. */
+  imageUrls?: string[];
   displayOrder: number;
   highlightDescription?: string;
   lightDetail?: string;

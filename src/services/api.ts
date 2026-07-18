@@ -539,7 +539,62 @@ export interface OrchidQuery {
 export type CreateOrchidPayload = Omit<Orchid, 'id'>;
 export type UpdateOrchidPayload = Orchid & { id: string };
 
-const normalizeOrchid = (orchid: Partial<Orchid> & { id: string; name: string }): Orchid => ({
+type RawOrchidImage = string | {
+  id?: string;
+  url?: string;
+  imageUrl?: string;
+  secureUrl?: string;
+};
+
+type RawOrchid = Partial<Orchid> & {
+  id: string;
+  name: string;
+  images?: RawOrchidImage[];
+  uploadedImages?: RawOrchidImage[];
+};
+
+const IMAGE_URL_CACHE_KEY = 'orchid_uploaded_image_urls';
+
+type CachedImage = { url: string; publicId?: string };
+
+const readImageUrlCache = (): Record<string, CachedImage> => {
+  if (typeof window === 'undefined') return {};
+  try {
+    return JSON.parse(window.localStorage.getItem(IMAGE_URL_CACHE_KEY) || '{}') as Record<string, CachedImage>;
+  } catch {
+    return {};
+  }
+};
+
+const rememberUploadedImage = (image: UploadedImage) => {
+  if (typeof window === 'undefined' || !image.url) return;
+  try {
+    const cache = readImageUrlCache();
+    cache[image.id] = { url: image.url, publicId: image.publicId };
+    window.localStorage.setItem(IMAGE_URL_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // The upload is still valid when browser storage is unavailable.
+  }
+};
+
+const getRawOrchidImageUrls = (orchid: RawOrchid): string[] => {
+  const cache = readImageUrlCache();
+  const candidates: RawOrchidImage[] = [
+    ...(orchid.imageUrls ?? []),
+    ...(orchid.images ?? []),
+    ...(orchid.uploadedImages ?? []),
+    ...(orchid.uploadedImageIds ?? []),
+    ...(orchid.uploadedImageIds ?? []).flatMap((id) => cache[id]?.url ? [cache[id].url] : []),
+  ];
+  const urls = candidates.flatMap((image) => {
+    if (typeof image === 'string') return /^(https?:\/\/|data:)/i.test(image) ? [image] : [];
+    const url = image.url ?? image.imageUrl ?? image.secureUrl;
+    return typeof url === 'string' && url ? [url] : [];
+  });
+  return [...new Set(urls)];
+};
+
+const normalizeOrchid = (orchid: RawOrchid): Orchid => ({
   id: orchid.id,
   name: orchid.name,
   englishName: orchid.englishName ?? '',
@@ -550,6 +605,7 @@ const normalizeOrchid = (orchid: Partial<Orchid> & { id: string; name: string })
   isPopular: orchid.isPopular ?? false,
   slug: orchid.slug ?? '',
   uploadedImageIds: orchid.uploadedImageIds ?? [],
+  imageUrls: getRawOrchidImageUrls(orchid),
   displayOrder: orchid.displayOrder ?? 0,
 });
 
@@ -579,7 +635,7 @@ export const getOrchids = async (query: OrchidQuery = {}): Promise<Orchid[]> => 
   if (!response.ok) {
     throw new Error('Không thể tải danh sách hoa lan.');
   }
-  const data = await response.json() as { items?: Array<Partial<Orchid> & { id: string; name: string }> } | Array<Partial<Orchid> & { id: string; name: string }>;
+  const data = await response.json() as { items?: RawOrchid[] } | RawOrchid[];
   const items = Array.isArray(data) ? data : data.items ?? [];
   return items.map(normalizeOrchid);
 };
@@ -597,7 +653,7 @@ export const getOrchidById = async (id: string, apiVersion?: string): Promise<Or
   });
   const body = await readApiResponse(response);
   if (!response.ok) throwOrchidApiError(body, 'Không thể tải thông tin hoa lan.');
-  return normalizeOrchid(body as Partial<Orchid> & { id: string; name: string });
+  return normalizeOrchid(body as RawOrchid);
 };
 
 export const createOrchid = async (data: CreateOrchidPayload, apiVersion?: string): Promise<unknown> => {
@@ -606,7 +662,7 @@ export const createOrchid = async (data: CreateOrchidPayload, apiVersion?: strin
   if (apiVersion) params.set('api-version', apiVersion);
   const query = params.toString();
   // displayOrder is assigned by the backend/database for new orchids.
-  const { displayOrder: _displayOrder, ...createData } = data;
+  const { displayOrder: _displayOrder, imageUrls: _imageUrls, ...createData } = data;
   const response = await fetch(`${API_BASE_URL}/api/v1/Orchids${query ? `?${query}` : ''}`, {
     method: 'POST',
     headers: {
@@ -630,6 +686,7 @@ export const updateOrchid = async (
   const params = new URLSearchParams();
   if (apiVersion) params.set('api-version', apiVersion);
   const query = params.toString();
+  const { imageUrls: _imageUrls, ...updateData } = data;
   const response = await fetch(`${API_BASE_URL}/api/v1/Orchids/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
     method: 'PUT',
     headers: {
@@ -637,7 +694,7 @@ export const updateOrchid = async (
       Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
-    body: JSON.stringify({ ...data, id })
+    body: JSON.stringify({ ...updateData, id })
   });
   const body = await readApiResponse(response);
   if (!response.ok) throwOrchidApiError(body, 'Không thể cập nhật hoa lan.');
@@ -710,7 +767,9 @@ export const uploadImage = async (file: File): Promise<UploadedImage> => {
     throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại trước khi tải ảnh.');
   }
   if (!response.ok) throwOrchidApiError(body, 'Không thể tải ảnh lên.');
-  return { ...normalizeUploadedImage(body), fileName: file.name };
+  const uploaded = { ...normalizeUploadedImage(body), fileName: file.name };
+  rememberUploadedImage(uploaded);
+  return uploaded;
 };
 
 export const deleteUploadedImage = async (publicId: string): Promise<void> => {
@@ -727,4 +786,15 @@ export const deleteUploadedImage = async (publicId: string): Promise<void> => {
     throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại trước khi xóa ảnh.');
   }
   if (!response.ok) throwOrchidApiError(body, 'Không thể xóa ảnh.');
+  if (typeof window !== 'undefined') {
+    try {
+      const cache = readImageUrlCache();
+      Object.keys(cache).forEach((id) => {
+        if (cache[id]?.publicId === publicId) delete cache[id];
+      });
+      window.localStorage.setItem(IMAGE_URL_CACHE_KEY, JSON.stringify(cache));
+    } catch {
+      // Ignore browser storage cleanup failures after a successful API delete.
+    }
+  }
 };
