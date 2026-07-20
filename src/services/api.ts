@@ -10,6 +10,13 @@ export interface LoginCredentials {
   password: string;
 }
 
+export interface RegisterPayload {
+  fullName: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+}
+
 export interface LoginResponse {
   token?: string;
   accessToken?: string;
@@ -44,13 +51,57 @@ const normalizeAuthResponse = (responseBody: LoginResponse): LoginResponse => {
     : responseBody;
 };
 
+export const register = async (payload: RegisterPayload): Promise<LoginResponse> => {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 30_000);
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}/api/Auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('Máy chủ phản hồi quá lâu. Vui lòng thử đăng ký lại.');
+    }
+    throw new Error('Không thể kết nối đến máy chủ đăng ký.');
+  } finally {
+    window.clearTimeout(timeout);
+  }
+
+  const rawBody = await response.text();
+  let responseBody: LoginResponse = {};
+  if (rawBody) {
+    try {
+      const parsed: unknown = JSON.parse(rawBody);
+      responseBody = parsed !== null && typeof parsed === 'object'
+        ? parsed as LoginResponse
+        : { message: String(parsed) };
+    } catch {
+      responseBody = { message: rawBody };
+    }
+  }
+
+  if (!response.ok || responseBody.success === false) {
+    throw new Error(getApiErrorMessage(responseBody, 'Không thể tạo tài khoản mới.'));
+  }
+
+  return normalizeAuthResponse(responseBody);
+};
+
 export const login = async (credentials: LoginCredentials): Promise<LoginResponse> => {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 30_000);
   let response: Response;
 
   try {
-    response = await fetch(`${API_BASE_URL}/api/v1/Auth/login`, {
+    response = await fetch(`${API_BASE_URL}/api/Auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -90,7 +141,7 @@ export const login = async (credentials: LoginCredentials): Promise<LoginRespons
 };
 
 export const loginWithGoogle = async (idToken: string): Promise<LoginResponse> => {
-  const response = await fetch(`${API_BASE_URL}/api/v1/Auth/google-login`, {
+  const response = await fetch(`${API_BASE_URL}/api/Auth/google-login`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -128,7 +179,7 @@ export interface RefreshTokenCredentials {
 export const refreshAuthToken = async (
   credentials: RefreshTokenCredentials
 ): Promise<LoginResponse> => {
-  const response = await fetch(`${API_BASE_URL}/api/v1/Auth/refresh-token`, {
+  const response = await fetch(`${API_BASE_URL}/api/Auth/refresh-token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -184,7 +235,7 @@ export const getCategories = async (
   if (query.apiVersion) params.set('api-version', query.apiVersion);
 
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/v1/Categories?${params.toString()}`, {
+  const response = await fetch(`${API_BASE_URL}/api/Categories?${params.toString()}`, {
     headers: {
       Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -244,6 +295,127 @@ const readApiResponse = async (response: Response): Promise<unknown> => {
   }
 };
 
+export interface UserListItem {
+  id: string;
+  email: string;
+  fullName: string;
+  avatarUrl?: string;
+  roleName?: string;
+}
+
+export interface PaginatedUsers {
+  items: UserListItem[];
+  pageNumber: number;
+  totalPages: number;
+  totalCount: number;
+  pageSize: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+}
+
+export interface CreateUserPayload {
+  email: string;
+  fullName: string;
+  password: string;
+  confirmPassword: string;
+  avatarUrl: string;
+}
+
+export interface UpdateUserPayload {
+  email: string;
+  fullName: string;
+  avatarUrl: string;
+}
+
+export const getUsers = async (
+  pageNumber = 1,
+  pageSize = 10,
+  searchTerm?: string,
+): Promise<PaginatedUsers> => {
+  const params = new URLSearchParams({
+    PageNumber: String(pageNumber),
+    PageSize: String(pageSize),
+  });
+  if (searchTerm) params.set('SearchTerm', searchTerm);
+  const token = getStoredAuthToken();
+  const response = await fetch(`${API_BASE_URL}/api/Users?${params.toString()}`, {
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  const body = await readApiResponse(response);
+  if (response.status === 401) throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+  if (!response.ok) throwCategoryApiError(body, 'Không thể tải danh sách người dùng.');
+  const data = body !== null && typeof body === 'object' && 'data' in body
+    ? (body as { data: unknown }).data
+    : body;
+  return data as PaginatedUsers;
+};
+
+const userApiRequest = async (path: string, init: RequestInit, fallback: string): Promise<unknown> => {
+  const token = getStoredAuthToken();
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init.headers ?? {}),
+    },
+  });
+  const body = await readApiResponse(response);
+  if (response.status === 401) throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+  if (!response.ok || (body !== null && typeof body === 'object' && (body as { success?: boolean }).success === false)) {
+    throwCategoryApiError(body, fallback);
+  }
+  return body;
+};
+
+export const getUserById = async (id: string): Promise<UserListItem> => {
+  const body = await userApiRequest(
+    `/api/Users/${encodeURIComponent(id)}`,
+    { method: 'GET' },
+    'Không thể tải thông tin người dùng.',
+  );
+  const data = body !== null && typeof body === 'object' && 'data' in body
+    ? (body as { data: unknown }).data
+    : body;
+  return data as UserListItem;
+};
+
+export const createUser = (payload: CreateUserPayload): Promise<unknown> => userApiRequest(
+  '/api/Users',
+  { method: 'POST', body: JSON.stringify(payload) },
+  'Không thể tạo người dùng.',
+);
+
+export const updateUser = (id: string, payload: UpdateUserPayload): Promise<unknown> => userApiRequest(
+  `/api/Users/${encodeURIComponent(id)}`,
+  { method: 'PUT', body: JSON.stringify({ ...payload, id }) },
+  'Không thể cập nhật người dùng.',
+);
+
+export const deleteUser = async (id: string): Promise<void> => {
+  await userApiRequest(
+    `/api/Users/${encodeURIComponent(id)}`,
+    { method: 'DELETE' },
+    'Không thể xóa người dùng.',
+  );
+};
+
+export const resetUserPassword = async (
+  id: string,
+  newPassword: string,
+  confirmPassword: string,
+): Promise<void> => {
+  await userApiRequest(
+    `/api/Users/${encodeURIComponent(id)}/password`,
+    { method: 'PUT', body: JSON.stringify({ id, newPassword, confirmPassword }) },
+    'Không thể đặt lại mật khẩu người dùng.',
+  );
+};
+
 const throwCategoryApiError = (body: unknown, fallback: string): never => {
   const errorBody = body !== null && typeof body === 'object'
     ? body as LoginResponse
@@ -253,7 +425,7 @@ const throwCategoryApiError = (body: unknown, fallback: string): never => {
 
 export const createCategory = async (payload: CreateCategoryPayload): Promise<unknown> => {
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/v1/Categories`, {
+  const response = await fetch(`${API_BASE_URL}/api/Categories`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -295,7 +467,7 @@ export const getCategoryById = async (id: string, apiVersion?: string): Promise<
   const query = params.toString();
   const token = getStoredAuthToken();
   const response = await fetch(
-    `${API_BASE_URL}/api/v1/Categories/${encodeURIComponent(id)}${query ? `?${query}` : ''}`,
+    `${API_BASE_URL}/api/Categories/${encodeURIComponent(id)}${query ? `?${query}` : ''}`,
     {
       headers: {
         Accept: 'application/json',
@@ -318,7 +490,7 @@ export const updateCategory = async (
   const query = params.toString();
   const token = getStoredAuthToken();
   const response = await fetch(
-    `${API_BASE_URL}/api/v1/Categories/${encodeURIComponent(id)}${query ? `?${query}` : ''}`,
+    `${API_BASE_URL}/api/Categories/${encodeURIComponent(id)}${query ? `?${query}` : ''}`,
     {
       method: 'PUT',
       headers: {
@@ -340,7 +512,7 @@ export const deleteCategory = async (id: string, apiVersion?: string): Promise<v
   const query = params.toString();
   const token = getStoredAuthToken();
   const response = await fetch(
-    `${API_BASE_URL}/api/v1/Categories/${encodeURIComponent(id)}${query ? `?${query}` : ''}`,
+    `${API_BASE_URL}/api/Categories/${encodeURIComponent(id)}${query ? `?${query}` : ''}`,
     {
       method: 'DELETE',
       headers: {
@@ -427,6 +599,16 @@ export const deleteDocument = async (id: string, apiVersion?: string): Promise<v
   const body = await readApiResponse(response);
   if (response.status === 401) throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại trước khi xóa tài liệu.');
   if (!response.ok) throwArticleApiError(body, `Không thể xóa tài liệu (HTTP ${response.status}).`);
+
+  if (body === false) {
+    throw new Error('Backend báo không thể xóa tài liệu.');
+  }
+  if (body !== null && typeof body === 'object') {
+    const result = body as LoginResponse & { success?: boolean };
+    if (result.success === false) {
+      throwArticleApiError(body, 'Backend báo không thể xóa tài liệu.');
+    }
+  }
 };
 
 // ======================= ARTICLES API (Care Guide) =======================
@@ -453,6 +635,7 @@ const normalizeArticle = (
   summary: article.summary ?? '',
   content: article.content ?? '',
   thumbnailImageId: article.thumbnailImageId ?? null,
+  thumbnailImageUrl: article.thumbnailImageUrl ?? '',
   isPublished: article.isPublished ?? false,
   orchidIds: article.orchidIds ?? [],
   documentIds: article.documentIds ?? [],
@@ -588,6 +771,7 @@ type RawOrchidImage = string | {
 type RawOrchid = Partial<Orchid> & {
   id: string;
   name: string;
+  categories?: Array<string | { id?: string }>;
   images?: RawOrchidImage[];
   uploadedImages?: RawOrchidImage[];
 };
@@ -603,6 +787,11 @@ const readImageUrlCache = (): Record<string, CachedImage> => {
   } catch {
     return {};
   }
+};
+
+export const getUploadedImageUrl = (imageId: string | null | undefined): string => {
+  if (!imageId) return '';
+  return readImageUrlCache()[imageId]?.url ?? '';
 };
 
 const rememberUploadedImage = (image: UploadedImage) => {
@@ -637,7 +826,12 @@ const normalizeOrchid = (orchid: RawOrchid): Orchid => ({
   id: orchid.id,
   name: orchid.name,
   englishName: orchid.englishName ?? '',
-  categoryIds: orchid.categoryIds ?? [],
+  categoryIds: orchid.categoryIds?.length
+    ? orchid.categoryIds
+    : (orchid.categories ?? []).flatMap((category) => {
+        if (typeof category === 'string') return [category];
+        return typeof category.id === 'string' && category.id ? [category.id] : [];
+      }),
   shortDescription: orchid.shortDescription ?? '',
   detailedDescription: orchid.detailedDescription ?? '',
   hasFragrance: orchid.hasFragrance ?? false,
@@ -665,7 +859,7 @@ export const getOrchids = async (query: OrchidQuery = {}): Promise<Orchid[]> => 
   if (query.sortBy) params.set('SortBy', query.sortBy);
   if (query.sortDescending !== undefined) params.set('SortDescending', String(query.sortDescending));
   if (query.apiVersion) params.set('api-version', query.apiVersion);
-  const response = await fetch(`${API_BASE_URL}/api/v1/Orchids?${params.toString()}`, {
+  const response = await fetch(`${API_BASE_URL}/api/Orchids?${params.toString()}`, {
     headers: {
       Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -684,7 +878,7 @@ export const getOrchidById = async (id: string, apiVersion?: string): Promise<Or
   const params = new URLSearchParams();
   if (apiVersion) params.set('api-version', apiVersion);
   const query = params.toString();
-  const response = await fetch(`${API_BASE_URL}/api/v1/Orchids/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
+  const response = await fetch(`${API_BASE_URL}/api/Orchids/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
     headers: {
       Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -702,7 +896,7 @@ export const createOrchid = async (data: CreateOrchidPayload, apiVersion?: strin
   const query = params.toString();
   // displayOrder is assigned by the backend/database for new orchids.
   const { displayOrder: _displayOrder, imageUrls: _imageUrls, ...createData } = data;
-  const response = await fetch(`${API_BASE_URL}/api/v1/Orchids${query ? `?${query}` : ''}`, {
+  const response = await fetch(`${API_BASE_URL}/api/Orchids${query ? `?${query}` : ''}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -726,7 +920,7 @@ export const updateOrchid = async (
   if (apiVersion) params.set('api-version', apiVersion);
   const query = params.toString();
   const { imageUrls: _imageUrls, ...updateData } = data;
-  const response = await fetch(`${API_BASE_URL}/api/v1/Orchids/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
+  const response = await fetch(`${API_BASE_URL}/api/Orchids/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -745,7 +939,7 @@ export const deleteOrchid = async (id: string, apiVersion?: string): Promise<voi
   const params = new URLSearchParams();
   if (apiVersion) params.set('api-version', apiVersion);
   const query = params.toString();
-  const response = await fetch(`${API_BASE_URL}/api/v1/Orchids/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
+  const response = await fetch(`${API_BASE_URL}/api/Orchids/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
     method: 'DELETE',
     headers: {
       Accept: 'application/json',
@@ -765,33 +959,75 @@ export interface UploadedImage {
   fileName?: string;
 }
 
+const getUploadResponseField = (record: Record<string, unknown>, names: string[]) => {
+  const matchingKey = Object.keys(record).find((key) => names.includes(key.toLowerCase()));
+  return matchingKey ? record[matchingKey] : undefined;
+};
+
+const findUploadedImageRecord = (value: unknown, depth = 0): Record<string, unknown> | null => {
+  if (depth > 8 || value === null || typeof value !== 'object') return null;
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const match = findUploadedImageRecord(item, depth + 1);
+      if (match) return match;
+    }
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const id = getUploadResponseField(record, ['id', 'imageid', 'uploadedimageid', 'value']);
+  if (typeof id === 'string' && id) return record;
+
+  for (const nested of Object.values(record)) {
+    const match = findUploadedImageRecord(nested, depth + 1);
+    if (match) return match;
+  }
+  return null;
+};
+
 const normalizeUploadedImage = (body: unknown): UploadedImage => {
   if (typeof body === 'string' && body) {
     return { id: body, publicId: '', url: '' };
   }
-  const root = body !== null && typeof body === 'object'
+  const envelope = body !== null && typeof body === 'object' && !Array.isArray(body)
     ? body as Record<string, unknown>
-    : {};
-  const nestedValue = root.data ?? root.result ?? root.image;
-  if (typeof nestedValue === 'string' && nestedValue) {
-    return { id: nestedValue, publicId: '', url: '' };
+    : null;
+  if (envelope?.success === false) {
+    const message = typeof envelope.message === 'string' ? envelope.message : '';
+    const details = typeof envelope.details === 'string' ? envelope.details : '';
+    const errorCode = typeof envelope.errorCode === 'string' ? envelope.errorCode : '';
+    throw new Error(message || details || (errorCode
+      ? `API upload ảnh thất bại (${errorCode}).`
+      : 'API upload ảnh báo thất bại.'));
   }
-  const data = nestedValue !== null && typeof nestedValue === 'object'
-    ? nestedValue as Record<string, unknown>
-    : root;
-  const id = data.id ?? data.imageId ?? data.uploadedImageId ?? data.value;
-  const publicId = data.publicId ?? data.public_id;
-  const url = data.secureUrl ?? data.secure_url ?? data.url ?? data.imageUrl ?? data.displayUrl ?? data.path;
+  const data = findUploadedImageRecord(body);
+  const id = data ? getUploadResponseField(data, ['id', 'imageid', 'uploadedimageid', 'value']) : undefined;
+  const publicId = data ? getUploadResponseField(data, ['publicid', 'public_id']) : undefined;
+  const url = data ? getUploadResponseField(data, ['secureurl', 'secure_url', 'url', 'imageurl', 'displayurl', 'path']) : undefined;
 
   if (typeof id !== 'string' || !id) {
-    throw new Error('API upload ảnh không trả về ID ảnh.');
+    const nestedData = envelope?.data;
+    const dataShape = nestedData === null
+      ? 'null'
+      : Array.isArray(nestedData)
+        ? `mảng ${nestedData.length} phần tử`
+        : typeof nestedData === 'object'
+          ? `các trường ${Object.keys(nestedData as Record<string, unknown>).join(', ') || 'rỗng'}`
+          : typeof nestedData;
+    const backendMessage = typeof envelope?.message === 'string' && envelope.message
+      ? ` Thông báo backend: ${envelope.message}`
+      : '';
+    throw new Error(`API upload ảnh không trả về ID ảnh. data: ${dataShape}.${backendMessage}`);
   }
 
   return {
     id,
     publicId: typeof publicId === 'string' ? publicId : '',
     url: typeof url === 'string' ? url : '',
-    fileName: typeof data.fileName === 'string' ? data.fileName : undefined,
+    fileName: data && typeof getUploadResponseField(data, ['filename', 'originalname']) === 'string'
+      ? getUploadResponseField(data, ['filename', 'originalname']) as string
+      : undefined,
   };
 };
 
@@ -801,7 +1037,7 @@ export const uploadImage = async (file: File): Promise<UploadedImage> => {
   formData.append('file', file);
   const previewUrl = URL.createObjectURL(file);
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/Images/upload`, {
+    const response = await fetch(`${API_BASE_URL}/api/Images/upload`, {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -833,7 +1069,7 @@ export const uploadImage = async (file: File): Promise<UploadedImage> => {
 
 export const deleteUploadedImage = async (publicId: string): Promise<void> => {
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/v1/Images/${encodeURIComponent(publicId)}`, {
+  const response = await fetch(`${API_BASE_URL}/api/Images/${encodeURIComponent(publicId)}`, {
     method: 'DELETE',
     headers: {
       Accept: 'application/json',
@@ -856,4 +1092,146 @@ export const deleteUploadedImage = async (publicId: string): Promise<void> => {
       // Ignore browser storage cleanup failures after a successful API delete.
     }
   }
+};
+
+export interface DiscussionCommentDto {
+  id: string;
+  content: string;
+  authorId: string;
+  authorName: string;
+  createdAt: string;
+}
+
+export interface DiscussionPostDto {
+  id: string;
+  title: string;
+  content: string;
+  authorId: string;
+  authorName: string;
+  createdAt: string;
+  commentCount: number;
+  comments: DiscussionCommentDto[];
+}
+
+export interface PaginatedDiscussions {
+  items: DiscussionPostDto[];
+  pageNumber: number;
+  totalPages: number;
+  totalCount: number;
+  pageSize: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+}
+
+const discussionHeaders = (withJsonBody = false): HeadersInit => {
+  const token = getStoredAuthToken();
+  return {
+    Accept: 'application/json',
+    ...(withJsonBody ? { 'Content-Type': 'application/json' } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+};
+
+const unwrapDiscussionResponse = (body: unknown): unknown => {
+  if (body !== null && typeof body === 'object' && 'data' in body) {
+    return (body as { data?: unknown }).data;
+  }
+  return body;
+};
+
+const throwDiscussionApiError = (status: number, body: unknown, fallback: string): never => {
+  if (status === 401) {
+    throw new Error('Bạn cần đăng nhập lại để thực hiện thao tác này.');
+  }
+  const errorBody = body !== null && typeof body === 'object' ? body as LoginResponse : {};
+  throw new Error(getApiErrorMessage(errorBody, fallback));
+};
+
+export const getDiscussions = async (query: {
+  pageNumber?: number;
+  pageSize?: number;
+  searchTerm?: string;
+  apiVersion?: string;
+} = {}): Promise<PaginatedDiscussions> => {
+  const params = new URLSearchParams({
+    PageNumber: String(query.pageNumber ?? 1),
+    PageSize: String(query.pageSize ?? 20),
+  });
+  if (query.searchTerm) params.set('SearchTerm', query.searchTerm);
+  if (query.apiVersion) params.set('api-version', query.apiVersion);
+
+  const response = await fetch(`${API_BASE_URL}/api/Discussions?${params.toString()}`, {
+    headers: discussionHeaders(),
+  });
+  const body = await readApiResponse(response);
+  if (!response.ok) {
+    throwDiscussionApiError(response.status, body, 'Không thể tải danh sách thảo luận.');
+  }
+  return unwrapDiscussionResponse(body) as PaginatedDiscussions;
+};
+
+export const getDiscussionById = async (id: string, apiVersion?: string): Promise<DiscussionPostDto> => {
+  const params = new URLSearchParams();
+  if (apiVersion) params.set('api-version', apiVersion);
+  const suffix = params.size ? `?${params.toString()}` : '';
+  const response = await fetch(`${API_BASE_URL}/api/Discussions/${encodeURIComponent(id)}${suffix}`, {
+    headers: discussionHeaders(),
+  });
+  const body = await readApiResponse(response);
+  if (!response.ok) {
+    throwDiscussionApiError(response.status, body, 'Không thể tải nội dung thảo luận.');
+  }
+  return unwrapDiscussionResponse(body) as DiscussionPostDto;
+};
+
+export const createDiscussion = async (
+  payload: { title: string; content: string },
+  apiVersion?: string,
+): Promise<string> => {
+  const params = new URLSearchParams();
+  if (apiVersion) params.set('api-version', apiVersion);
+  const suffix = params.size ? `?${params.toString()}` : '';
+  const response = await fetch(`${API_BASE_URL}/api/Discussions${suffix}`, {
+    method: 'POST',
+    headers: discussionHeaders(true),
+    body: JSON.stringify(payload),
+  });
+  const body = await readApiResponse(response);
+  if (!response.ok) {
+    throwDiscussionApiError(response.status, body, 'Không thể đăng bài thảo luận.');
+  }
+  const result = unwrapDiscussionResponse(body);
+  if (typeof result === 'string') return result.replace(/^"|"$/g, '');
+  if (result !== null && typeof result === 'object' && typeof (result as { id?: unknown }).id === 'string') {
+    return (result as { id: string }).id;
+  }
+  throw new Error('API đã tạo bài nhưng không trả về ID bài thảo luận.');
+};
+
+export const createDiscussionComment = async (
+  discussionId: string,
+  content: string,
+  apiVersion?: string,
+): Promise<string> => {
+  const params = new URLSearchParams();
+  if (apiVersion) params.set('api-version', apiVersion);
+  const suffix = params.size ? `?${params.toString()}` : '';
+  const response = await fetch(
+    `${API_BASE_URL}/api/Discussions/${encodeURIComponent(discussionId)}/comments${suffix}`,
+    {
+      method: 'POST',
+      headers: discussionHeaders(true),
+      body: JSON.stringify({ content }),
+    },
+  );
+  const body = await readApiResponse(response);
+  if (!response.ok) {
+    throwDiscussionApiError(response.status, body, 'Không thể gửi bình luận.');
+  }
+  const result = unwrapDiscussionResponse(body);
+  if (typeof result === 'string') return result.replace(/^"|"$/g, '');
+  if (result !== null && typeof result === 'object' && typeof (result as { id?: unknown }).id === 'string') {
+    return (result as { id: string }).id;
+  }
+  return '';
 };

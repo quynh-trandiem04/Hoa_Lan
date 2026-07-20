@@ -20,8 +20,6 @@ import {
   Settings,
   Plus,
   FilePlus,
-  TrendingUp,
-  Calendar,
   ChevronRight,
   Sparkles,
   UserPlus,
@@ -38,13 +36,14 @@ import {
   FileText,
   ThumbsUp,
   MessageSquare,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Upload
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Domain Imports
 import { Orchid, Question, Category, CommunityPost, CareArticle, PaginatedDocuments, DocumentItem } from './types';
-import { login, loginWithGoogle, refreshAuthToken, getCategories, createCategory, getCategoryById, updateCategory, deleteCategory, getArticles, getArticleById, createArticle, updateArticle, deleteArticle, getOrchids, getOrchidById, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, deleteDocument, type LoginResponse } from './services/api';
+import { login, register, loginWithGoogle, refreshAuthToken, getCategories, createCategory, getCategoryById, updateCategory, deleteCategory, getArticles, getArticleById, createArticle, updateArticle, deleteArticle, getOrchids, getOrchidById, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, deleteDocument, uploadImage, getUploadedImageUrl, getUsers, createUser, updateUser, deleteUser, resetUserPassword, getDiscussions, type DiscussionPostDto, type LoginResponse, type UserListItem } from './services/api';
 import { getOrchidImageUrls } from './utils/orchidImages';
 import {
   INITIAL_ORCHIDS,
@@ -57,13 +56,15 @@ import {
 import { Toasts, useToasts } from './components/Toasts';
 import { ReportModal } from './components/ReportModal';
 import { DocUploadModal } from './components/DocUploadModal';
-import { InviteAdminModal } from './components/InviteAdminModal';
+import { InviteAdminModal, type UserFormValues } from './components/InviteAdminModal';
 import { ReplyModal } from './components/ReplyModal';
 import { AddOrchidModal, AddCategoryModal } from './components/OrchidForms';
 import { ModerationModal } from './components/ModerationModal';
 import ListOrchids from './pages/ListOrchids';
 import OrchidDetail from './pages/OrchidDetail';
+import CustomerProfile from './pages/CustomerProfile';
 import GoogleLoginButton from './components/GoogleLoginButton';
+import CaptchaChallenge, { type CaptchaChallengeHandle } from './components/CaptchaChallenge';
 
 const decodeJwtPayload = (token: string): Record<string, unknown> | null => {
   try {
@@ -91,6 +92,84 @@ const getJwtExpiration = (token: string): number | null => {
   return typeof expiration === 'number' ? expiration * 1000 : null;
 };
 
+const getFirstString = (source: Record<string, unknown> | null | undefined, keys: string[]): string => {
+  if (!source) return '';
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return '';
+};
+
+const createSessionUserProfile = (
+  authData: LoginResponse,
+  accessToken: string,
+  fallbackEmail: string,
+  identityToken?: string,
+): UserListItem | null => {
+  const accessClaims = decodeJwtPayload(accessToken);
+  const identityClaims = identityToken ? decodeJwtPayload(identityToken) : null;
+  const id = getFirstString(authData, ['userId', 'id'])
+    || getFirstString(accessClaims, [
+      'nameid',
+      'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier',
+      'sub',
+    ]);
+  if (!id) return null;
+
+  return {
+    id,
+    email: getFirstString(authData, ['email'])
+      || getFirstString(accessClaims, ['email', 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'])
+      || getFirstString(identityClaims, ['email'])
+      || fallbackEmail,
+    fullName: getFirstString(authData, ['fullName', 'name'])
+      || getFirstString(accessClaims, ['name', 'unique_name', 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'])
+      || getFirstString(identityClaims, ['name'])
+      || fallbackEmail,
+    avatarUrl: getFirstString(authData, ['avatarUrl', 'picture'])
+      || getFirstString(identityClaims, ['picture']),
+    roleName: getFirstString(authData, ['role', 'roleName'])
+      || getFirstString(accessClaims, ['role', 'http://schemas.microsoft.com/ws/2008/06/identity/claims/role']),
+  };
+};
+
+const getStoredSessionUserProfile = (): UserListItem | null => {
+  const raw = localStorage.getItem('orchidee_user') || sessionStorage.getItem('orchidee_user');
+  if (raw) {
+    try {
+      const profile = JSON.parse(raw) as UserListItem;
+      if (profile?.id && profile?.email) return profile;
+    } catch {
+      // Fall through and reconstruct the profile from the saved auth session.
+    }
+  }
+
+  const storage = localStorage.getItem('orchidee_auth') ? localStorage : sessionStorage;
+  const rawAuth = storage.getItem('orchidee_auth');
+  const token = storage.getItem('orchidee_auth_token');
+  const email = storage.getItem('orchidee_admin_user') || '';
+  if (!rawAuth || !token || !email) return null;
+  try {
+    const profile = createSessionUserProfile(JSON.parse(rawAuth) as LoginResponse, token, email);
+    if (profile) storage.setItem('orchidee_user', JSON.stringify(profile));
+    return profile;
+  } catch {
+    return null;
+  }
+};
+
+const formatRelativeTime = (value: string): string => {
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return value;
+  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+  if (elapsedSeconds < 60) return 'Vừa xong';
+  if (elapsedSeconds < 3600) return `${Math.floor(elapsedSeconds / 60)} phút trước`;
+  if (elapsedSeconds < 86400) return `${Math.floor(elapsedSeconds / 3600)} giờ trước`;
+  if (elapsedSeconds < 604800) return `${Math.floor(elapsedSeconds / 86400)} ngày trước`;
+  return new Date(value).toLocaleDateString('vi-VN');
+};
+
 const createSlug = (value: string): string => value
   .replace(/đ/g, 'd')
   .replace(/Đ/g, 'D')
@@ -101,21 +180,28 @@ const createSlug = (value: string): string => value
   .replace(/[^a-z0-9]+/g, '-')
   .replace(/^-|-$/g, '');
 
+const ADMIN_EMAIL = (import.meta.env.VITE_ADMIN_EMAIL || 'duongthanhson2004@gmail.com').trim().toLowerCase();
+const isAdminAccount = (email: string | null | undefined) => email?.trim().toLowerCase() === ADMIN_EMAIL;
+
 export default function App() {
   const { toasts, addToast, removeToast } = useToasts();
 
   
-  type ScreenType = "home" | "signup" | "login" | "forgot_password" | "dashboard" | "discussion" | "planting_and_care" | "document" | "list_orchids" | "orchid_detail";
+  type ScreenType = "home" | "signup" | "login" | "forgot_password" | "dashboard" | "discussion" | "planting_and_care" | "document" | "list_orchids" | "orchid_detail" | "profile";
 
   const getInitialScreen = (): ScreenType => {
     const path = window.location.pathname;
     if (path === '/login') return 'login';
     if (path === '/signup') return 'signup';
     if (path === '/forgot_password' || path === '/forgot-password') return 'forgot_password';
-    if (path === '/admin/dashboard' || path === '/dashboard') return 'dashboard';
+    if (path === '/admin/dashboard' || path === '/dashboard') {
+      const storedUser = localStorage.getItem('orchidee_admin_user') || sessionStorage.getItem('orchidee_admin_user');
+      return isAdminAccount(storedUser) ? 'dashboard' : (storedUser ? 'home' : 'login');
+    }
     if (path === '/discussion') return 'discussion';
     if (path === '/planting-and-care') return 'planting_and_care';
     if (path === '/document') return 'document';
+    if (path === '/profile') return 'profile';
     if (path === '/list-orchids') return 'list_orchids';
     if (path.startsWith('/orchids/')) return 'orchid_detail';
     return 'home';
@@ -129,9 +215,22 @@ export default function App() {
     }
     return null;
   });
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(() =>
+    new URLSearchParams(window.location.search).get('cat')
+  );
 
   const setScreen = (newScreen: ScreenType, id?: string) => {
+    if (newScreen === 'dashboard') {
+      const storedUser = localStorage.getItem('orchidee_admin_user')
+        || sessionStorage.getItem('orchidee_admin_user');
+      if (!isAdminAccount(storedUser)) {
+        const fallbackScreen: ScreenType = storedUser ? 'home' : 'login';
+        setScreenState(fallbackScreen);
+        window.history.pushState({}, '', storedUser ? '/' : '/login');
+        return;
+      }
+    }
+
     setScreenState(newScreen);
     let path = '/';
     if (newScreen === 'login') path = '/login';
@@ -141,6 +240,7 @@ export default function App() {
     else if (newScreen === 'discussion') path = '/discussion';
     else if (newScreen === 'planting_and_care') path = '/planting-and-care';
     else if (newScreen === 'document') path = '/document';
+    else if (newScreen === 'profile') path = '/profile';
     else if (newScreen === 'list_orchids') {
       if (id) {
         path = `/list-orchids?cat=${id}`;
@@ -165,10 +265,12 @@ export default function App() {
       const nextScreen = getInitialScreen();
       const storedUser = localStorage.getItem("orchidee_admin_user")
         || sessionStorage.getItem("orchidee_admin_user");
+      const isDashboardPath = window.location.pathname === '/admin/dashboard'
+        || window.location.pathname === '/dashboard';
 
-      if (nextScreen === "dashboard" && !storedUser) {
-        window.history.replaceState({}, '', '/login');
-        setScreenState("login");
+      if (isDashboardPath && !isAdminAccount(storedUser)) {
+        window.history.replaceState({}, '', storedUser ? '/' : '/login');
+        setScreenState(storedUser ? "home" : "login");
         return;
       }
 
@@ -243,6 +345,9 @@ export default function App() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const loginCaptchaRef = useRef<CaptchaChallengeHandle>(null);
+  const signupCaptchaRef = useRef<CaptchaChallengeHandle>(null);
 
   useEffect(() => {
     const storedUser = localStorage.getItem("orchidee_admin_user")
@@ -251,7 +356,18 @@ export default function App() {
       || sessionStorage.getItem("orchidee_auth_token");
     if (storedUser && storedToken) {
       setCurrentUser(storedUser);
-      setScreen("dashboard");
+      const initialScreen = getInitialScreen();
+      const isDashboardPath = window.location.pathname === '/admin/dashboard'
+        || window.location.pathname === '/dashboard';
+      if (isDashboardPath && !isAdminAccount(storedUser)) {
+        window.history.replaceState({}, '', '/');
+        setScreenState('home');
+        return;
+      }
+      if (initialScreen === "login" || initialScreen === "signup") {
+        const returnUrl = new URLSearchParams(window.location.search).get('returnUrl');
+        setScreen(returnUrl === '/discussion' ? 'discussion' : returnUrl === '/profile' ? 'profile' : (isAdminAccount(storedUser) ? 'dashboard' : 'home'));
+      }
     } else {
       localStorage.removeItem("orchidee_admin_user");
       sessionStorage.removeItem("orchidee_admin_user");
@@ -262,7 +378,7 @@ export default function App() {
     }
   }, []);
 
-  const handleSignUp = (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!agreeTerms) {
       addToast("Vui lòng đọc và chấp thuận điều khoản dịch vụ để tiếp tục.", "error");
@@ -276,14 +392,43 @@ export default function App() {
       addToast("Mật khẩu xác nhận không khớp.", "error");
       return;
     }
-    
-    addToast("Backend chưa cung cấp API đăng ký tài khoản. Vui lòng đăng nhập bằng tài khoản đã được cấp.", "error");
+    if (!signupCaptchaRef.current?.validate()) {
+      addToast('Vui lòng hoàn thành CAPTCHA chính xác.', 'error');
+      return;
+    }
+
+    setIsRegistering(true);
+    try {
+      const normalizedEmail = email.trim();
+      await register({
+        fullName: fullName.trim(),
+        email: normalizedEmail,
+        password,
+        confirmPassword,
+      });
+      setEmail(normalizedEmail);
+      setPassword('');
+      setConfirmPassword('');
+      setAgreeTerms(false);
+      void loadUserCount();
+      setScreen('login');
+      addToast('Đăng ký tài khoản thành công. Vui lòng đăng nhập.', 'success');
+    } catch (error) {
+      signupCaptchaRef.current?.reset();
+      addToast(error instanceof Error ? error.message : 'Không thể tạo tài khoản mới.', 'error');
+    } finally {
+      setIsRegistering(false);
+    }
   };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       addToast("Hãy nhập đầy đủ Email và Mật khẩu của bạn.", "error");
+      return;
+    }
+    if (!loginCaptchaRef.current?.validate()) {
+      addToast('Vui lòng hoàn thành CAPTCHA chính xác.', 'error');
       return;
     }
     
@@ -309,12 +454,16 @@ export default function App() {
       }
 
       storage.setItem("orchidee_auth_token", token);
+      const sessionProfile = createSessionUserProfile(authData, token, normalizedEmail);
+      if (sessionProfile) storage.setItem('orchidee_user', JSON.stringify(sessionProfile));
 
       setCurrentUser(normalizedEmail);
       setPassword("");
-      setScreen("dashboard");
+      const returnUrl = new URLSearchParams(window.location.search).get('returnUrl');
+      setScreen(returnUrl === '/discussion' ? 'discussion' : returnUrl === '/profile' ? 'profile' : (isAdminAccount(normalizedEmail) ? 'dashboard' : 'home'));
       addToast("Đăng nhập thành công!", "success");
     } catch (error) {
+      loginCaptchaRef.current?.reset();
       addToast(
         error instanceof Error ? error.message : "Không thể kết nối đến máy chủ đăng nhập.",
         "error"
@@ -345,9 +494,12 @@ export default function App() {
       storage.setItem("orchidee_admin_user", googleEmail);
       storage.setItem("orchidee_auth", JSON.stringify(authData));
       storage.setItem("orchidee_auth_token", token);
+      const sessionProfile = createSessionUserProfile(authData, token, googleEmail, idToken);
+      if (sessionProfile) storage.setItem('orchidee_user', JSON.stringify(sessionProfile));
 
       setCurrentUser(googleEmail);
-      setScreen("dashboard");
+      const returnUrl = new URLSearchParams(window.location.search).get('returnUrl');
+      setScreen(returnUrl === '/discussion' ? 'discussion' : returnUrl === '/profile' ? 'profile' : (isAdminAccount(googleEmail) ? 'dashboard' : 'home'));
       addToast("Đăng nhập Google thành công!", "success");
     } catch (error) {
       addToast(
@@ -417,6 +569,9 @@ export default function App() {
   });
 
   const [documentsData, setDocumentsData] = useState<PaginatedDocuments | null>(null);
+  const [userTotalCount, setUserTotalCount] = useState(0);
+  const [users, setUsers] = useState<UserListItem[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const [loadingDocuments, setLoadingDocuments] = useState(false);
   const [docPage, setDocPage] = useState(1);
   const [showDocumentForm, setShowDocumentForm] = useState(false);
@@ -438,7 +593,41 @@ export default function App() {
     }
   };
 
+  const loadUserCount = async () => {
+    setLoadingUsers(true);
+    try {
+      const data = await getUsers(1, 100);
+      setUserTotalCount(data.totalCount ?? data.items?.length ?? 0);
+      setUsers(data.items ?? []);
+    } catch (error) {
+      console.error('Lỗi tải tổng số người dùng:', error);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
   const [activeTab, setActiveTab] = useState<'overview' | 'categories' | 'orchids' | 'articles' | 'users' | 'community' | 'care'>('overview');
+  const [dashboardDiscussions, setDashboardDiscussions] = useState<DiscussionPostDto[]>([]);
+  const [loadingDashboardDiscussions, setLoadingDashboardDiscussions] = useState(false);
+
+  const loadDashboardDiscussions = useCallback(async () => {
+    setLoadingDashboardDiscussions(true);
+    try {
+      const result = await getDiscussions({ pageNumber: 1, pageSize: 20 });
+      setDashboardDiscussions(result.items ?? []);
+    } catch (error) {
+      console.error('Không thể tải danh sách thảo luận:', error);
+      setDashboardDiscussions([]);
+    } finally {
+      setLoadingDashboardDiscussions(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (screen === 'dashboard' && activeTab === 'overview') {
+      void loadDashboardDiscussions();
+    }
+  }, [screen, activeTab, loadDashboardDiscussions]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   useEffect(() => {
@@ -446,6 +635,16 @@ export default function App() {
       loadDocuments(docPage);
     }
   }, [activeTab, docPage]);
+
+  useEffect(() => {
+    void loadDocuments(1);
+  }, []);
+
+  useEffect(() => {
+    if (screen === 'dashboard' && currentUser) {
+      void loadUserCount();
+    }
+  }, [screen, currentUser]);
 
   // Categories are server-owned. Starting empty prevents stale demo/localStorage
   // entries from appearing while the API request is still in flight.
@@ -485,17 +684,6 @@ export default function App() {
 
   // Reports state removed, we now use communityPosts for post moderation
 
-  // --- Administrators list ---
-  const [admins, setAdmins] = useState(() => {
-    const defaultAdmins = [
-      { id: 'adm-1', name: 'Ngô Chí Tài', email: 'tai.nguyen@orchideeluxe.com', role: 'Quản trị tối cao (Super Admin)', status: 'Đang hoạt động', date: '12-05-2024' },
-      { id: 'adm-2', name: 'Nguyễn Văn Đạt', email: 'dat.nv@orchideeluxe.com', role: 'Biên tập viên (Editor)', status: 'Đang hoạt động', date: '18-09-2024' },
-      { id: 'adm-3', name: 'Lê Diệu Vy', email: 'vydieu@orchideeluxe.com', role: 'Nhà nghiên cứu (Researcher)', status: 'Ngoại tuyến', date: '01-02-2025' }
-    ];
-    const saved = localStorage.getItem('ol_admins');
-    return saved ? JSON.parse(saved) : defaultAdmins;
-  });
-
   // System Notifications state
   const [notifications, setNotifications] = useState([
     { id: 'n-1', text: 'Minh Anh gửi câu hỏi Cattleya', time: '10 phút trước', read: false },
@@ -518,10 +706,6 @@ export default function App() {
 
   // ol_reports effect removed
 
-  useEffect(() => {
-    localStorage.setItem('ol_admins', JSON.stringify(admins));
-  }, [admins]);
-
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchOverlay, setShowSearchOverlay] = useState(false);
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
@@ -535,12 +719,14 @@ export default function App() {
   const [openReport, setOpenReport] = useState(false);
   const [openDocUpload, setOpenDocUpload] = useState(false);
   const [openInviteAdmin, setOpenInviteAdmin] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserListItem | null>(null);
   const [replyTargetQuestion, setReplyTargetQuestion] = useState<Question | null>(null);
 
   // old articles state removed
 
   // --- Care Guide state (API) ---
   const [careArticles, setCareArticles] = useState<CareArticle[]>([]);
+  const [careDocumentOptions, setCareDocumentOptions] = useState<DocumentItem[]>([]);
   const [loadingCareArticles, setLoadingCareArticles] = useState(false);
   const [showCareArticleEditor, setShowCareArticleEditor] = useState(false);
   const [editingCareArticle, setEditingCareArticle] = useState<CareArticle | null>(null);
@@ -556,10 +742,13 @@ export default function App() {
   };
   const [careArticleForm, setCareArticleForm] = useState(emptyCareArticleForm);
   const [savingCareArticle, setSavingCareArticle] = useState(false);
+  const [uploadingCareThumbnail, setUploadingCareThumbnail] = useState(false);
+  const [careThumbnailPreviewUrl, setCareThumbnailPreviewUrl] = useState('');
 
   useEffect(() => {
     if (activeTab === 'care') {
-      loadCareArticles();
+      void loadCareArticles();
+      void loadCareDocumentOptions();
     }
   }, [activeTab]);
 
@@ -619,11 +808,52 @@ export default function App() {
       setShowCareArticleEditor(false);
       setEditingCareArticle(null);
       setCareArticleForm(emptyCareArticleForm);
+      setCareThumbnailPreviewUrl('');
       await loadCareArticles();
     } catch (error) {
       addToast(error instanceof Error ? error.message : 'Có lỗi xảy ra khi lưu.', 'error');
     } finally {
       setSavingCareArticle(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadCareArticles();
+  }, []);
+
+  const handleUploadCareThumbnail = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      addToast('Vui lòng chọn đúng tệp hình ảnh.', 'error');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      addToast('Ảnh đại diện không được vượt quá 10 MB.', 'error');
+      return;
+    }
+
+    setUploadingCareThumbnail(true);
+    try {
+      const uploaded = await uploadImage(file);
+      setCareArticleForm((current) => ({ ...current, thumbnailImageId: uploaded.id }));
+      setCareThumbnailPreviewUrl(uploaded.url);
+      addToast('Tải ảnh đại diện thành công.', 'success');
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Không thể tải ảnh đại diện.', 'error');
+    } finally {
+      setUploadingCareThumbnail(false);
+    }
+  };
+
+  const loadCareDocumentOptions = async () => {
+    try {
+      const data = await getDocuments(1, 100);
+      setCareDocumentOptions(data.items);
+    } catch (error) {
+      console.error('Không thể tải tài liệu liên quan:', error);
+      setCareDocumentOptions([]);
     }
   };
 
@@ -641,6 +871,7 @@ export default function App() {
         orchidIds: article.orchidIds,
         documentIds: article.documentIds,
       });
+      setCareThumbnailPreviewUrl(article.thumbnailImageUrl || getUploadedImageUrl(article.thumbnailImageId));
       setShowCareArticleEditor(true);
     } catch (error) {
       addToast(error instanceof Error ? error.message : 'Không thể tải thông tin bài viết.', 'error');
@@ -953,17 +1184,49 @@ export default function App() {
     ]);
   };
 
-  const handleInviteAdminSuccess = (name: string, role: string, email: string) => {
-    const newAd = {
-      id: `adm-${Date.now()}`,
-      name,
-      email,
-      role,
-      status: 'Chờ phản hồi',
-      date: new Date().toLocaleDateString('vi-VN')
-    };
-    setAdmins((prev: any[]) => [...prev, newAd]);
-    addToast(`Mời cộng tác viên thành công: ${name}`, 'success');
+  const handleSaveUser = async (values: UserFormValues) => {
+    try {
+      if (editingUser) {
+        const isCurrentAccount = editingUser.email.toLowerCase() === currentUser?.toLowerCase();
+        await updateUser(editingUser.id, {
+          fullName: values.fullName,
+          email: editingUser.email,
+          avatarUrl: values.avatarUrl,
+        });
+        if (values.password) {
+          await resetUserPassword(editingUser.id, values.password, values.confirmPassword);
+        }
+        if (isCurrentAccount) {
+          setCurrentUser(values.email);
+          if (localStorage.getItem('orchidee_admin_user')) localStorage.setItem('orchidee_admin_user', values.email);
+          if (sessionStorage.getItem('orchidee_admin_user')) sessionStorage.setItem('orchidee_admin_user', values.email);
+          const updatedProfile: UserListItem = {
+            ...editingUser,
+            fullName: values.fullName,
+            email: editingUser.email,
+            avatarUrl: values.avatarUrl,
+          };
+          if (localStorage.getItem('orchidee_auth_token')) localStorage.setItem('orchidee_user', JSON.stringify(updatedProfile));
+          if (sessionStorage.getItem('orchidee_auth_token')) sessionStorage.setItem('orchidee_user', JSON.stringify(updatedProfile));
+        }
+        addToast(`Đã cập nhật người dùng: ${values.fullName}`, 'success');
+      } else {
+        await createUser({
+          fullName: values.fullName,
+          email: values.email,
+          password: values.password,
+          confirmPassword: values.confirmPassword,
+          avatarUrl: values.avatarUrl,
+        });
+        addToast(`Đã tạo người dùng: ${values.fullName}`, 'success');
+      }
+      setEditingUser(null);
+      await loadUserCount();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Không thể lưu người dùng.';
+      addToast(message, 'error');
+      throw error;
+    }
   };
 
   const handleSaveDocument = async (e: React.FormEvent) => {
@@ -1001,17 +1264,33 @@ export default function App() {
     if (!window.confirm('Bạn có chắc chắn muốn xóa tài liệu này?')) return;
     try {
       await deleteDocument(id);
+      const refreshedDocuments = await getDocuments(docPage, 10);
+      setDocumentsData(refreshedDocuments);
+
+      if (refreshedDocuments.items.some((document) => document.id === id)) {
+        throw new Error('Backend báo thành công nhưng tài liệu vẫn còn trong cơ sở dữ liệu. Vui lòng kiểm tra API DELETE /api/Documents/{id}.');
+      }
+
       addToast('Đã xóa tài liệu', 'info');
-      loadDocuments(docPage);
     } catch (error) {
       addToast(error instanceof Error ? error.message : 'Lỗi khi xóa tài liệu', 'error');
     }
   };
 
 
-  const deleteAdmin = (id: string, name: string) => {
-    setAdmins((prev: any[]) => prev.filter((a: any) => a.id !== id));
-    addToast(`Đã thu hồi đặc quyền của ${name}`, 'info');
+  const handleDeleteUser = async (user: UserListItem) => {
+    if (user.email === currentUser) {
+      addToast('Không thể xóa tài khoản đang đăng nhập.', 'error');
+      return;
+    }
+    if (!window.confirm(`Bạn có chắc muốn xóa người dùng “${user.fullName}”?`)) return;
+    try {
+      await deleteUser(user.id);
+      await loadUserCount();
+      addToast(`Đã xóa người dùng: ${user.fullName}`, 'info');
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Không thể xóa người dùng.', 'error');
+    }
   };
 
   // Notification clear
@@ -1038,23 +1317,54 @@ export default function App() {
            (cat.scientificName && cat.scientificName.toLowerCase().includes(searchQuery.toLowerCase()));
   });
 
-  const filteredAdmins = admins.filter((admin: any) => {
-    return admin.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-           admin.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-           admin.role.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredUsers = users.filter((user) => {
+    return user.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+           user.email.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
-  const unansweredCount = questions.filter(q => !q.replied).length;
+  const currentUserProfile = users.find((user) =>
+    user.email.toLowerCase() === currentUser?.toLowerCase()
+  ) || getStoredSessionUserProfile();
+  const currentDisplayName = currentUserProfile?.fullName || currentUser || 'Quản trị viên';
+  const currentAvatarUrl = currentUserProfile?.avatarUrl || '';
+  const currentUserInitial = currentDisplayName.charAt(0).toUpperCase();
+
+  const handleOpenCurrentProfile = async () => {
+    let profile = currentUserProfile;
+    if (!profile && currentUser) {
+      setLoadingUsers(true);
+      try {
+        const result = await getUsers(1, 10, currentUser);
+        profile = result.items.find((user) => user.email.toLowerCase() === currentUser.toLowerCase()) ?? null;
+        if (profile) {
+          setUsers((current) => [profile!, ...current.filter((user) => user.id !== profile!.id)]);
+        }
+      } catch (error) {
+        addToast(error instanceof Error ? error.message : 'Không thể tải thông tin tài khoản.', 'error');
+      } finally {
+        setLoadingUsers(false);
+      }
+    }
+
+    if (!profile) {
+      addToast('Không tìm thấy hồ sơ của tài khoản đang đăng nhập trong Users API.', 'error');
+      return;
+    }
+
+    setEditingUser(profile);
+    setOpenInviteAdmin(true);
+    setShowProfileCard(false);
+  };
 
   return (
     <div className="min-h-screen bg-[#f9f9f7] text-[#1a1c1b] font-sans transition-colors duration-300">
 
       {/* =================== SCREEN 0: HOME =================== */}
-      {screen === "home" && <CustomerHome categories={categories} onNavigate={(s, id) => setScreen(s as any, id)} />}
+      {screen === "home" && <CustomerHome categories={categories} orchids={orchids} onNavigate={(s, id) => setScreen(s as any, id)} />}
 
-      {screen === "list_orchids" && <ListOrchids categoryId={selectedCategoryId} categories={categories} onNavigate={(s, id) => setScreen(s as any, id)} />}
+      {screen === "list_orchids" && <ListOrchids categoryId={selectedCategoryId} categories={categories} orchids={orchids} onNavigate={(s, id) => setScreen(s as any, id)} />}
       
-      {screen === "orchid_detail" && selectedOrchidId && <OrchidDetail id={selectedOrchidId} onNavigate={(s, id) => setScreen(s as any, id)} />}
+      {screen === "orchid_detail" && selectedOrchidId && <OrchidDetail id={selectedOrchidId} categories={categories} onNavigate={(s, id) => setScreen(s as any, id)} />}
 
       {/* =================== SCREEN 1: SIGN UP =================== */}
       {screen === "signup" && (
@@ -1164,13 +1474,16 @@ export default function App() {
                   </label>
                 </div>
 
+                <CaptchaChallenge ref={signupCaptchaRef} />
+
                 {/* Submit button */}
                 <button
                   id="btn_submit_signup"
                   type="submit"
-                  className="w-full py-2.5 bg-[#56642b] hover:bg-[#3f4b1e] text-white rounded-[2px] font-semibold text-[11px] tracking-wider uppercase text-center cursor-pointer transition-all duration-300 shadow-sm"
+                  disabled={isRegistering}
+                  className="w-full py-2.5 bg-[#56642b] hover:bg-[#3f4b1e] disabled:opacity-60 disabled:cursor-wait text-white rounded-[2px] font-semibold text-[11px] tracking-wider uppercase text-center cursor-pointer transition-all duration-300 shadow-sm"
                 >
-                  ĐĂNG KÝ
+                  {isRegistering ? 'ĐANG ĐĂNG KÝ...' : 'ĐĂNG KÝ'}
                 </button>
               </form>
 
@@ -1183,7 +1496,7 @@ export default function App() {
 
               {/* Social buttons */}
               <div className="grid grid-cols-1 gap-4">
-                <GoogleLoginButton onCredential={handleGoogleLogin} disabled={isLoggingIn} />
+                <GoogleLoginButton onCredential={handleGoogleLogin} disabled={isLoggingIn || isRegistering} />
               </div>
 
               {/* Login toggle links */}
@@ -1345,6 +1658,8 @@ export default function App() {
                   </label>
                   <button type="button" onClick={() => setScreen("forgot_password")} className="text-[11px] text-[#56642b] hover:underline font-medium">Quên mật khẩu?</button>
                 </div>
+
+                <CaptchaChallenge ref={loginCaptchaRef} />
 
                 {/* Button login */}
                 <button
@@ -1578,6 +1893,9 @@ export default function App() {
           >
             <FileText className="w-5 h-5 shrink-0" />
             <span className="text-xs uppercase tracking-wider font-semibold font-sans">TRỒNG & CHĂM SÓC</span>
+            <span className="ml-auto text-[10px] font-mono bg-surface-container-high px-2 py-0.5 rounded text-outline font-bold">
+              {careArticles.length}
+            </span>
           </button>
 
           <button
@@ -1591,7 +1909,7 @@ export default function App() {
             <Users className="w-5 h-5 shrink-0" />
             <span className="text-xs uppercase tracking-wider font-semibold font-sans">Người dùng</span>
             <span className="ml-auto text-[10px] font-mono bg-surface-container-high px-2 py-0.5 rounded text-outline font-bold">
-              {admins.length}
+              {userTotalCount}
             </span>
           </button>
 
@@ -1604,15 +1922,16 @@ export default function App() {
               onClick={() => setShowProfileCard(!showProfileCard)}
               className="flex items-center gap-3 w-full text-left p-1.5 hover:bg-surface-container rounded-lg transition-all"
             >
-              <img
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuAo-zJ5ExvYhdfmT23_95dB29dmK652EZRN7py72zTdPmJLHqMDmewFwJvl83ED4Wb0uI6mbOboycJo43rGQ_koStqSWySSt9as1MkMo0cmCif0aLAYQK7XNmK0cTie3UXY5qCroUIWsSP8mte2PjEIWdFQUfvfE6sw6Zqpt6DIUpB5p5CFKSEl2_xkReYMvAGfU5_NlH6SVhq6qB04Kob_AYkqptH0emAvVEq9bD5OtBbxzFwaUk8-2kKfqzbwUX5d_190ppkVoU3-"
-                className="w-8 h-8 rounded-full border border-antique-gold/20 object-cover"
-                alt="Ngô Chí Tài"
-                referrerPolicy="no-referrer"
-              />
+              {currentAvatarUrl ? (
+                <img src={currentAvatarUrl} className="w-8 h-8 rounded-full border border-antique-gold/20 object-cover" alt={currentDisplayName} referrerPolicy="no-referrer" />
+              ) : (
+                <span className="w-8 h-8 rounded-full bg-soft-olive flex items-center justify-center font-bold text-[#56642b]">{currentUserInitial}</span>
+              )}
               <div className="min-w-0">
-                <p className="text-xs font-bold text-on-surface truncate leading-tight">Ngô Chí Tài</p>
-                <p className="text-[9px] text-[#56642b] font-semibold tracking-wider font-mono">SUPER ADMIN</p>
+                <p className="text-xs font-bold text-on-surface truncate leading-tight">{currentDisplayName}</p>
+                <p className="text-[9px] text-[#56642b] font-semibold tracking-wider font-mono">
+                  {isAdminAccount(currentUser) ? 'SUPER ADMIN' : 'CUSTOMER'}
+                </p>
               </div>
             </button>
 
@@ -1627,6 +1946,14 @@ export default function App() {
                   <p className="font-bold text-on-surface">Vùng làm việc: VIỆT NAM</p>
                   <p className="text-outline">Cơ sở dữ liệu: Orchids Registry Hub</p>
                   <p className="text-outline font-mono">Phiên bản thiết bị: v4.2.14</p>
+                  <button
+                    type="button"
+                    disabled={loadingUsers}
+                    onClick={() => void handleOpenCurrentProfile()}
+                    className="w-full rounded border border-botanical-green/30 px-3 py-2 text-[10px] font-bold uppercase text-botanical-green hover:bg-soft-olive/20 disabled:cursor-wait disabled:opacity-60"
+                  >
+                    {loadingUsers ? 'Đang tải hồ sơ...' : 'Cài đặt tài khoản'}
+                  </button>
                   <div className="pt-2 border-t border-outline-variant flex justify-between">
                     <span className="text-[10px] text-secondary font-mono">IP: 192.168.1.1</span>
                     <span className="text-[10px] text-outline italic">Online</span>
@@ -1713,16 +2040,15 @@ export default function App() {
 
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
-                <p className="font-label-md text-xs font-bold text-on-surface leading-snug">Ngô Chí Tài</p>
+                <p className="font-label-md text-xs font-bold text-on-surface leading-snug">{currentDisplayName}</p>
                 <p className="text-[10px] text-on-surface-variant uppercase tracking-wider font-semibold">Quản trị viên</p>
               </div>
               <div className="w-9 h-9 rounded-full bg-[#e2e3e1] overflow-hidden border border-[#c4c7c7] shrink-0">
-                <img
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuAo-zJ5ExvYhdfmT23_95dB29dmK652EZRN7py72zTdPmJLHqMDmewFwJvl83ED4Wb0uI6mbOboycJo43rGQ_koStqSWySSt9as1MkMo0cmCif0aLAYQK7XNmK0cTie3UXY5qCroUIWsSP8mte2PjEIWdFQUfvfE6sw6Zqpt6DIUpB5p5CFKSEl2_xkReYMvAGfU5_NlH6SVhq6qB04Kob_AYkqptH0emAvVEq9bD5OtBbxzFwaUk8-2kKfqzbwUX5d_190ppkVoU3-"
-                  className="w-full h-full object-cover"
-                  alt="Ngô Chí Tài"
-                  referrerPolicy="no-referrer"
-                />
+                {currentAvatarUrl ? (
+                  <img src={currentAvatarUrl} className="w-full h-full object-cover" alt={currentDisplayName} referrerPolicy="no-referrer" />
+                ) : (
+                  <span className="w-full h-full flex items-center justify-center font-bold text-[#56642b]">{currentUserInitial}</span>
+                )}
               </div>
             </div>
           </div>
@@ -1741,7 +2067,7 @@ export default function App() {
                     Tổng quan Hệ thống
                   </h2>
                   <p className="text-sm text-on-surface-variant mt-1">
-                    Chào mừng trở lại, Ngô Chí Tài. Đây là dữ liệu mới nhất hôm nay.
+                    Chào mừng trở lại, {currentDisplayName}. Đây là dữ liệu mới nhất từ hệ thống.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2.5">
@@ -1769,10 +2095,10 @@ export default function App() {
                     <Layers className="w-24 h-24" />
                   </div>
                   <p className="text-outline text-[10px] font-bold uppercase tracking-wider">Tổng số Loài Lan</p>
-                  <h3 className="text-3xl font-serif text-botanical-green font-bold mt-2">{1248 + orchids.length - 4}</h3>
+                  <h3 className="text-3xl font-serif text-botanical-green font-bold mt-2">{orchids.length}</h3>
                   <div className="mt-3 flex items-center gap-1 text-xs text-secondary font-medium">
-                    <TrendingUp className="w-4 h-4 text-botanical-green" />
-                    <span>+12% từ tháng trước</span>
+                    <Check className="w-4 h-4 text-botanical-green" />
+                    <span>Đồng bộ từ API Orchids</span>
                   </div>
                 </div>
 
@@ -1781,28 +2107,28 @@ export default function App() {
                   <p className="text-outline text-[10px] font-bold uppercase tracking-wider">TÀI LIỆU VỀ LAN</p>
                   <h3 className="text-3xl font-serif text-[#56642b] font-bold mt-2">{documentsData?.totalCount || 0}</h3>
                   <div className="mt-3 flex items-center gap-1 text-xs text-secondary font-medium">
-                    <Calendar className="w-4 h-4 text-[#56642b]" />
-                    <span>{(documentsData?.totalCount || 0)} tài liệu tháng này</span>
+                    <BookOpen className="w-4 h-4 text-[#56642b]" />
+                    <span>{(documentsData?.totalCount || 0)} tài liệu trên hệ thống</span>
                   </div>
                 </div>
 
-                {/* Stat 3: Questions answered */}
+                {/* Stat 3: Care articles */}
                 <div className="bg-white p-6 luxury-shadow rounded-xl border border-outline-variant/30 relative overflow-hidden group">
-                  <p className="text-outline text-[10px] font-bold uppercase tracking-wider font-sans">Câu hỏi Q&A chưa trả lời</p>
-                  <h3 className="text-3xl font-serif text-[#ba1a1a] font-bold mt-2">{unansweredCount}</h3>
+                  <p className="text-outline text-[10px] font-bold uppercase tracking-wider font-sans">Bài hướng dẫn chăm sóc</p>
+                  <h3 className="text-3xl font-serif text-[#56642b] font-bold mt-2">{careArticles.length}</h3>
                   <div className="mt-3 flex items-center gap-1 text-xs text-outline">
-                    <Check className="w-4 h-4 text-[#56642b]" />
-                    <span>Đã giải đáp {questions.filter(q=>q.replied).length}/{questions.length} hệ thống</span>
+                    <FileText className="w-4 h-4 text-[#56642b]" />
+                    <span>{careArticles.filter((article) => article.isPublished).length} bài đã xuất bản</span>
                   </div>
                 </div>
 
                 {/* Stat 4: Admins counting */}
                 <div className="bg-white p-6 luxury-shadow rounded-xl border border-outline-variant/30 relative overflow-hidden group">
-                  <p className="text-outline text-[10px] font-bold uppercase tracking-wider">Cộng tác viên hoạt động</p>
-                  <h3 className="text-3xl font-serif text-antique-gold font-bold mt-2">{admins.length}</h3>
+                  <p className="text-outline text-[10px] font-bold uppercase tracking-wider">Người dùng hệ thống</p>
+                  <h3 className="text-3xl font-serif text-antique-gold font-bold mt-2">{userTotalCount}</h3>
                   <div className="mt-3 flex items-center gap-1 text-xs text-antique-gold">
                     <Sparkles className="w-4 h-4 text-antique-gold" />
-                    <span>Tải dữ liệu an toàn cao</span>
+                    <span>Đồng bộ từ API Users</span>
                   </div>
                 </div>
               </div>
@@ -1832,48 +2158,52 @@ export default function App() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-outline-variant/30">
-                        {questions.map((q) => (
-                          <tr key={q.id} className="hover:bg-[#f4f4f2]/40 transition-colors">
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-2.5">
-                                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold leading-none ${q.avatarColor}`}>
-                                  {q.avatarLetter}
-                                </div>
-                                <span className="font-semibold text-charcoal-text">{q.sender}</span>
-                              </div>
+                        {loadingDashboardDiscussions ? (
+                          <tr>
+                            <td colSpan={4} className="px-6 py-10 text-center text-outline">
+                              Đang tải dữ liệu thảo luận...
                             </td>
-                            <td className="px-6 py-4 max-w-xs truncate text-[#434748] font-medium">
-                              {q.content}
-                              {q.replied && (
-                                <div className="text-[10px] text-secondary mt-1 flex items-center gap-1 font-semibold">
-                                  <Check className="w-3.5 h-3.5" /> Đã trả lời: "{q.replyContent}"
-                                </div>
-                              )}
+                          </tr>
+                        ) : dashboardDiscussions.filter((post) => (post.commentCount ?? post.comments?.length ?? 0) === 0).length === 0 ? (
+                          <tr>
+                            <td colSpan={4} className="px-6 py-10 text-center text-outline">
+                              Không có câu hỏi nào đang chờ phản hồi.
                             </td>
-                            <td className="px-6 py-4 text-outline font-mono">{q.timeAgo}</td>
-                            <td className="px-6 py-4 text-right">
-                              {q.replied ? (
-                                <span className="text-[10px] bg-secondary/10 text-on-secondary-container px-2.5 py-1 rounded font-bold font-sans">
-                                  ĐÃ PHẢN HỒI
-                                </span>
-                              ) : (
+                          </tr>
+                        ) : dashboardDiscussions
+                          .filter((post) => (post.commentCount ?? post.comments?.length ?? 0) === 0)
+                          .slice(0, 4)
+                          .map((post) => (
+                            <tr key={post.id} className="hover:bg-[#f4f4f2]/40 transition-colors">
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold leading-none bg-[#d6e7a1] text-[#384315]">
+                                    {post.authorName?.trim().charAt(0).toUpperCase() || '?'}
+                                  </div>
+                                  <span className="font-semibold text-charcoal-text">{post.authorName || 'Thành viên'}</span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 max-w-xs truncate text-[#434748] font-medium" title={post.content}>
+                                {post.title || post.content}
+                              </td>
+                              <td className="px-6 py-4 text-outline font-mono">{formatRelativeTime(post.createdAt)}</td>
+                              <td className="px-6 py-4 text-right">
                                 <button
-                                  onClick={() => setReplyTargetQuestion(q)}
+                                  onClick={() => setScreen('discussion')}
                                   className="px-3.5 py-1.5 bg-[#56642b]/15 text-[#56642b] rounded hover:bg-[#56642b] hover:text-white transition-all text-[11px] font-bold uppercase tracking-wider font-sans cursor-pointer"
                                 >
                                   Trả lời ngay
                                 </button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+                            </tr>
+                          ))}
                       </tbody>
                     </table>
                   </div>
                   
                   <div className="p-4 border-t border-outline-variant/50 flex justify-center bg-gray-50">
                     <span className="text-[11px] text-outline">
-                      Các câu hỏi trên được đồng bộ trực tuyến từ đơn đăng ký dịch vụ Orchids.
+                      Dữ liệu được đồng bộ trực tiếp từ API Discussions.
                     </span>
                   </div>
                 </div>
@@ -1888,23 +2218,7 @@ export default function App() {
                     </h4>
                     <div className="space-y-1.5">
                       <button
-                        onClick={() => { setActiveTab('community'); setSearchQuery(''); }}
-                        className="flex items-center justify-between p-3 w-full bg-[#f4f4f2] hover:bg-[#d6e7a1]/20 rounded-lg group transition-all text-left border border-transparent hover:border-[#56642b]/20 cursor-pointer"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="p-2 bg-white rounded text-secondary shadow-sm">
-                            <MessageSquare className="w-4 h-4 text-botanical-green" />
-                          </span>
-                          <div>
-                            <p className="font-bold text-xs text-on-surface">Đăng bài Cộng đồng</p>
-                            <p className="text-[10px] text-outline font-mono">Chia sẻ trạng thái, hình ảnh</p>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-outline group-hover:translate-x-1 transition-transform" />
-                      </button>
-
-                      <button
-                        onClick={() => setOpenInviteAdmin(true)}
+                        onClick={() => { setEditingUser(null); setOpenInviteAdmin(true); }}
                         className="flex items-center justify-between p-3 w-full bg-[#f4f4f2] hover:bg-[#d6e7a1]/20 rounded-lg group transition-all text-left border border-transparent hover:border-[#56642b]/20 cursor-pointer"
                       >
                         <div className="flex items-center gap-3">
@@ -2252,11 +2566,12 @@ export default function App() {
               </div>
 
               {showDocumentForm ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-white p-8 rounded-xl border border-outline-variant max-w-2xl mx-auto space-y-6 shadow-sm"
-                >
+                <div className="min-h-[calc(100vh-230px)] flex items-center justify-center py-6">
+                  <motion.div
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="w-full bg-white p-8 rounded-xl border border-outline-variant max-w-2xl space-y-6 shadow-sm"
+                  >
                   <div className="flex justify-between items-center pb-3 border-b border-outline-variant">
                     <h3 className="font-serif text-xl font-bold text-on-surface">
                       Thêm tài liệu mới
@@ -2365,7 +2680,8 @@ export default function App() {
                       </button>
                     </div>
                   </form>
-                </motion.div>
+                  </motion.div>
+                </div>
               ) : (
                 <div className="space-y-4">
                   {loadingDocuments ? (
@@ -2454,81 +2770,82 @@ export default function App() {
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
                 <div>
-                  <h2 className="font-serif text-3xl font-semibold text-on-surface">Mạng Lưới Cộng Tác Viên & Học Giả</h2>
+                  <h2 className="font-serif text-3xl font-semibold text-on-surface">Quản Lý Người Dùng</h2>
                   <p className="text-sm text-on-surface-variant mt-1">
-                    Cung cấp phân quyền chỉnh sửa cơ sở dữ liệu, quản lý tài liệu lưu trữ, và điều trị bảo tồn thực vật.
+                    Danh sách tài khoản được đồng bộ trực tiếp từ API Users.
                   </p>
                 </div>
                 <button
-                  onClick={() => setOpenInviteAdmin(true)}
+                  onClick={() => { setEditingUser(null); setOpenInviteAdmin(true); }}
                   className="px-5 py-2.5 bg-[#56642b] text-white font-sans text-xs font-semibold uppercase tracking-wider rounded-lg hover:shadow cursor-pointer"
                 >
-                  Mời cộng tác viên mới
+                  Tạo người dùng mới
                 </button>
               </div>
 
               {/* Administrators Table */}
               <div className="bg-white rounded-xl border border-outline-variant/40 shadow-sm overflow-hidden">
                 <div className="px-6 py-4 bg-[#f4f4f2]/50 border-b border-outline-variant">
-                  <h3 className="font-serif text-lg font-bold text-on-surface">Danh sách nhân sự được cấp quyền</h3>
+                  <h3 className="font-serif text-lg font-bold text-on-surface">Danh sách người dùng ({userTotalCount})</h3>
                 </div>
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-[#f4f4f2] text-on-surface-variant font-bold uppercase text-[10px] tracking-wider border-b border-outline-variant">
                       <tr>
-                        <th className="px-6 py-2.5">Cộng tác viên</th>
-                        <th className="px-6 py-2.5">Hòm thư điện tử</th>
-                        <th className="px-6 py-2.5">Phân cấp vai trò</th>
-                        <th className="px-6 py-2.5">Trạng thái bảo mật</th>
+                        <th className="px-6 py-2.5">Người dùng</th>
+                        <th className="px-6 py-2.5">Email</th>
+                        <th className="px-6 py-2.5">Mã người dùng</th>
                         <th className="px-6 py-2.5 text-right">Điều khiển</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-outline-variant/30">
-                      {filteredAdmins.map((ad: any) => (
-                        <tr key={ad.id} className="transition-colors hover:bg-gray-50/70">
+                      {filteredUsers.map((user) => (
+                        <tr key={user.id} className="transition-colors hover:bg-gray-50/70">
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-soft-olive flex items-center justify-center font-bold text-[#56642b]">
-                                {ad.name.charAt(0)}
-                              </div>
+                              {user.avatarUrl ? (
+                                <img src={user.avatarUrl} alt={user.fullName} className="w-8 h-8 rounded-full object-cover border border-outline-variant" referrerPolicy="no-referrer" />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-soft-olive flex items-center justify-center font-bold text-[#56642b]">
+                                  {user.fullName.charAt(0).toUpperCase()}
+                                </div>
+                              )}
                               <div>
-                                <p className="font-bold text-charcoal-text text-xs leading-none">{ad.name}</p>
-                                <span className="text-[10px] text-outline font-mono block mt-1">Gia nhập: {ad.date}</span>
+                                <p className="font-bold text-charcoal-text text-xs leading-none">{user.fullName}</p>
+                                {user.email === currentUser && <span className="text-[9px] text-botanical-green font-bold block mt-1">ĐANG ĐĂNG NHẬP</span>}
                               </div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 font-mono text-[#434748]">{ad.email}</td>
-                          <td className="px-6 py-4">
-                            <span className="px-2 py-0.5 bg-antique-gold/10 text-antique-gold font-bold text-[9px] rounded uppercase font-sans">
-                              {ad.role}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded font-bold text-[9px] font-sans ${
-                              ad.status === 'Đang hoạt động' ? 'bg-[#d6e7a0]/40 text-[#5a682f]' : 'bg-antique-gold/10 text-antique-gold'
-                            }`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${
-                                ad.status === 'Đang hoạt động' ? 'bg-[#56642b]' : 'bg-antique-gold animate-pulse'
-                              }`} />
-                              {ad.status}
-                            </span>
-                          </td>
+                          <td className="px-6 py-4 font-mono text-[#434748]">{user.email}</td>
+                          <td className="px-6 py-4 font-mono text-[10px] text-outline">{user.id}</td>
                           <td className="px-6 py-4 text-right">
-                            {ad.id === 'adm-1' ? (
-                              <span className="text-[10px] text-outline italic pr-2 font-mono">Tài khoản hiện đang đăng nhập</span>
-                            ) : (
+                            <div className="inline-flex items-center gap-1">
                               <button
-                                onClick={() => deleteAdmin(ad.id, ad.name)}
+                                onClick={() => { setEditingUser(user); setOpenInviteAdmin(true); }}
+                                className="p-1.5 rounded text-outline hover:text-botanical-green hover:bg-soft-olive/20 transition-all cursor-pointer"
+                                title="Sửa người dùng"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => void handleDeleteUser(user)}
+                                disabled={user.email === currentUser}
                                 className="p-1 rounded text-outline hover:text-error hover:bg-error-container/20 transition-all cursor-pointer"
-                                title="Thu hồi đặc quyền"
+                                title={user.email === currentUser ? 'Không thể xóa tài khoản đang đăng nhập' : 'Xóa người dùng'}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
-                            )}
+                            </div>
                           </td>
                         </tr>
                       ))}
+                      {!loadingUsers && filteredUsers.length === 0 && (
+                        <tr><td colSpan={4} className="px-6 py-10 text-center text-outline">Không có người dùng phù hợp.</td></tr>
+                      )}
+                      {loadingUsers && (
+                        <tr><td colSpan={4} className="px-6 py-10 text-center text-outline">Đang tải người dùng...</td></tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -2538,8 +2855,8 @@ export default function App() {
 
           {/* ======================= TAB: CARE GUIDE / TRỒNG & CHĂM SÓC (API) ======================= */}
           {activeTab === 'care' && (
-            <div className="flex-1 p-8 pb-12">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 mb-8">
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
                 <div>
                   <h2 className="font-serif text-3xl font-semibold text-on-surface">Hướng Dẫn Trồng & Chăm Sóc</h2>
                   <p className="text-sm text-on-surface-variant mt-1">
@@ -2551,6 +2868,7 @@ export default function App() {
                     onClick={() => {
                       setEditingCareArticle(null);
                       setCareArticleForm(emptyCareArticleForm);
+                      setCareThumbnailPreviewUrl('');
                       setShowCareArticleEditor(true);
                     }}
                     className="px-5 py-2.5 bg-botanical-green text-white font-sans text-xs font-semibold uppercase tracking-wider rounded-lg hover:shadow cursor-pointer"
@@ -2564,14 +2882,18 @@ export default function App() {
                 <motion.div
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-white p-6 rounded-xl border border-outline-variant max-w-3xl mx-auto space-y-5"
+                  className="bg-white p-6 rounded-xl border border-outline-variant max-w-4xl mx-auto space-y-5"
                 >
                   <div className="flex justify-between items-center pb-3 border-b border-outline-variant">
                     <h3 className="font-serif text-xl font-bold text-on-surface">
                       {editingCareArticle ? 'Cập nhật hướng dẫn' : 'Soạn thảo hướng dẫn mới'}
                     </h3>
                     <button
-                      onClick={() => setShowCareArticleEditor(false)}
+                      onClick={() => {
+                        setShowCareArticleEditor(false);
+                        setCareThumbnailPreviewUrl('');
+                      }}
+                      disabled={uploadingCareThumbnail || savingCareArticle}
                       className="p-1 rounded-full text-outline hover:text-charcoal-text transition-all cursor-pointer"
                     >
                       <X className="w-5 h-5" />
@@ -2579,9 +2901,9 @@ export default function App() {
                   </div>
 
                   <form onSubmit={handleSaveCareArticle} className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
                       <div className="space-y-1">
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tiêu đề hướng dẫn</label>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tiêu đề hướng dẫn *</label>
                         <input
                           type="text"
                           value={careArticleForm.title}
@@ -2589,16 +2911,6 @@ export default function App() {
                           placeholder="Ví dụ: Kỹ thuật thay chậu cho lan Hồ Điệp..."
                           className="w-full bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green font-semibold"
                           required
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Slug</label>
-                        <input
-                          type="text"
-                          value={careArticleForm.slug}
-                          onChange={(e) => setCareArticleForm({ ...careArticleForm, slug: e.target.value })}
-                          placeholder="Để trống để tự tạo"
-                          className="w-full bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green"
                         />
                       </div>
                     </div>
@@ -2613,52 +2925,138 @@ export default function App() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">ID ảnh đại diện (UUID)</label>
-                        <input
-                          type="text"
-                          value={careArticleForm.thumbnailImageId}
-                          onChange={(e) => setCareArticleForm({ ...careArticleForm, thumbnailImageId: e.target.value })}
-                          placeholder="Có thể để trống"
-                          className="w-full bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green"
-                        />
+                    <div className="space-y-2">
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Ảnh đại diện</label>
+                      <div className="grid grid-cols-1 sm:grid-cols-[180px_minmax(0,1fr)] gap-4 rounded-lg border border-outline-variant bg-[#f7f7f3] p-4">
+                        <div className="h-32 overflow-hidden rounded-lg border border-outline-variant bg-white">
+                          {careThumbnailPreviewUrl ? (
+                            <img
+                              src={careThumbnailPreviewUrl}
+                              alt="Ảnh đại diện bài hướng dẫn"
+                              className="h-full w-full object-cover"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : careArticleForm.thumbnailImageId ? (
+                            <div className="flex h-full flex-col items-center justify-center gap-2 px-3 text-center text-outline">
+                              <ImageIcon className="h-7 w-7 text-botanical-green" />
+                              <span className="text-[10px]">Ảnh đã được liên kết</span>
+                            </div>
+                          ) : (
+                            <div className="flex h-full flex-col items-center justify-center gap-2 text-outline">
+                              <ImageIcon className="h-7 w-7" />
+                              <span className="text-[10px]">Chưa có ảnh</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex min-w-0 flex-col justify-center gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-charcoal-text">Chọn ảnh từ máy tính</p>
+                            <p className="mt-1 text-[10px] text-outline">JPG, PNG, WEBP hoặc GIF; tối đa 10 MB.</p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <label className={`inline-flex items-center gap-2 rounded bg-botanical-green px-4 py-2 text-xs font-semibold text-white transition-opacity ${
+                              uploadingCareThumbnail || savingCareArticle ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:opacity-90'
+                            }`}>
+                              <Upload className="h-4 w-4" />
+                              {uploadingCareThumbnail
+                                ? 'Đang tải ảnh...'
+                                : careArticleForm.thumbnailImageId
+                                  ? 'Chọn ảnh khác'
+                                  : 'Tải ảnh lên'}
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp,image/gif"
+                                disabled={uploadingCareThumbnail || savingCareArticle}
+                                onChange={(event) => void handleUploadCareThumbnail(event)}
+                                className="hidden"
+                              />
+                            </label>
+                            {careArticleForm.thumbnailImageId && (
+                              <button
+                                type="button"
+                                disabled={uploadingCareThumbnail || savingCareArticle}
+                                onClick={() => {
+                                  setCareArticleForm((current) => ({ ...current, thumbnailImageId: '' }));
+                                  setCareThumbnailPreviewUrl('');
+                                }}
+                                className="rounded border border-error/40 px-4 py-2 text-xs font-semibold text-error hover:bg-error-container/30 disabled:opacity-50"
+                              >
+                                Gỡ ảnh
+                              </button>
+                            )}
+                          </div>
+                          {careArticleForm.thumbnailImageId && (
+                            <p className="truncate font-mono text-[9px] text-outline" title={careArticleForm.thumbnailImageId}>
+                              ID: {careArticleForm.thumbnailImageId}
+                            </p>
+                          )}
+                        </div>
                       </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1">
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tài liệu liên quan (UUID, cách nhau dấu phẩy)</label>
-                        <input
-                          type="text"
-                          value={careArticleForm.documentIds.join(', ')}
-                          onChange={(e) => setCareArticleForm({
-                            ...careArticleForm,
-                            documentIds: e.target.value.split(',').map((id) => id.trim()).filter(Boolean),
-                          })}
-                          placeholder="Có thể để trống"
-                          className="w-full bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green"
-                        />
+                        <div className="flex items-center justify-between">
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Hoa lan liên quan</label>
+                          <span className="text-[10px] text-outline">Đã chọn {careArticleForm.orchidIds.length}</span>
+                        </div>
+                        <div className="max-h-40 overflow-y-auto bg-[#f4f4f2] border border-outline-variant rounded p-3 space-y-2">
+                          {orchids.filter((orchid) => orchid.id).map((orchid) => (
+                            <label key={orchid.id} className="flex items-center gap-2 text-sm text-charcoal-text cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={careArticleForm.orchidIds.includes(orchid.id!)}
+                                onChange={(event) => setCareArticleForm({
+                                  ...careArticleForm,
+                                  orchidIds: event.target.checked
+                                    ? [...careArticleForm.orchidIds, orchid.id!]
+                                    : careArticleForm.orchidIds.filter((id) => id !== orchid.id),
+                                })}
+                              />
+                              <span>{orchid.name}</span>
+                            </label>
+                          ))}
+                          {orchids.every((orchid) => !orchid.id) && (
+                            <p className="text-xs text-outline">Chưa có hoa lan từ API.</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tài liệu liên quan</label>
+                          <span className="text-[10px] text-outline">Đã chọn {careArticleForm.documentIds.length}</span>
+                        </div>
+                        <div className="max-h-40 overflow-y-auto bg-[#f4f4f2] border border-outline-variant rounded p-3 space-y-2">
+                          {careDocumentOptions.map((document) => document.id && (
+                            <label key={document.id} className="flex items-start gap-2 text-sm text-charcoal-text cursor-pointer">
+                              <input
+                                type="checkbox"
+                                className="mt-0.5"
+                                checked={careArticleForm.documentIds.includes(document.id)}
+                                onChange={(event) => setCareArticleForm({
+                                  ...careArticleForm,
+                                  documentIds: event.target.checked
+                                    ? [...careArticleForm.documentIds, document.id!]
+                                    : careArticleForm.documentIds.filter((id) => id !== document.id),
+                                })}
+                              />
+                              <span>
+                                <span className="block font-medium">{document.title}</span>
+                                <span className="block text-[10px] text-outline">{document.originalName}</span>
+                              </span>
+                            </label>
+                          ))}
+                          {careDocumentOptions.length === 0 && (
+                            <p className="text-xs text-outline">Chưa có tài liệu từ API.</p>
+                          )}
+                        </div>
                       </div>
                     </div>
 
                     <div className="space-y-1">
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Hoa lan liên quan</label>
-                      <select
-                        multiple
-                        value={careArticleForm.orchidIds}
-                        onChange={(e) => setCareArticleForm({
-                          ...careArticleForm,
-                          orchidIds: Array.from(e.currentTarget.selectedOptions, (option) => option.value),
-                        })}
-                        className="w-full min-h-24 bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green"
-                      >
-                        {orchids.filter((orchid) => orchid.id).map((orchid) => (
-                          <option key={orchid.id} value={orchid.id}>{orchid.name}</option>
-                        ))}
-                      </select>
-                      <p className="text-[10px] text-outline">Giữ Ctrl để chọn nhiều hoa lan.</p>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Nội dung chi tiết</label>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Nội dung chi tiết *</label>
                       <textarea
                         value={careArticleForm.content}
                         onChange={(e) => setCareArticleForm({ ...careArticleForm, content: e.target.value })}
@@ -2680,18 +3078,25 @@ export default function App() {
                       </label>
                       <button
                         type="button"
-                        onClick={() => setShowCareArticleEditor(false)}
-                        disabled={savingCareArticle}
+                        onClick={() => {
+                          setShowCareArticleEditor(false);
+                          setCareThumbnailPreviewUrl('');
+                        }}
+                        disabled={savingCareArticle || uploadingCareThumbnail}
                         className="px-4 py-2 border border-outline text-outline font-medium text-xs uppercase hover:bg-surface-container transition-all cursor-pointer"
                       >
                         Hủy
                       </button>
                       <button
                         type="submit"
-                        disabled={savingCareArticle}
+                        disabled={savingCareArticle || uploadingCareThumbnail}
                         className="px-5 py-2 bg-botanical-green text-white font-medium text-xs uppercase hover:opacity-90 transition-all rounded cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        {savingCareArticle ? 'Đang lưu...' : (editingCareArticle ? 'Cập nhật' : 'Lưu bài viết')}
+                        {uploadingCareThumbnail
+                          ? 'Đang tải ảnh...'
+                          : savingCareArticle
+                            ? 'Đang lưu...'
+                            : (editingCareArticle ? 'Cập nhật' : 'Lưu bài viết')}
                       </button>
                     </div>
                   </form>
@@ -2715,8 +3120,15 @@ export default function App() {
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {careArticles.map((art) => (
-                        <div key={art.id} className="bg-white rounded-xl border border-outline-variant/30 overflow-hidden flex flex-col hover:shadow-md transition-all">
-                          <div className="p-5 flex-1 flex flex-col">
+                        <div key={art.id} className="bg-white rounded-xl border border-outline-variant/30 overflow-hidden flex items-stretch hover:shadow-md transition-all">
+                          {(art.thumbnailImageUrl || getUploadedImageUrl(art.thumbnailImageId)) && (
+                            <img
+                              src={art.thumbnailImageUrl || getUploadedImageUrl(art.thumbnailImageId)}
+                              alt={`Ảnh đại diện ${art.title}`}
+                              className="w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-lg m-4 mr-0 shrink-0 self-start"
+                            />
+                          )}
+                          <div className="p-4 flex-1 min-w-0 flex flex-col">
                             <h3 className="font-serif text-lg font-bold text-on-surface line-clamp-2 leading-tight">
                               {art.title}
                             </h3>
@@ -2805,8 +3217,9 @@ export default function App() {
 
       <InviteAdminModal
         isOpen={openInviteAdmin}
-        onClose={() => setOpenInviteAdmin(false)}
-        onInviteSuccess={handleInviteAdminSuccess}
+        editUser={editingUser}
+        onClose={() => { setOpenInviteAdmin(false); setEditingUser(null); }}
+        onSave={handleSaveUser}
       />
 
       <ReplyModal
@@ -2830,6 +3243,7 @@ export default function App() {
           {screen === 'discussion' && <Discussion />}
           {screen === 'planting_and_care' && <PlantingAndCare />}
           {screen === 'document' && <DocumentPage />}
+          {screen === 'profile' && <CustomerProfile />}
 
       {/* Global notifications for login, signup and dashboard screens. */}
       <Toasts toasts={toasts} removeToast={removeToast} />

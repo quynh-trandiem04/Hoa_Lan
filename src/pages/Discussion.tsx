@@ -1,721 +1,421 @@
-import React, { useState, useEffect, useRef } from "react";
-import { MessageSquare, Heart, Send, Camera, X, ShieldAlert, BadgeCheck, Flame, Trash2, Milestone } from "lucide-react";
-import { DiscussionPost as Post, DiscussionComment as Comment } from "../types";
-import SearchModal from "../components/SearchModal";
+import React, { useCallback, useEffect, useState } from 'react';
+import { ImagePlus, LoaderCircle, LockKeyhole, MessageSquare, RefreshCw, Search, Send, Trash2, X } from 'lucide-react';
+import {
+  createDiscussion,
+  createDiscussionComment,
+  getDiscussionById,
+  getDiscussions,
+  uploadImage,
+  type DiscussionPostDto,
+  type UploadedImage,
+} from '../services/api';
+import PublicFooter from '../components/PublicFooter';
+import PublicHeader from '../components/PublicHeader';
 
-// Static premium images referenced in original layout for easy community mock attaches
-const PHOTO_ATTACH_OPTIONS = [
-  {
-    id: "orchid-white-macro",
-    label: "Hồ điệp trắng chụp vĩ mô",
-    url: "https://lh3.googleusercontent.com/aida-public/AB6AXuCw9jJ08Pac7GorWGvEAJJZTrV-ZpCwqMuj4AF8zmQgG212XsSj1bXg4zSy4QJ3CdKPBFGx30NLXHN8DBjiNme2LhFKImt3Si2wumtuGzZqviQ7ygSEWu7PvoBhP0Eh5qllChLmSeVC8jLet9fFq2eajPQDuWc8VsM0skxgwfhqXK_GLy_i2eidED8ypjYhE9VETBCv8V-IWXiqmna2qRkudyffc7inoHKCbmUshEMg0nNQUaodsNA_jGv2wTuBkLjZLqpUHXL9RIOG"
-  },
-  {
-    id: "orchid-arrangement-living",
-    label: "Giỏ lan trưng cắm phòng khách",
-    url: "https://lh3.googleusercontent.com/aida-public/AB6AXuCmtpn39Bekjv0ckRVAh4Z0746tCuKJ2eBXWh3Fata6k4PlmMqGLv5Qmg1zTLtizLodTIWS9JRTNEjmWCmZmi2RxlsJEGZglO4OqboeHo1eGprbGAJh7LxyCEAIVleE6UdaUz2yRA-aRl-KGvbHC7wHhATtp2nXNIQXZmi-aexn8oDGiHCxeKks9tDb6djC5vvjFb-S6UDjQiSLnRaEG3l1tJnVOusr-UATglYopfBcgjEujosZxkvB6ahyOBJoPuvWRXZVKHxjTmYq"
-  },
-  {
-    id: "golden-portrait-warm",
-    label: "Sắc hoa lan ấm áp nắng vàng",
-    url: "https://lh3.googleusercontent.com/aida-public/AB6AXuDNBc6LpLFQfynDEUaKoMA4FEPHYYzXmtiYF0-S_IfBek8ko1nNhNSTGnxjimguvypdjuFQb89K6HfibHzCof-nJIR53UCoKui6Ywioa6WZPB0WQ1GG87Fx9TjApQSy0zQOatiJO8RQvDooLy4diA4QmC5YA3Op8QKyd6KSgkjOHQuiOiJ6caeKImUqu0b5x4IT_EOVxynXC7GJJbguRZ5_t03-OSgEAfmRCSsYYlpsCw8V12c2LGrpSDTGYoLtaYoNi-l6FLPfFZDu"
-  }
-];
+const LOGIN_URL = `/login?returnUrl=${encodeURIComponent('/discussion')}`;
 
-const INITIAL_POSTS: Post[] = [
-  {
-    id: "post-1",
-    authorName: "Minh Nguyễn",
-    authorAvatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuD1dE7FtZPo2w3tFNmER0jmssN9LSILyTp2bAtxG49BocUpMQ6U3eL4htED3XurGhWyNLdxuE-7NnkGJp6XL3C0tomTmeaWXde21z0l4EKpJreeHhKi0FlLhj1FcPLC7KJEr7AQSj1h_-F6HYM4AF5Tqbdz3MWip4_23Yqe2Wh0rcMqQu1QOiKiDfh-luJTZ5gmHvPu6OuWPG2U23G9xOm_YYWEEOm82CrukU1LvGqr6V1T-fprZwLU5KlU83Hg_tuEO9YZBCXs7nbK",
-    timeAgo: "2 giờ trước",
-    content: "Mẫu lan hồ điệp trắng vừa nở sáng nay tại vườn nhà. Vẻ đẹp tinh khiết thật sự làm tâm hồn thư thái hơn rất nhiều. Chào cả nhà ngày mới!",
-    imageSrc: "https://lh3.googleusercontent.com/aida-public/AB6AXuCmtpn39Bekjv0ckRVAh4Z0746tCuKJ2eBXWh3Fata6k4PlmMqGLv5Qmg1zTLtizLodTIWS9JRTNEjmWCmZmi2RxlsJEGZglO4OqboeHo1eGprbGAJh7LxyCEAIVleE6UdaUz2yRA-aRl-KGvbHC7wHhATtp2nXNIQXZmi-aexn8oDGiHCxeKks9tDb6djC5vvjFb-S6UDjQiSLnRaEG3l1tJnVOusr-UATglYopfBcgjEujosZxkvB6ahyOBJoPuvWRXZVKHxjTmYq",
-    likes: 24,
-    likedByCurrentUser: false,
-    tags: ["#ChamSocLanHoDiep", "#BaoTonThienNhien"],
-    comments: [
-      {
-        id: "com-1",
-        authorName: "Linh Chi",
-        authorAvatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuDNBc6LpLFQfynDEUaKoMA4FEPHYYzXmtiYF0-S_IfBek8ko1nNhNSTGnxjimguvypdjuFQb89K6HfibHzCof-nJIR53UCoKui6Ywioa6WZPB0WQ1GG87Fx9TjApQSy0zQOatiJO8RQvDooLy4diA4QmC5YA3Op8QKyd6KSgkjOHQuiOiJ6caeKImUqu0b5x4IT_EOVxynXC7GJJbguRZ5_t03-OSgEAfmRCSsYYlpsCw8V12c2LGrpSDTGYoLtaYoNi-l6FLPfFZDu",
-        content: "Thật tuyệt vời! Bạn có dùng loại phân bón hữu cơ đặc biệt nào không?",
-        timestamp: "1 giờ trước"
-      },
-      {
-        id: "com-2",
-        authorName: "Hoàng Anh",
-        authorAvatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuAdGE8tHYP0nPhlRFsRMGXjhxHYx3mAXgWiE8b_N024REdtq4-ESyLwVR1L9MkqANT56O6EeJJIknKHyU9O4K52lakZXBGJlWrfaKWGQ1_Dl2rsnFK8QfqvDSjWx0iD5838s1zMcL-iXWlOx_TIamqQ9GNql_tBsug0sQ57Vs2v-aciOwyzZaDaBG7tXcVjHEjMa0ySh_rDhh6n13Q9RjYlnFptxjh09tlo4bEXNe9lS8GM8D0S8HVxy5p9VY4umwXr0bwBMoBBg4y5",
-        content: "Cành đơm bông khoẻ sắc chính trực, bẹ lá xòe đều cân xứng, tay nghề chủ vườn cực kỳ lão luyện!",
-        timestamp: "30 phút trước"
-      }
-    ]
-  },
-  {
-    id: "post-2",
-    authorName: "Khánh Huyền",
-    authorAvatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuDXLx_Z6JSSB4few-cga6SEWeBcitac9udwUbMSC1ET-VwD8QXKfNW70fehyIhwAMZbbqWVtzdQWkvjLo-hcEMXBJLGYpMLezhYeRETXzqL_c4lYgQ9ZPv1zB3QRlqrm9AXZRxmCpIGaf4WXNMlQGW_Srl_-rUfPuDoB-BAljPk1V7be-NRze4u_jR7sDpAC1kHtBV5gBJzfIQqdr_HpVagiW8KFGyBJlzyFGGXbNPFm7RGze0kv2-hocaH4vgc1QFzBiKXVD5aLfDA",
-    timeAgo: "6 giờ trước",
-    content: "Lan rừng cần được bảo tồn chứ không nên tận thu bừa bãi. Mình vừa đóng góp thêm 2 giỏ ki nhỏ để nhân giống trả lại tự nhiên.",
-    likes: 18,
-    likedByCurrentUser: false,
-    tags: ["#LanRungVietNam", "#BaoTonThienNhien"],
-    comments: [
-      {
-        id: "com-3",
-        authorName: "Minh Nguyễn",
-        authorAvatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuD1dE7FtZPo2w3tFNmER0jmssN9LSILyTp2bAtxG49BocUpMQ6U3eL4htED3XurGhWyNLdxuE-7NnkGJp6XL3C0tomTmeaWXde21z0l4EKpJreeHhKi0FlLhj1FcPLC7KJEr7AQSj1h_-F6HYM4AF5Tqbdz3MWip4_23Yqe2Wh0rcMqQu1QOiKiDfh-luJTZ5gmHvPu6OuWPG2U23G9xOm_YYWEEOm82CrukU1LvGqr6V1T-fprZwLU5KlU83Hg_tuEO9YZBCXs7nbK",
-        content: "Ủng hộ tinh thần bảo vệ thiên nhiên của Huyền tuyệt đối!",
-        timestamp: "4 giờ trước"
-      }
-    ]
-  }
-];
+const hasAuthToken = () => Boolean(
+  localStorage.getItem('orchidee_auth_token')
+  || sessionStorage.getItem('orchidee_auth_token'),
+);
 
-export default function CommunityTab() {
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [postContent, setPostContent] = useState("");
-  const [attachedImageUrl, setAttachedImageUrl] = useState<string | null>(null);
-  const [activeHashtagFilter, setActiveHashtagFilter] = useState<string | null>(null);
-  const [showPhotoOptions, setShowPhotoOptions] = useState(false);
-  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
-  
-  // Comment states indexed by post ID
-  const [commentInputs, setCommentInputs] = useState<{ [postId: string]: string }>({});
+const initials = (name: string) => name
+  .split(/\s+/)
+  .filter(Boolean)
+  .slice(-2)
+  .map((part) => part[0]?.toUpperCase())
+  .join('') || '?';
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+const formatDate = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+};
 
-  // Self avatar representing user
-  const USER_AVATAR = "https://lh3.googleusercontent.com/aida-public/AB6AXuD5upV_MLCvVTEFNRGN6pYw0Oj5U5_-brSJF5EX7zhsUq2x1MnuYpN_QlurqYhAU-17jxBra6WlOUxEbkhCuMqEMko7QO38sRi-7Lgdb5566fmca7Z5JzS3jOItcHBuDOP99p2DMrDm7PP9Nbm5Rn6uQtCHlwbubi-mWvP52edx_gl4M0suTRkWAaWLsvmgYQlkgalAm-Bo-xzl76RxWO1vj_nXHT4RMBA57BGGZgmOU8ONoPD89lojRpIZDoiHzstHPqK_g7hjbRZh";
+const DISCUSSION_IMAGE_PATTERN = /\n*!\[Ảnh đính kèm\]\((https?:\/\/[^\s)]+)\)\s*$/i;
 
-  // Load and cache posts from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem("orchidee_luxe_posts_v2");
-    if (saved) {
-      try {
-        setPosts(JSON.parse(saved));
-      } catch (e) {
-        setPosts(INITIAL_POSTS);
-      }
-    } else {
-      setPosts(INITIAL_POSTS);
+const getDiscussionBody = (value: string) => {
+  const match = value.match(DISCUSSION_IMAGE_PATTERN);
+  return {
+    text: value.replace(DISCUSSION_IMAGE_PATTERN, '').trim(),
+    imageUrl: match?.[1] ?? '',
+  };
+};
+
+export default function Discussion() {
+  const [posts, setPosts] = useState<DiscussionPostDto[]>([]);
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [attachedImage, setAttachedImage] = useState<UploadedImage | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [searchTerm, setSearchTerm] = useState(() => new URLSearchParams(window.location.search).get('q') ?? '');
+  const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [commentingId, setCommentingId] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  const loadPosts = useCallback(async (term = '') => {
+    setLoading(true);
+    setError('');
+    try {
+      const result = await getDiscussions({ pageNumber: 1, pageSize: 50, searchTerm: term || undefined });
+      setPosts(result.items ?? []);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Không thể tải danh sách thảo luận.');
+    } finally {
+      setLoading(false);
     }
   }, []);
 
-  const savePostsToStorage = (updatedPosts: Post[]) => {
-    setPosts(updatedPosts);
-    localStorage.setItem("orchidee_luxe_posts_v2", JSON.stringify(updatedPosts));
+  useEffect(() => {
+    void loadPosts(new URLSearchParams(window.location.search).get('q') ?? '');
+  }, [loadPosts]);
+
+  const requireLogin = () => {
+    const loggedIn = hasAuthToken();
+    if (loggedIn) return true;
+    setShowLoginPrompt(true);
+    return false;
   };
 
-  // Handle local image file upload simulation
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setAttachedImageUrl(event.target.result as string);
-          setShowPhotoOptions(false);
-        }
-      };
-      reader.readAsDataURL(file);
+  const handleCreatePost = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!requireLogin()) return;
+    if (!title.trim() || !content.trim()) {
+      setError('Vui lòng nhập đầy đủ tiêu đề và nội dung.');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    setNotice('');
+    try {
+      const discussionContent = attachedImage?.url
+        ? `${content.trim()}\n\n![Ảnh đính kèm](${attachedImage.url})`
+        : content.trim();
+      const id = await createDiscussion({ title: title.trim(), content: discussionContent });
+      const created = await getDiscussionById(id);
+      setPosts((current) => [created, ...current.filter((post) => post.id !== id)]);
+      setTitle('');
+      setContent('');
+      setAttachedImage(null);
+      setNotice('Đăng bài thảo luận thành công.');
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Không thể đăng bài thảo luận.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleSelectPreloadedPhoto = (url: string) => {
-    setAttachedImageUrl(url);
-    setShowPhotoOptions(false);
-  };
-
-  // Submit absolute new post
-  const handleSubmitPost = () => {
-    const trimmed = postContent.trim();
-    if (!trimmed && !attachedImageUrl) {
-      alert("Vui lòng nhập nội dung chia sẻ hoặc đính kèm một đóa hoa xinh xắn.");
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!requireLogin()) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Vui lòng chọn đúng tệp ảnh.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Ảnh không được lớn hơn 10 MB.');
       return;
     }
 
-    // Detect hashtags
-    const hashtags: string[] = [];
-    const hashtagRegex = /(#[a-zA-Z0-9_ÁàẢãÁạĂằẰẳẵẶÂầẦẩẫẬÉèẺẽẸÊềỀểễỆÍìỈĩỊÓòỎõỌÔồỒổỗỘƠờỜởỡỢÚùỦũỤƯừỪửữỰÝýỶỹỴđĐ]+)/g;
-    let match;
-    while ((match = hashtagRegex.exec(trimmed)) !== null) {
-      hashtags.push(match[1]);
-    }
-
-    // Default tag if none
-    if (hashtags.length === 0) {
-      hashtags.push("#ChamSocLanHoDiep");
-    }
-
-    const newPost: Post = {
-      id: "post-" + Date.now(),
-      authorName: "Quỳnh Trần (Thành viên)",
-      authorAvatar: USER_AVATAR,
-      timeAgo: "Vừa xong",
-      content: trimmed,
-      imageSrc: attachedImageUrl || undefined,
-      likes: 0,
-      likedByCurrentUser: false,
-      tags: hashtags,
-      comments: []
-    };
-
-    const updated = [newPost, ...posts];
-    savePostsToStorage(updated);
-    setPostContent("");
-    setAttachedImageUrl(null);
-  };
-
-  // Delete self posts
-  const handleDeletePost = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (confirm("Bạn có chắc chắn muốn gỡ bài chia sẻ này không?")) {
-      const updated = posts.filter(p => p.id !== id);
-      savePostsToStorage(updated);
+    setUploadingImage(true);
+    setError('');
+    setNotice('');
+    try {
+      const uploaded = await uploadImage(file);
+      if (!uploaded.url) throw new Error('API đã tải ảnh nhưng không trả về URL ảnh.');
+      setAttachedImage(uploaded);
+      setNotice('Tải ảnh lên thành công.');
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : 'Không thể tải ảnh lên.');
+    } finally {
+      setUploadingImage(false);
     }
   };
 
-  // Like posts with premium dynamic state toggle
-  const handleToggleLike = (postId: string) => {
-    const updated = posts.map(post => {
-      if (post.id === postId) {
-        const liked = !post.likedByCurrentUser;
-        return {
-          ...post,
-          likedByCurrentUser: liked,
-          likes: liked ? post.likes + 1 : post.likes - 1
-        };
-      }
-      return post;
-    });
-    savePostsToStorage(updated);
-  };
-
-  // Nested child comment poster
-  const handlePostComment = (postId: string) => {
-    const text = commentInputs[postId]?.trim();
-    if (!text) return;
-
-    const updated = posts.map(post => {
-      if (post.id === postId) {
-        const newCom: Comment = {
-          id: "com-" + Date.now(),
-          authorName: "Quỳnh Trần (Thành viên)",
-          authorAvatar: USER_AVATAR,
-          content: text,
-          timestamp: "Vừa xong",
-          isUserComment: true
-        };
-        return {
-          ...post,
-          comments: [...post.comments, newCom]
-        };
-      }
-      return post;
-    });
-
-    savePostsToStorage(updated);
-    setCommentInputs({
-      ...commentInputs,
-      [postId]: ""
-    });
-  };
-
-  const handleKeyPressComment = (e: React.KeyboardEvent, postId: string) => {
-    if (e.key === "Enter") {
-      handlePostComment(postId);
+  const handleComment = async (postId: string) => {
+    if (!requireLogin()) return;
+    const comment = commentInputs[postId]?.trim();
+    if (!comment || commentingId) return;
+    setCommentingId(postId);
+    setError('');
+    setNotice('');
+    try {
+      await createDiscussionComment(postId, comment);
+      const refreshed = await getDiscussionById(postId);
+      setPosts((current) => current.map((post) => post.id === postId ? refreshed : post));
+      setCommentInputs((current) => ({ ...current, [postId]: '' }));
+      setNotice('Đã gửi bình luận.');
+    } catch (commentError) {
+      setError(commentError instanceof Error ? commentError.message : 'Không thể gửi bình luận.');
+    } finally {
+      setCommentingId(null);
     }
   };
 
-  // Filter logic
-  const filteredPosts = activeHashtagFilter
-    ? posts.filter(post => post.tags.some(tag => tag.toLowerCase() === activeHashtagFilter.toLowerCase()))
-    : posts;
+  const handleSearch = (event: React.FormEvent) => {
+    event.preventDefault();
+    void loadPosts(searchTerm.trim());
+  };
 
   return (
-    <div className="min-h-screen bg-surface-cream text-[#1a1c1b] font-sans selection:bg-soft-olive selection:text-[#56642b]">
-      {/* Header */}
-            <header className="sticky top-0 w-full z-40 h-16 bg-surface-cream/95 backdrop-blur-md border-b border-[#56642b]/10 shadow-sm">
-        <div className="flex justify-between items-center px-6 md:px-16 max-w-7xl mx-auto h-full">
-          <div className="font-serif italic text-xl md:text-2xl text-[#56642b] font-bold tracking-tight select-none">
-            Orchids
-          </div>
-          <div className="hidden md:flex items-center space-x-8">
-            <a href="/" className="font-sans text-xs uppercase tracking-wider font-semibold text-[#434748] hover:text-[#56642b] transition-colors">
-              Trang Chủ
-            </a>
-            <div className="relative group">
-              <button className="font-sans text-xs uppercase tracking-wider font-semibold text-[#434748] hover:text-[#56642b] transition-colors flex items-center gap-1 cursor-pointer">
-                DANH MỤC LAN
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-chevron-right w-3.5 h-3.5 rotate-90" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
-              </button>
-              <div className="absolute top-full left-0 w-64 bg-surface-cream border border-[#747878]/10 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 py-3 mt-2 rounded">
-                <ul className="flex flex-col">
-                  <li><button className="w-full text-left px-5 py-2.5 font-serif text-sm text-[#434748] hover:bg-[#56642b]/5 hover:text-[#56642b] transition-colors cursor-pointer">Lan Rừng Tự Nhiên (Dendrobium)</button></li>
-                  <li><button className="w-full text-left px-5 py-2.5 font-serif text-sm text-[#434748] hover:bg-[#56642b]/5 hover:text-[#56642b] transition-colors cursor-pointer">Lan Đột Biến (Phalaenopsis)</button></li>
-                  <li><button className="w-full text-left px-5 py-2.5 font-serif text-sm text-[#434748] hover:bg-[#56642b]/5 hover:text-[#56642b] transition-colors cursor-pointer">Lan Hồ Điệp (Phalaenopsis)</button></li>
-                  <li><button className="w-full text-left px-5 py-2.5 font-serif text-sm text-[#434748] hover:bg-[#56642b]/5 hover:text-[#56642b] transition-colors cursor-pointer">Lan Cattleya (Cattleya)</button></li>
-                </ul>
-              </div>
-            </div>
-            <a href="/#care-calculator" className="font-sans text-xs uppercase tracking-wider font-semibold text-[#434748] hover:text-[#56642b] transition-colors">
-              Cách trồng và chăm sóc
-            </a>
-            <a href="/document" className="font-sans text-xs uppercase tracking-wider font-semibold text-[#434748] hover:text-[#56642b] transition-colors cursor-pointer">
-              Tài liệu
-            </a>
-            <button className="font-sans text-xs uppercase tracking-wider font-semibold text-[#56642b] border-b-2 border-[#56642b] pb-1 transition-all cursor-pointer">
-              Thảo luận
-            </button>
-          </div>
-          <div className="flex items-center space-x-5">
-            <button onClick={() => setIsSearchModalOpen(true)} className="p-1.5 hover:bg-[#56642b]/5 text-[#56642b] rounded-full transition-colors cursor-pointer" title="Tìm kiếm loài lan">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-search w-5 h-5" aria-hidden="true"><path d="m21 21-4.34-4.34"></path><circle cx="11" cy="11" r="8"></circle></svg>
-            </button>
-            <button onClick={() => window.location.href = '/login'} className="p-1.5 hover:bg-[#56642b]/5 text-[#56642b] rounded-full transition-colors cursor-pointer" title="Trang quản lý hồ sơ">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-user w-5 h-5" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-            </button>
-          </div>
+    <div className="min-h-screen bg-[#f7f6f1] text-[#1a1c1b]">
+      <PublicHeader />
+
+      <main className="mx-auto max-w-7xl px-5 py-8 md:px-16">
+        <div className="mb-8 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-[#747878]">
+          <a href="/" className="hover:text-[#56642b]">Trang chủ</a>
+          <span>›</span>
+          <span className="text-[#1a1c1b]">Thảo luận</span>
         </div>
-      </header>
 
-      <SearchModal 
-        isOpen={isSearchModalOpen} 
-        onClose={() => setIsSearchModalOpen(false)} 
-        onNavigate={(screen, id) => {
-          if (screen === 'orchid_detail' && id) window.location.href = `/orchids/${id}`;
-          else if (screen === 'list_orchids') window.location.href = '/list-orchids';
-          else if (screen === 'home') window.location.href = '/';
-        }}
-      />
+        <div className="mb-12 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-[#56642b]">Cộng đồng người yêu lan</p>
+            <h1 className="font-serif text-3xl font-bold sm:text-4xl">Thảo luận &amp; chia sẻ</h1>
+            <p className="mt-2 text-sm text-[#666b69]">Đặt câu hỏi, trao đổi kinh nghiệm và cùng chăm sóc hoa lan tốt hơn.</p>
+          </div>
+          <form onSubmit={handleSearch} className="flex w-full max-w-sm overflow-hidden rounded-lg border border-[#d5d7d3] bg-white">
+            <input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              className="min-w-0 flex-1 px-3 py-2 text-sm outline-none"
+              placeholder="Tìm bài thảo luận..."
+            />
+            <button className="px-3 text-[#56642b]" aria-label="Tìm kiếm"><Search size={18} /></button>
+          </form>
+        </div>
 
-      {/* Main Content */}
-      <main className="max-w-4xl mx-auto py-8 px-4 sm:px-6">
-        <div className="w-full">
-          <div className="max-w-[1000px] mx-auto pb-16 animate-fadeIn" id="community-main">
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-6" id="community-grid">
-        
-        {/* Left Column Feed (66% space roughly) */}
-        <div className="md:col-span-8 space-y-6">
-          
-          {/* Create Post Card */}
-          <section className="bg-white border border-[#e2e3e1] rounded-lg p-5 luxury-shadow space-y-4" id="community-create-post">
-            <div className="flex gap-4">
-              <div className="w-10 h-10 rounded-full bg-[#eeeeec] overflow-hidden flex-shrink-0 border border-[#e2e3e1]">
-                <img 
-                  src={USER_AVATAR} 
-                  alt="My profile avatar" 
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
+        {(error || notice) && (
+          <div className={`mb-5 rounded-lg border px-4 py-3 text-sm ${error ? 'border-red-200 bg-red-50 text-red-700' : 'border-green-200 bg-green-50 text-green-700'}`}>
+            {error || notice}
+          </div>
+        )}
+
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+          <section className="space-y-5">
+            <form onSubmit={handleCreatePost} className="rounded-xl border border-[#e0e1dc] bg-white p-5 shadow-sm">
+                <h2 className="mb-4 font-serif text-xl font-bold">Tạo bài thảo luận</h2>
+                <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[#666b69]">Tiêu đề *</label>
+                <input
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  maxLength={200}
+                  className="mb-4 w-full rounded-lg border border-[#d5d7d3] px-3 py-2.5 text-sm outline-none focus:border-[#56642b]"
+                  placeholder="Ví dụ: Lan Hồ Điệp bị vàng lá phải xử lý thế nào?"
                 />
-              </div>
-              
-              <div className="flex-1 space-y-3">
+                <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[#666b69]">Nội dung *</label>
                 <textarea
-                  value={postContent}
-                  onChange={(e) => setPostContent(e.target.value)}
-                  placeholder="Chia sẻ hình ảnh hoa lan hoặc đặt câu hỏi của bạn..."
-                  className="w-full bg-transparent border-none focus:ring-0 text-sm font-sans placeholder:text-[#747878] p-0 resize-none min-h-[70px] text-[#1a1c1b]"
-                  id="post-textarea-input"
-                  rows={3}
+                  value={content}
+                  onChange={(event) => setContent(event.target.value)}
+                  rows={4}
+                  className="w-full resize-y rounded-lg border border-[#d5d7d3] px-3 py-2.5 text-sm outline-none focus:border-[#56642b]"
+                  placeholder="Mô tả vấn đề hoặc chia sẻ kinh nghiệm của bạn..."
                 />
-
-                {/* Attached image preview */}
-                {attachedImageUrl && (
-                  <div className="relative rounded-lg overflow-hidden border border-[#e2e3e1] bg-[#eeeeec] max-h-80" id="post-image-preview-box">
-                    <img 
-                      src={attachedImageUrl} 
-                      alt="Attached flower setup" 
-                      className="w-full h-full object-contain max-h-76"
-                      referrerPolicy="no-referrer"
-                    />
-                    <button
-                      onClick={() => setAttachedImageUrl(null)}
-                      className="absolute top-2.5 right-2.5 bg-black/50 hover:bg-black/80 text-white rounded-full p-1.5 transition-colors"
-                      title="Gỡ ảnh đính kèm"
-                      aria-label="Remove attached image"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-
-                {/* Attachment option panel selector */}
-                {showPhotoOptions && (
-                  <div className="bg-[#f4f4f2] p-3 rounded border border-[#e2e3e1] space-y-3 animate-fadeIn" id="image-attachment-panel">
-                    <div className="flex justify-between items-center border-b border-[#e2e3e1]/55 pb-1">
-                      <span className="text-[10px] font-bold text-[#434748] uppercase tracking-wide">Đính kèm ảnh đoá hoa phong cách</span>
-                      <button onClick={() => setShowPhotoOptions(false)} className="text-[#747878] hover:text-[#1a1c1b]">
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      {PHOTO_ATTACH_OPTIONS.map(opt => (
-                        <button
-                          key={opt.id}
-                          onClick={() => handleSelectPreloadedPhoto(opt.url)}
-                          className="group border border-[#c4c7c7] rounded hover:border-[#56642b] overflow-hidden text-left bg-white transition-all text-[10px] flex gap-1.5 p-1 items-center"
-                        >
-                          <img src={opt.url} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0" referrerPolicy="no-referrer" />
-                          <span className="leading-tight text-[#434748] font-sans group-hover:text-[#56642b] truncate">{opt.label}</span>
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="text-center pt-1 border-t border-[#e2e3e1]/40">
+                <div className="mt-4 rounded-lg border border-dashed border-[#cfd2cb] bg-[#fafaf7] p-3">
+                  {attachedImage ? (
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={attachedImage.url}
+                        alt="Ảnh đính kèm bài thảo luận"
+                        className="h-20 w-24 shrink-0 rounded-md border border-[#dfe1dc] object-cover"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-[#1a1c1b]">{attachedImage.fileName || 'Ảnh đính kèm'}</p>
+                        <p className="mt-1 text-xs text-[#747878]">Ảnh đã tải lên và sẽ xuất hiện trong bài viết.</p>
+                      </div>
                       <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="font-sans text-[11px] text-[#56642b] hover:underline font-semibold"
+                        type="button"
+                        onClick={() => setAttachedImage(null)}
+                        disabled={submitting || uploadingImage}
+                        className="rounded-full p-2 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+                        aria-label="Gỡ ảnh đính kèm"
+                        title="Gỡ ảnh"
                       >
-                        Tải ảnh từ tệp tin của bạn...
+                        <Trash2 size={17} />
                       </button>
+                    </div>
+                  ) : (
+                    <label className={`flex items-center justify-center gap-2 rounded-md px-4 py-3 text-sm font-semibold text-[#56642b] transition-colors ${uploadingImage ? 'cursor-wait opacity-60' : 'cursor-pointer hover:bg-[#edf1e2]'}`}>
+                      {uploadingImage ? <LoaderCircle size={18} className="animate-spin" /> : <ImagePlus size={18} />}
+                      {uploadingImage ? 'Đang tải ảnh lên...' : 'Thêm ảnh từ máy tính'}
                       <input
                         type="file"
-                        accept="image/*"
-                        ref={fileInputRef}
-                        onChange={handleFileUpload}
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        disabled={uploadingImage || submitting}
+                        onChange={(event) => void handleImageUpload(event)}
                         className="hidden"
                       />
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between pt-2.5 border-t border-[#f4f4f2]/80">
-                  <button
-                    onClick={() => setShowPhotoOptions(!showPhotoOptions)}
-                    className="flex items-center gap-2 text-[#56642b] hover:opacity-80 transition-all font-sans text-xs font-semibold py-1 select-none"
-                    id="post-camera-attach-btn"
-                  >
-                    <Camera className="w-4.5 h-4.5" />
-                    <span>Thêm ảnh</span>
-                  </button>
-
-                  <button
-                    onClick={handleSubmitPost}
-                    className="bg-[#56642b] hover:bg-[#5a682f] text-white px-5 py-1.5 rounded-full font-sans text-xs font-bold uppercase tracking-wider transition-all shadow active:scale-95 select-none cursor-pointer"
-                    id="post-submit-btn"
-                  >
-                    Đăng bài
+                    </label>
+                  )}
+                </div>
+                <p className="mt-1.5 text-[11px] text-[#747878]">Hỗ trợ JPG, PNG, WEBP hoặc GIF, tối đa 10 MB.</p>
+                <div className="mt-4 flex justify-end">
+                  <button disabled={submitting || uploadingImage} className="flex items-center gap-2 rounded-lg bg-[#56642b] px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white disabled:opacity-60">
+                    {submitting && <LoaderCircle size={15} className="animate-spin" />}
+                    {submitting ? 'Đang đăng...' : 'Đăng bài'}
                   </button>
                 </div>
+            </form>
+
+            {loading ? (
+              <div className="flex justify-center rounded-xl border border-[#e0e1dc] bg-white py-16 text-[#56642b]"><LoaderCircle className="animate-spin" /></div>
+            ) : posts.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-[#cfd2cb] bg-white p-12 text-center">
+                <MessageSquare className="mx-auto mb-3 text-[#899073]" />
+                <p className="font-serif text-xl font-bold">Chưa có bài thảo luận</p>
+                <p className="mt-1 text-sm text-[#747878]">Hãy là người đầu tiên đặt câu hỏi hoặc chia sẻ kinh nghiệm.</p>
               </div>
-            </div>
-          </section>
-
-          {/* Active Hashtag Filter Clear bar info */}
-          {activeHashtagFilter && (
-            <div className="bg-[#d6e7a0]/30 border border-[#56642b]/20 p-3 rounded flex justify-between items-center shadow-sm">
-              <span className="font-sans text-xs text-[#5a682f]">
-                Đang đối chiếu bài viết theo từ khoá: <strong className="font-semibold">{activeHashtagFilter}</strong>
-              </span>
-              <button
-                onClick={() => setActiveHashtagFilter(null)}
-                className="font-sans text-xs text-[#735c00] underline font-medium hover:text-[#56642b]"
-                id="clear-hashtag-filter-btn"
-              >
-                Xem toàn bộ bài
-              </button>
-            </div>
-          )}
-
-          {/* Posts Feed */}
-          <div className="space-y-6" id="community-posts-feed-list">
-            {filteredPosts.map((post) => (
-              <article 
-                key={post.id}
-                className="bg-white border border-[#e2e3e1] rounded-lg overflow-hidden luxury-shadow transition-all duration-300"
-              >
-                <div className="p-5.5">
-                  {/* Post Header */}
-                  <div className="flex justify-between items-start mb-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full overflow-hidden border border-[#e2e3e1] bg-[#eeeeec]">
-                        <img 
-                          src={post.authorAvatar} 
-                          alt={post.authorName} 
-                          className="w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                      </div>
-                      <div>
-                        <h4 className="font-sans text-xs font-bold text-[#1a1c1b] flex items-center gap-1">
-                          {post.authorName}
-                          {post.id.startsWith("post-") && !post.id.includes("post-1") && !post.id.includes("post-2") && (
-                            <span className="inline-block bg-sky-100 text-sky-800 text-[8px] font-bold px-1 rounded uppercase">bạn</span>
-                          )}
-                        </h4>
-                        <p className="text-[10px] text-[#747878] font-sans">{post.timeAgo}</p>
-                      </div>
-                    </div>
-
-                    {/* Delete option if user's post */}
-                    {post.authorName.includes("Quỳnh Trần") && (
-                      <button
-                        onClick={(e) => handleDeletePost(post.id, e)}
-                        className="text-[#747878] hover:text-[#ba1a1a] p-1 rounded-full transition-colors"
-                        title="Gỡ chia sẻ"
-                        aria-label={`Delete my post matching ${post.id}`}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
+            ) : posts.map((post) => {
+              const postBody = getDiscussionBody(post.content);
+              return (
+              <article key={post.id} className="rounded-xl border border-[#e0e1dc] bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#e8edda] text-xs font-bold text-[#56642b]">{initials(post.authorName)}</div>
+                  <div>
+                    <p className="text-sm font-bold">{post.authorName || 'Thành viên'}</p>
+                    <time className="text-xs text-[#747878]">{formatDate(post.createdAt)}</time>
                   </div>
+                </div>
+                <h2 className="font-serif text-xl font-bold">{post.title}</h2>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#434748]">{postBody.text}</p>
+                {postBody.imageUrl && (
+                  <a
+                    href={postBody.imageUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-4 block overflow-hidden rounded-xl border border-[#e0e1dc] bg-[#f4f4f0]"
+                  >
+                    <img
+                      src={postBody.imageUrl}
+                      alt={`Ảnh trong bài ${post.title}`}
+                      className="max-h-[420px] w-full object-contain"
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                    />
+                  </a>
+                )}
+                <div className="my-5 flex items-center gap-2 border-y border-[#eeeeea] py-3 text-xs text-[#666b69]">
+                  <MessageSquare size={16} />
+                  <span>{post.commentCount ?? post.comments?.length ?? 0} bình luận</span>
+                </div>
 
-                  {/* Post Content */}
-                  <p className="font-sans text-xs text-[#1a1c1b] leading-relaxed mb-3 whitespace-pre-wrap">
-                    {post.content}
-                  </p>
-
-                  {/* HashTags embedded visually */}
-                  {post.tags && post.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mb-3.5">
-                      {post.tags.map((tag, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => setActiveHashtagFilter(tag)}
-                          className="text-[10px] font-medium text-[#56642b] hover:underline"
-                        >
-                          {tag}
-                        </button>
-                      ))}
+                <div className="space-y-3">
+                  {(post.comments ?? []).map((comment) => (
+                    <div key={comment.id} className="flex gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f0f1ec] text-[10px] font-bold text-[#56642b]">{initials(comment.authorName)}</div>
+                      <div className="min-w-0 flex-1 rounded-lg bg-[#f7f7f3] px-3 py-2.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <strong className="text-xs">{comment.authorName || 'Thành viên'}</strong>
+                          <time className="text-[10px] text-[#747878]">{formatDate(comment.createdAt)}</time>
+                        </div>
+                        <p className="mt-1 whitespace-pre-wrap text-sm text-[#434748]">{comment.content}</p>
+                      </div>
                     </div>
-                  )}
+                  ))}
+                </div>
 
-                  {/* Attached photo content */}
-                  {post.imageSrc && (
-                    <div className="rounded-lg overflow-hidden border border-[#eeeeec] mb-4 bg-[#f4f4f2] text-center">
-                      <img 
-                        src={post.imageSrc} 
-                        alt="Shared orchid shot" 
-                        className="w-full h-auto max-h-[440px] object-cover inline-block"
-                        referrerPolicy="no-referrer"
-                      />
-                    </div>
-                  )}
-
-                  {/* Actions Bar Liking and count comments */}
-                  <div className="flex gap-6 py-2.5 border-y border-[#eeeeec] text-[#434748]">
+                <div className="mt-4 flex items-center gap-2 rounded-lg border border-[#dfe1dc] bg-[#fafaf7] px-3 py-1.5">
+                    <input
+                      value={commentInputs[post.id] ?? ''}
+                      onChange={(event) => setCommentInputs((current) => ({ ...current, [post.id]: event.target.value }))}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' && !event.shiftKey) {
+                          event.preventDefault();
+                          void handleComment(post.id);
+                        }
+                      }}
+                      className="min-w-0 flex-1 bg-transparent py-1.5 text-sm outline-none"
+                      placeholder="Viết bình luận..."
+                    />
                     <button
-                      onClick={() => handleToggleLike(post.id)}
-                      className={`flex items-center gap-1.5 text-xs transition-colors group select-none py-0.5 cursor-pointer ${
-                        post.likedByCurrentUser ? "text-[#56642b] font-semibold" : "hover:text-[#56642b]"
-                      }`}
+                      type="button"
+                      disabled={commentingId === post.id || !commentInputs[post.id]?.trim()}
+                      onClick={() => void handleComment(post.id)}
+                      className="rounded-full p-2 text-[#56642b] disabled:opacity-40"
+                      aria-label="Gửi bình luận"
                     >
-                      <Heart 
-                        className={`w-4 h-4 transition-transform group-active:scale-130 ${
-                          post.likedByCurrentUser ? "fill-[#56642b]" : ""
-                        }`} 
-                      />
-                      <span>Yêu thích ({post.likes})</span>
+                      {commentingId === post.id ? <LoaderCircle size={17} className="animate-spin" /> : <Send size={17} />}
                     </button>
-
-                    <div className="flex items-center gap-1.5 text-xs py-0.5">
-                      <MessageSquare className="w-4 h-4" />
-                      <span>Ý kiến thảo luận ({post.comments.length})</span>
-                    </div>
-                  </div>
-
-                  {/* Comments list nested */}
-                  <div className="mt-4 space-y-3.5">
-                    {post.comments.map((com) => (
-                      <div key={com.id} className="flex gap-2.5 items-start">
-                        <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 border border-[#e2e3e1]">
-                          <img 
-                            src={com.authorAvatar} 
-                            alt={com.authorName} 
-                            className="w-full h-full object-cover"
-                            referrerPolicy="no-referrer"
-                          />
-                        </div>
-                        <div className="flex-1 bg-[#f4f4f2] rounded-r-lg rounded-bl-lg px-3.5 py-2.5 space-y-0.5 text-left border border-[#eeeeec]">
-                          <div className="flex justify-between items-center">
-                            <strong className="text-[11px] font-sans font-bold text-[#1a1c1b]">{com.authorName}</strong>
-                            <span className="text-[9px] text-[#747878] font-mono">{com.timestamp}</span>
-                          </div>
-                          <p className="font-sans text-xs text-[#434748] leading-relaxed">
-                            {com.content}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-
-                    {/* Quick Add Comment field */}
-                    <div className="flex gap-2.5 items-center pt-2">
-                      <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 border border-[#e2e3e1]">
-                        <img 
-                          src={USER_AVATAR} 
-                          alt="Self avatar comment author" 
-                          className="w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                      </div>
-                      
-                      <div className="flex-1 flex items-center bg-[#f4f4f2] border border-[#e2e3e1] rounded-full px-3.5 py-1">
-                        <input
-                          type="text"
-                          value={commentInputs[post.id] || ""}
-                          onChange={(e) => setCommentInputs({
-                            ...commentInputs,
-                            [post.id]: e.target.value
-                          })}
-                          onKeyPress={(e) => handleKeyPressComment(e, post.id)}
-                          placeholder="Viết bình luận..."
-                          className="bg-transparent border-none focus:ring-0 text-xs w-full py-1 text-[#1a1c1b]"
-                        />
-
-                        <button
-                          onClick={() => handlePostComment(post.id)}
-                          className="text-[#56642b] p-1 hover:scale-110 active:scale-95 transition-transform"
-                          aria-label="Send reply comment"
-                        >
-                          <Send className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
                 </div>
               </article>
-            ))}
-
-            {filteredPosts.length === 0 && (
-              <div className="bg-white border border-[#e2e3e1] p-12 rounded-lg text-center">
-                <Milestone className="w-8 h-8 text-[#747878] mx-auto mb-2" />
-                <p className="font-sans text-sm text-[#434748]">Không thấy có thảo luận nào trùng hashtag này.</p>
-                <button
-                  onClick={() => setActiveHashtagFilter(null)}
-                  className="mt-3 font-sans text-xs font-semibold text-[#56642b] underline"
-                >
-                  Đọc xem tất cả bài luận
-                </button>
-              </div>
-            )}
-          </div>
-
-        </div>
-
-        {/* Right Column Sidebar (34% space roughly) */}
-        <aside className="md:col-span-4 space-y-6" id="community-sidebar">
-          
-          {/* Rules Card */}
-          <section className="bg-white border border-[#e2e3e1] rounded-lg p-5.5 luxury-shadow space-y-4" id="rules-card">
-            <h4 className="font-serif text-[15px] italic text-[#1a1c1b] border-b border-[#5a682f]/30 pb-2 uppercase tracking-wider flex items-center gap-2">
-              <ShieldAlert className="w-4.5 h-4.5 text-[#56642b]" />
-              <span>Quy tắc cộng đồng</span>
-            </h4>
-            
-            <ul className="space-y-3.5 text-xs">
-              <li className="flex gap-2 items-start text-left">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#56642b] mt-1.5 flex-shrink-0" />
-                <p className="font-sans text-[#434748]">
-                  <strong className="text-[#1a1c1b] font-semibold">Tôn trọng:</strong> Luôn duy trì thái độ lịch thiệp, tôn kính nghệ nghệ thuật gia và tôn trọng đóng góp từ nghệ nhân khác.
-                </p>
-              </li>
-              
-              <li className="flex gap-2 items-start text-left">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#56642b] mt-1.5 flex-shrink-0" />
-                <p className="font-sans text-[#434748]">
-                  <strong className="text-[#1a1c1b] font-semibold">Bảo tồn ranh giới:</strong> Nghiêm cấm bứt bẻ, rao vặt thu mua lan quý hiếm kiểu xâm phạm nguồn gen gốc của tổ quốc.
-                </p>
-              </li>
-
-              <li className="flex gap-2 items-start text-left">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#56642b] mt-1.5 flex-shrink-0" />
-                <p className="font-sans text-[#434748]">
-                  <strong className="text-[#1a1c1b] font-semibold">Phi thương mại:</strong> Tuyệt đối không đăng lặp rao bán hàng rong, các tin rác đại trà quấy nhiễu thưởng lãm.
-                </p>
-              </li>
-            </ul>
+              );
+            })}
           </section>
 
-          {/* Active Members Card */}
-          <section className="bg-white border border-[#e2e3e1] rounded-lg p-5.5 luxury-shadow space-y-4" id="members-card">
-            <h4 className="font-serif text-[15px] italic text-[#1a1c1b] border-b border-[#5a682f]/30 pb-2 uppercase tracking-wider">
-              Thành viên tích cực
-            </h4>
-            
-            <div className="space-y-3.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full overflow-hidden border border-[#e2e3e1] bg-[#eeeeec]">
-                    <img 
-                      src="https://lh3.googleusercontent.com/aida-public/AB6AXuAdGE8tHYP0nPhlRFsRMGXjhxHYx3mAXgWiE8b_N024REdtq4-ESyLwVR1L9MkqANT56O6EeJJIknKHyU9O4K52lakZXBGJlWrfaKWGQ1_Dl2rsnFK8QfqvDSjWx0iD5838s1zMcL-iXWlOx_TIamqQ9GNql_tBsug0sQ57Vs2v-aciOwyzZaDaBG7tXcVjHEjMa0ySh_rDhh6n13Q9RjYlnFptxjh09tlo4bEXNe9lS8GM8D0S8HVxy5p9VY4umwXr0bwBMoBBg4y5"
-                      alt="Hoàng Anh profile" 
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  </div>
-                  <span className="font-sans text-xs font-semibold text-[#1a1c1b]">Hoàng Anh</span>
-                </div>
-                
-                <span className="bg-[#d6e7a1] text-[#5a682f] text-[9px] uppercase font-bold px-2 py-0.5 rounded flex items-center gap-0.5">
-                  <BadgeCheck className="w-2.5 h-2.5" />
-                  Chuyên gia
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full overflow-hidden border border-[#e2e3e1] bg-[#eeeeec]">
-                    <img 
-                      src="https://lh3.googleusercontent.com/aida-public/AB6AXuDXLx_Z6JSSB4few-cga6SEWeBcitac9udwUbMSC1ET-VwD8QXKfNW70fehyIhwAMZbbqWVtzdQWkvjLo-hcEMXBJLGYpMLezhYeRETXzqL_c4lYgQ9ZPv1zB3QRlqrm9AXZRxmCpIGaf4WXNMlQGW_Srl_-rUfPuDoB-BAljPk1V7be-NRze4u_jR7sDpAC1kHtBV5gBJzfIQqdr_HpVagiW8KFGyBJlzyFGGXbNPFm7RGze0kv2-hocaH4vgc1QFzBiKXVD5aLfDA"
-                      alt="Khánh Huyền profile" 
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  </div>
-                  <span className="font-sans text-xs font-semibold text-[#1a1c1b]">Khánh Huyền</span>
-                </div>
-                
-                <span className="bg-[#f4f4f2] text-[#434748] text-[9px] uppercase font-bold px-2 py-0.5 rounded">
-                  Tích cực
-                </span>
-              </div>
-            </div>
-          </section>
-
-          {/* Hashtags Filter Sidebar */}
-          <section className="bg-white border border-[#e2e3e1] rounded-lg p-5.5 luxury-shadow space-y-4" id="hashtags-card">
-            <h4 className="font-serif text-[15px] italic text-[#1a1c1b] border-b border-[#5a682f]/30 pb-2 uppercase tracking-wider flex items-center gap-2">
-              <Flame className="w-4 h-4 text-[#735c00] fill-[#735c00]" />
-              <span>Chủ đề Hot</span>
-            </h4>
-
-            <div className="flex flex-wrap gap-2 pt-1">
-              {["#ChamSocLanHoDiep", "#LanRungVietNam", "#BaoTonThienNhien"].map((tag) => {
-                const isActive = activeHashtagFilter === tag;
-                return (
-                  <button
-                    key={tag}
-                    onClick={() => setActiveHashtagFilter(isActive ? null : tag)}
-                    className={`px-3 py-1.5 rounded-full text-[11px] font-sans transition-all border cursor-pointer select-none ${
-                      isActive
-                        ? "bg-[#56642b] border-[#56642b] text-white"
-                        : "bg-[#f4f4f2] border-[#e2e3e1]/60 text-[#434748] hover:bg-[#56642b] hover:text-white hover:border-[#56642b]"
-                    }`}
-                  >
-                    {tag}
-                  </button>
-                );
-              })}
-            </div>
-            
-            {activeHashtagFilter && (
-              <button 
-                onClick={() => setActiveHashtagFilter(null)}
-                className="text-[10px] text-[#735c00] font-sans underline block text-left"
-              >
-                Đặt lại xem mọi chủ đề
-              </button>
-            )}
-          </section>
-
-        </aside>
-      </div>
-    </div>
+          <aside className="space-y-5">
+            <section className="rounded-xl border border-[#e0e1dc] bg-white p-5 shadow-sm">
+              <h2 className="font-serif text-lg font-bold">Quy tắc cộng đồng</h2>
+              <ul className="mt-4 space-y-3 text-sm leading-6 text-[#555a58]">
+                <li>• Trao đổi lịch sự và tôn trọng thành viên khác.</li>
+                <li>• Không mua bán, khai thác hoa lan trái phép.</li>
+                <li>• Không đăng nội dung quảng cáo hoặc spam.</li>
+              </ul>
+            </section>
+            <button onClick={() => void loadPosts(searchTerm.trim())} disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#56642b] px-4 py-2.5 text-sm font-semibold text-[#56642b] disabled:opacity-50">
+              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> Làm mới dữ liệu
+            </button>
+          </aside>
         </div>
       </main>
+      <PublicFooter />
+
+      {showLoginPrompt && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 px-4 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="login-required-title"
+          onMouseDown={() => setShowLoginPrompt(false)}
+        >
+          <div
+            className="relative w-full max-w-md rounded-2xl border border-[#dfe2d7] bg-[#fffef9] p-7 text-center shadow-2xl"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setShowLoginPrompt(false)}
+              className="absolute right-4 top-4 rounded-full p-1.5 text-[#747878] transition-colors hover:bg-[#56642b]/10 hover:text-[#56642b]"
+              aria-label="Đóng thông báo"
+            >
+              <X size={18} />
+            </button>
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#edf1e2] text-[#56642b]">
+              <LockKeyhole size={25} />
+            </div>
+            <h2 id="login-required-title" className="font-serif text-2xl font-bold text-[#1a1c1b]">Bạn cần đăng nhập</h2>
+            <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#666b69]">
+              Vui lòng đăng nhập tài khoản để có thể đăng bài thảo luận hoặc gửi bình luận.
+            </p>
+            <div className="mt-6 flex flex-col-reverse justify-center gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => setShowLoginPrompt(false)}
+                className="rounded-lg border border-[#cfd2cb] px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-[#434748]"
+              >
+                Để sau
+              </button>
+              <a
+                href={LOGIN_URL}
+                className="rounded-lg bg-[#56642b] px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-white"
+              >
+                Đi đến đăng nhập
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

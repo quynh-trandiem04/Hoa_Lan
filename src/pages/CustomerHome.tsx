@@ -19,8 +19,8 @@ import {
   MessageSquare,
   Bookmark
 } from "lucide-react";
-import { orchidData, pillarDetails, INITIAL_ORCHIDS } from "../data";
-import { Category, OrchidItem, PillarDetail } from "../types";
+import { pillarDetails } from "../data";
+import { Category, Orchid, OrchidItem, PillarDetail } from "../types";
 
 // Import custom interactive components
 import OrchidDetailModal from "../components/OrchidDetailModal";
@@ -30,13 +30,15 @@ import ResearchViewer from "../components/ResearchViewer";
 import BotAdvisor from "../components/BotAdvisor";
 
 import SearchModal from "../components/SearchModal";
+import PublicHeader from "../components/PublicHeader";
 
 interface CustomerHomeProps {
   categories: Category[];
+  orchids: Orchid[];
   onNavigate: (screen: string, id?: string) => void;
 }
 
-export default function CustomerHome({ categories, onNavigate }: CustomerHomeProps) {
+export default function CustomerHome({ categories, orchids, onNavigate }: CustomerHomeProps) {
   // Modal states
   const [selectedOrchid, setSelectedOrchid] = useState<OrchidItem | null>(null);
   const [selectedPillar, setSelectedPillar] = useState<PillarDetail | null>(null);
@@ -48,13 +50,27 @@ export default function CustomerHome({ categories, onNavigate }: CustomerHomePro
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
+  const [favoriteOrchidIds, setFavoriteOrchidIds] = useState<string[]>([]);
 
   // Category Slider State
   const [sliderIndex, setSliderIndex] = useState(0);
-  const totalCards = orchidData.length;
+  const featuredOrchids = [...orchids].sort((left, right) => {
+    if (left.isPopular !== right.isPopular) return left.isPopular ? -1 : 1;
+    return left.displayOrder - right.displayOrder;
+  });
+  const totalCards = featuredOrchids.length;
   // We can show indices. On desktop, show 3 items. On mobile, show 1.
   const cardsRef = useRef<HTMLDivElement>(null);
   const rootCategories = categories.filter((category) => !category.parentId);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('orchidee-luxe-bookmarks-v2') || '[]') as unknown;
+      setFavoriteOrchidIds(Array.isArray(saved) ? saved.filter((id): id is string => typeof id === 'string') : []);
+    } catch {
+      setFavoriteOrchidIds([]);
+    }
+  }, []);
 
 
 
@@ -67,10 +83,12 @@ export default function CustomerHome({ categories, onNavigate }: CustomerHomePro
   };
 
   const handleNextSlide = () => {
+    if (totalCards === 0) return;
     setSliderIndex((prev) => (prev + 1) % totalCards);
   };
 
   const handlePrevSlide = () => {
+    if (totalCards === 0) return;
     setSliderIndex((prev) => (prev - 1 + totalCards) % totalCards);
   };
 
@@ -79,84 +97,22 @@ export default function CustomerHome({ categories, onNavigate }: CustomerHomePro
     triggerToast("✨ Sao chép liên kết thành công! Hãy chia sẻ cùng những người yêu Hoa lan.");
   };
 
+  const handleToggleFavorite = (id: string) => {
+    const isFavorite = favoriteOrchidIds.includes(id);
+    const next = isFavorite
+      ? favoriteOrchidIds.filter((savedId) => savedId !== id)
+      : [...favoriteOrchidIds, id];
+    setFavoriteOrchidIds(next);
+    localStorage.setItem('orchidee-luxe-bookmarks-v2', JSON.stringify(next));
+    window.dispatchEvent(new Event('orchidee-favorites-updated'));
+    triggerToast(isFavorite ? 'Đã bỏ hoa lan khỏi danh sách yêu thích.' : 'Đã thêm hoa lan vào danh sách yêu thích!');
+  };
+
   return (
     <div className="bg-surface-cream text-[#1a1c1b] min-h-screen font-sans selection:bg-soft-olive selection:text-[#56642b] scroll-smooth">
       
       {/* 1. Header Navigation Bar */}
-      <nav className="fixed top-0 w-full z-40 h-16 bg-surface-cream/85 backdrop-blur-md border-b border-[#56642b]/5 transition-all">
-        <div className="flex justify-between items-center px-6 md:px-16 max-w-7xl mx-auto h-full">
-          {/* Logo */}
-          <div className="font-serif italic text-xl md:text-2xl text-botanical-green font-bold tracking-tight select-none">
-            Orchids
-          </div>
-
-          {/* Nav Links */}
-          <div className="hidden md:flex items-center space-x-8">
-            <a href="#" className="font-sans text-xs uppercase tracking-wider font-semibold text-botanical-green border-b-2 border-botanical-green pb-1 transition-all">
-              Trang Chủ
-            </a>
-            
-            {/* Direct Category Access Dropdown */}
-            <div className="relative group">
-              <button onClick={() => onNavigate('list_orchids')} className="font-sans text-xs uppercase tracking-wider font-semibold text-on-surface-variant hover:text-botanical-green transition-colors flex items-center gap-1 cursor-pointer">
-                DANH MỤC LAN
-                <ChevronRight className="w-3.5 h-3.5 rotate-90" />
-              </button>
-              <div className="absolute top-full left-0 w-64 bg-surface-cream border border-[#747878]/10 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 py-3 mt-2 rounded">
-                <ul className="flex flex-col">
-                  {rootCategories.map((cat) => (
-                    <li key={cat.id}>
-                      <button
-                        onClick={() => onNavigate('list_orchids', cat.id)}
-                        className="w-full text-left px-5 py-2.5 font-serif text-sm text-on-surface-variant hover:bg-botanical-green/5 hover:text-botanical-green transition-colors cursor-pointer"
-                      >
-                        {cat.name}
-                      </button>
-                    </li>
-                  ))}
-                  {rootCategories.length === 0 && (
-                    <li className="px-5 py-2.5 text-sm text-on-surface-variant">
-                      Chưa có danh mục
-                    </li>
-                  )}
-                </ul>
-              </div>
-            </div>
-
-            <a href="/planting-and-care" className="font-sans text-xs uppercase tracking-wider font-semibold text-on-surface-variant hover:text-botanical-green transition-colors">
-              Cách trồng và chăm sóc
-            </a>
-            
-            <a href="/document" className="font-sans text-xs uppercase tracking-wider font-semibold text-[#434748] hover:text-[#56642b] transition-colors cursor-pointer">
-              Tài liệu
-            </a>
-            <button
-              onClick={() => window.location.href = '/discussion'}
-              className="font-sans text-xs uppercase tracking-wider font-semibold text-on-surface-variant hover:text-botanical-green transition-colors cursor-pointer"
-            >
-              Thảo luận
-            </button>
-          </div>
-
-          {/* Action Icons */}
-          <div className="flex items-center space-x-5">
-            <button
-              onClick={() => setIsSearchOpen(true)}
-              className="p-1.5 hover:bg-botanical-green/5 text-botanical-green rounded-full transition-colors cursor-pointer"
-              title="Tìm kiếm loài lan"
-            >
-              <Search className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => onNavigate("login")}
-              className="p-1.5 hover:bg-botanical-green/5 text-botanical-green rounded-full transition-colors cursor-pointer"
-              title="Trang quản lý hồ sơ"
-            >
-              <User className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      </nav>
+      <PublicHeader categories={categories} />
 
       {/* 1b. Search Overlay Panels */}
       <SearchModal 
@@ -292,9 +248,10 @@ export default function CustomerHome({ categories, onNavigate }: CustomerHomePro
 
             <div className="space-y-8 pt-4">
               {/* Pillar 1 */}
-              <div 
-                onClick={() => setSelectedPillar(pillarDetails.encyclopedia)}
-                className="flex gap-5 group cursor-pointer p-3 rounded-lg hover:bg-white transition-all border border-transparent hover:border-[#56642b]/10"
+              <button
+                type="button"
+                onClick={() => onNavigate('list_orchids')}
+                className="flex w-full gap-5 group cursor-pointer p-3 rounded-lg hover:bg-white transition-all border border-transparent hover:border-[#56642b]/10 text-left"
               >
                 <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center bg-surface-container text-[#56642b] group-hover:bg-[#56642b] group-hover:text-white transition-all duration-300 rounded">
                   <BookOpen className="w-5 h-5" />
@@ -308,12 +265,13 @@ export default function CustomerHome({ categories, onNavigate }: CustomerHomePro
                     Tra cứu thông tin, đặc điểm sinh học và nguồn gốc chi tiết của hàng ngàn chủng loại Lan trên thế giới.
                   </p>
                 </div>
-              </div>
+              </button>
 
               {/* Pillar 2 */}
-              <div 
-                onClick={() => window.location.href = '/discussion'}
-                className="flex gap-5 group cursor-pointer p-3 rounded-lg hover:bg-white transition-all border border-transparent hover:border-[#56642b]/10"
+              <button
+                type="button"
+                onClick={() => onNavigate('discussion')}
+                className="flex w-full gap-5 group cursor-pointer p-3 rounded-lg hover:bg-white transition-all border border-transparent hover:border-[#56642b]/10 text-left"
               >
                 <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center bg-surface-container text-[#56642b] group-hover:bg-[#56642b] group-hover:text-white transition-all duration-300 rounded">
                   <MessageSquare className="w-5 h-5" />
@@ -327,12 +285,13 @@ export default function CustomerHome({ categories, onNavigate }: CustomerHomePro
                     Nơi giao lưu, trao đổi kinh nghiệm và giải đáp thắc mắc về các loài phong lan.
                   </p>
                 </div>
-              </div>
+              </button>
 
               {/* Pillar 3 */}
-              <div 
-                onClick={() => setSelectedPillar(pillarDetails.library)}
-                className="flex gap-5 group cursor-pointer p-3 rounded-lg hover:bg-white transition-all border border-transparent hover:border-[#56642b]/10"
+              <button
+                type="button"
+                onClick={() => onNavigate('document')}
+                className="flex w-full gap-5 group cursor-pointer p-3 rounded-lg hover:bg-white transition-all border border-transparent hover:border-[#56642b]/10 text-left"
               >
                 <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center bg-surface-container text-[#56642b] group-hover:bg-[#56642b] group-hover:text-white transition-all duration-300 rounded">
                   <Library className="w-5 h-5" />
@@ -346,7 +305,7 @@ export default function CustomerHome({ categories, onNavigate }: CustomerHomePro
                     Kho lưu trữ các văn bản, nghiên cứu chuyên sâu và những bài báo khoa học về công tác bảo tồn giống Lan quý.
                   </p>
                 </div>
-              </div>
+              </button>
             </div>
           </div>
 
@@ -408,10 +367,10 @@ export default function CustomerHome({ categories, onNavigate }: CustomerHomePro
           <motion.div 
             ref={cardsRef}
             className="flex gap-8 transition-all duration-500 ease-out py-2"
-            animate={{ x: `-${(sliderIndex * 100) / totalCards}%` }}
-            style={{ width: `${totalCards * 100}%`, maxWidth: "none" }}
+            animate={{ x: -(sliderIndex * 412) }}
+            style={{ width: `${Math.max(totalCards, 1) * 412}px`, maxWidth: "none" }}
           >
-            {orchidData.map((item: any, index: number) => (
+            {featuredOrchids.map((item) => (
               <div 
                 key={item.id} 
                 className="w-full sm:w-[380px] shrink-0 group flex flex-col justify-between"
@@ -419,31 +378,50 @@ export default function CustomerHome({ categories, onNavigate }: CustomerHomePro
               >
                 <div>
                   <div className="aspect-square bg-white overflow-hidden luxury-shadow mb-5 rounded border border-surface-container relative">
-                    <img 
-                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
-                      src={item.image} 
-                      alt={item.name}
-                      referrerPolicy="no-referrer"
-                    />
-                    
-                    {/* Tiny species code tag */}
-                    <span className="absolute top-3 left-3 px-2 py-0.5 bg-black/65 text-white font-mono text-[9px] uppercase tracking-wider rounded">
-                      ID: {item.id.toUpperCase()}
-                    </span>
+                    {item.imageUrls?.[0] ? (
+                      <img 
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+                        src={item.imageUrls[0]} 
+                        alt={item.name}
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-[#f1f2ed] text-sm text-[#747878]">
+                        Chưa có hình ảnh
+                      </div>
+                    )}
+                    {item.isPopular && (
+                      <span className="absolute top-3 left-3 px-2 py-0.5 bg-[#56642b]/90 text-white font-sans text-[9px] uppercase tracking-wider rounded">
+                        Phổ biến
+                      </span>
+                    )}
+                    {item.id && (
+                      <button
+                        type="button"
+                        onClick={() => handleToggleFavorite(item.id!)}
+                        className={`absolute right-3 top-3 z-10 rounded-full border border-white/60 bg-white/90 p-2 shadow-sm backdrop-blur-sm transition-all hover:scale-105 ${
+                          favoriteOrchidIds.includes(item.id) ? 'text-red-500' : 'text-[#56642b]'
+                        }`}
+                        title={favoriteOrchidIds.includes(item.id) ? 'Bỏ khỏi yêu thích' : 'Thêm vào yêu thích'}
+                        aria-label={favoriteOrchidIds.includes(item.id) ? `Bỏ yêu thích ${item.name}` : `Yêu thích ${item.name}`}
+                      >
+                        <Bookmark className="h-4 w-4" fill={favoriteOrchidIds.includes(item.id) ? 'currentColor' : 'none'} />
+                      </button>
+                    )}
                   </div>
                   <h3 className="font-serif text-xl text-charcoal-text mb-1">
                     {item.name}
                   </h3>
                   <p className="text-[11px] font-mono uppercase text-[#735c00] tracking-wider mb-2.5">
-                    {item.scientificName}
+                    {item.englishName}
                   </p>
                   <p className="font-sans text-xs text-on-surface-variant line-clamp-2 leading-relaxed">
-                    {item.description}
+                    {item.shortDescription}
                   </p>
                 </div>
                 <div className="mt-4">
                   <button 
-                    onClick={() => onNavigate('orchid_detail', item.id)}
+                    onClick={() => item.id && onNavigate('orchid_detail', item.id)}
                     className="font-sans text-xs font-bold uppercase text-botanical-green border-b border-botanical-green/20 hover:border-botanical-green transition-colors pb-1 cursor-pointer inline-flex items-center gap-1.5"
                   >
                     Xem chi tiết <ChevronRight className="w-3.5 h-3.5" />
@@ -451,6 +429,11 @@ export default function CustomerHome({ categories, onNavigate }: CustomerHomePro
                 </div>
               </div>
             ))}
+            {featuredOrchids.length === 0 && (
+              <div className="flex h-64 w-full max-w-3xl items-center justify-center rounded-lg border border-dashed border-[#cfd2cb] bg-white text-sm text-[#747878]">
+                Chưa có loài lan nào từ API.
+              </div>
+            )}
           </motion.div>
         </div>
       </section>

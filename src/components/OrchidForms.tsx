@@ -3,12 +3,37 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { X, FolderPlus, PlusCircle, Upload, Trash2 } from 'lucide-react';
 import { Orchid, Category } from '../types';
 import { motion } from 'motion/react';
 import { deleteUploadedImage, uploadImage, type UploadedImage } from '../services/api';
 import { getOrchidImageUrls } from '../utils/orchidImages';
+
+const flattenCategoryTree = (categories: Category[]) => {
+  const childrenByParent = new Map<string | null, Category[]>();
+
+  categories.forEach((category) => {
+    const parentKey = category.parentId ?? null;
+    const siblings = childrenByParent.get(parentKey) ?? [];
+    siblings.push(category);
+    childrenByParent.set(parentKey, siblings);
+  });
+
+  const flattened: Array<{ category: Category; depth: number }> = [];
+  const visited = new Set<string>();
+  const appendBranch = (category: Category, depth: number) => {
+    if (visited.has(category.id)) return;
+    visited.add(category.id);
+    flattened.push({ category, depth });
+    (childrenByParent.get(category.id) ?? []).forEach((child) => appendBranch(child, depth + 1));
+  };
+
+  (childrenByParent.get(null) ?? []).forEach((category) => appendBranch(category, 0));
+  categories.forEach((category) => appendBranch(category, category.parentId ? 1 : 0));
+
+  return flattened;
+};
 
 interface AddOrchidModalProps {
   isOpen: boolean;
@@ -71,6 +96,8 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
       setUploadedImages([]);
     }
   }, [editOrchidData, isOpen, categories]);
+
+  const categoryOptions = useMemo(() => flattenCategoryTree(categories), [categories]);
 
   if (!isOpen) return null;
 
@@ -226,8 +253,12 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
                 {categories.length === 0 && (
                   <p className="text-xs text-outline">Chưa có danh mục. Hãy tạo danh mục trước.</p>
                 )}
-                {categories.map((cat) => (
-                  <label key={cat.id} className="flex items-center gap-2 text-sm text-charcoal-text cursor-pointer">
+                {categoryOptions.map(({ category: cat, depth }) => (
+                  <label
+                    key={cat.id}
+                    className="flex items-center gap-2 text-sm text-charcoal-text cursor-pointer"
+                    style={{ paddingLeft: `${depth * 20}px` }}
+                  >
                     <input
                       type="checkbox"
                       checked={categoryIds.includes(cat.id)}

@@ -122,6 +122,7 @@ export interface CareArticle {
   summary: string;
   content: string;
   thumbnailImageId: string | null;
+  thumbnailImageUrl?: string;
   isPublished: boolean;
   orchidIds: string[];
   documentIds: string[];

@@ -1,19 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { Search, ChevronLeft, ChevronRight, X, Heart, HelpCircle, ArrowLeft, User } from 'lucide-react';
 import OrchidCard from '../components/OrchidCard';
-import { INITIAL_ORCHIDS, orchidData } from '../data';
 import { Category, Orchid } from '../types';
 import SearchModal from '../components/SearchModal';
+import PublicFooter from '../components/PublicFooter';
+import PublicHeader from '../components/PublicHeader';
+import { getOrchids } from '../services/api';
 
 interface ListOrchidsProps {
   categoryId?: string | null;
   categories: Category[];
+  orchids: Orchid[];
   onNavigate: (screen: string, id?: string) => void;
 }
 
-export default function ListOrchids({ categoryId, categories, onNavigate }: ListOrchidsProps) {
+export default function ListOrchids({ categoryId, categories, orchids, onNavigate }: ListOrchidsProps) {
   // Search and Filter states
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(() => new URLSearchParams(window.location.search).get('q') ?? '');
+  const [apiOrchids, setApiOrchids] = useState<Orchid[]>(orchids);
+  const [isSearching, setIsSearching] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<Record<string, boolean>>({});
   const [showSavedOnly, setShowSavedOnly] = useState(false);
@@ -25,7 +30,63 @@ export default function ListOrchids({ categoryId, categories, onNavigate }: List
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 6;
 
-  const rootCategories = categories.filter((category) => !category.parentId);
+  useEffect(() => {
+    if (!searchQuery.trim()) setApiOrchids(orchids);
+  }, [orchids, searchQuery]);
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    const params = new URLSearchParams(window.location.search);
+    if (query) params.set('q', query);
+    else params.delete('q');
+    window.history.replaceState({}, '', `${window.location.pathname}${params.size ? `?${params.toString()}` : ''}`);
+
+    if (!query) {
+      setApiOrchids(orchids);
+      setIsSearching(false);
+      return;
+    }
+
+    let active = true;
+    setIsSearching(true);
+    const timer = window.setTimeout(() => {
+      void getOrchids({ pageNumber: 1, pageSize: 100, searchTerm: query })
+        .then((result) => {
+          if (active) setApiOrchids(result);
+        })
+        .catch(() => {
+          if (active) setApiOrchids([]);
+        })
+        .finally(() => {
+          if (active) setIsSearching(false);
+        });
+    }, 300);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [searchQuery, orchids]);
+
+  const categoryOptions = (() => {
+    const result: Array<{ category: Category; depth: number }> = [];
+    const visited = new Set<string>();
+    const appendChildren = (parentId: string | null, depth: number) => {
+      categories
+        .filter((category) => (category.parentId ?? null) === parentId)
+        .forEach((category) => {
+          if (visited.has(category.id)) return;
+          visited.add(category.id);
+          result.push({ category, depth });
+          appendChildren(category.id, depth + 1);
+        });
+    };
+    appendChildren(null, 0);
+    categories.forEach((category) => {
+      if (!visited.has(category.id)) result.push({ category, depth: 0 });
+    });
+    return result;
+  })();
 
   // Initialize selected categories dynamically from the Categories API.
   useEffect(() => {
@@ -55,6 +116,7 @@ export default function ListOrchids({ categoryId, categories, onNavigate }: List
   const saveBookmarks = (newBookmarks: string[]) => {
     setSavedOrchids(newBookmarks);
     localStorage.setItem('orchidee-luxe-bookmarks-v2', JSON.stringify(newBookmarks));
+    window.dispatchEvent(new Event('orchidee-favorites-updated'));
   };
 
   // Toggle bookmark function
@@ -95,28 +157,32 @@ export default function ListOrchids({ categoryId, categories, onNavigate }: List
 
   // Logic to calculate filtered list
   const getFilteredOrchids = () => {
-    return INITIAL_ORCHIDS.filter(orchid => {
-      // 1. Search Query filter
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase().trim();
-        const matchesName = orchid.name.toLowerCase().includes(query);
-        const matchesSciName = orchid.englishName.toLowerCase().includes(query);
-        const matchesDesc = orchid.shortDescription.toLowerCase().includes(query);
-        if (!matchesName && !matchesSciName && !matchesDesc) {
-          return false;
+    const selectedIds = Object.entries(selectedCategories)
+      .filter(([, selected]) => selected)
+      .map(([id]) => id);
+    const matchingCategoryIds = new Set(selectedIds);
+    let foundDescendant = true;
+    while (foundDescendant) {
+      foundDescendant = false;
+      categories.forEach((category) => {
+        if (category.parentId && matchingCategoryIds.has(category.parentId) && !matchingCategoryIds.has(category.id)) {
+          matchingCategoryIds.add(category.id);
+          foundDescendant = true;
         }
-      }
+      });
+    }
 
-      // 2. Category filter (OR inside group if any checked)
-      const hasAnyCatFilter = Object.values(selectedCategories).some(Boolean);
+    return apiOrchids.filter(orchid => {
+      // 1. Category filter (OR inside group if any checked)
+      const hasAnyCatFilter = selectedIds.length > 0;
       if (hasAnyCatFilter) {
-        const matchesCat = orchid.categoryIds.some(catId => selectedCategories[catId]);
+        const matchesCat = orchid.categoryIds.some(catId => matchingCategoryIds.has(catId));
         if (!matchesCat) {
           return false;
         }
       }
 
-      // 3. Saved Only filter
+      // 2. Saved Only filter
       if (showSavedOnly) {
         if (!orchid.id || !savedOrchids.includes(orchid.id)) {
           return false;
@@ -137,82 +203,9 @@ export default function ListOrchids({ categoryId, categories, onNavigate }: List
   );
 
   return (
-    <div className="bg-[#f9f9f7] min-h-screen text-[#1a1c1b] font-sans pt-20">
+    <div className="bg-[#f9f9f7] min-h-screen text-[#1a1c1b] font-sans">
       {/* 1. Header Navigation Bar */}
-      <nav className="fixed top-0 w-full z-40 h-16 bg-[#f9f9f7]/90 backdrop-blur-md border-b border-[#56642b]/5 transition-all">
-        <div className="flex justify-between items-center px-6 md:px-16 max-w-7xl mx-auto h-full">
-          {/* Logo */}
-          <div className="font-serif italic text-xl md:text-2xl text-botanical-green font-bold tracking-tight select-none">
-            Orchids
-          </div>
-
-          {/* Nav Links */}
-          <div className="hidden md:flex items-center space-x-8">
-            <button onClick={() => onNavigate('home')} className="font-sans text-xs uppercase tracking-wider font-semibold text-on-surface-variant hover:text-botanical-green transition-colors">
-              Trang Chủ
-            </button>
-            
-            {/* Direct Category Access Dropdown */}
-            <div className="relative group">
-              <button onClick={() => onNavigate('list_orchids')} className="font-sans text-xs uppercase tracking-wider font-semibold text-botanical-green border-b-2 border-botanical-green pb-1 transition-all flex items-center gap-1 cursor-pointer">
-                DANH MỤC LAN
-                <ChevronRight className="w-3.5 h-3.5 rotate-90" />
-              </button>
-              <div className="absolute top-full left-0 w-64 bg-white border border-[#747878]/10 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 py-3 mt-2 rounded">
-                <ul className="flex flex-col">
-                  {rootCategories.map((cat) => (
-                    <li key={cat.id}>
-                      <button
-                        onClick={() => onNavigate('list_orchids', cat.id)}
-                        className="w-full text-left px-5 py-2.5 font-serif text-sm text-[#1a1c1b] hover:bg-[#56642b]/5 hover:text-botanical-green transition-colors cursor-pointer"
-                      >
-                        {cat.name}
-                      </button>
-                    </li>
-                  ))}
-                  {rootCategories.length === 0 && (
-                    <li className="px-5 py-2.5 text-sm text-on-surface-variant">
-                      Chưa có danh mục
-                    </li>
-                  )}
-                </ul>
-              </div>
-            </div>
-
-            <button onClick={() => window.location.href = '/planting-and-care'} className="font-sans text-xs uppercase tracking-wider font-semibold text-on-surface-variant hover:text-botanical-green transition-colors">
-              Cách trồng và chăm sóc
-            </button>
-            
-            <button onClick={() => window.location.href = '/document'} className="font-sans text-xs uppercase tracking-wider font-semibold text-[#434748] hover:text-[#56642b] transition-colors cursor-pointer">
-              Tài liệu
-            </button>
-            <button
-              onClick={() => window.location.href = '/discussion'}
-              className="font-sans text-xs uppercase tracking-wider font-semibold text-on-surface-variant hover:text-botanical-green transition-colors cursor-pointer"
-            >
-              Thảo luận
-            </button>
-          </div>
-
-          {/* Action Icons */}
-          <div className="flex items-center space-x-5">
-            <button
-              onClick={() => setIsSearchModalOpen(true)}
-              className="p-1.5 hover:bg-[#56642b]/5 text-botanical-green rounded-full transition-colors cursor-pointer"
-              title="Tìm kiếm loài lan"
-            >
-              <Search className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => onNavigate("login")}
-              className="p-1.5 hover:bg-[#56642b]/5 text-botanical-green rounded-full transition-colors cursor-pointer"
-              title="Trang quản lý hồ sơ"
-            >
-              <User className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      </nav>
+      <PublicHeader categories={categories} />
 
       <SearchModal 
         isOpen={isSearchModalOpen} 
@@ -265,8 +258,12 @@ export default function ListOrchids({ categoryId, categories, onNavigate }: List
                 PHÂN LOẠI DÒNG LAN
               </h4>
               <div className="space-y-2.5">
-                {rootCategories.map((cat) => (
-                  <label key={cat.id} className="flex items-center space-x-3 text-xs text-[#1a1c1b]/80 font-sans cursor-pointer group select-none">
+                {categoryOptions.map(({ category: cat, depth }) => (
+                  <label
+                    key={cat.id}
+                    className="flex items-center space-x-3 text-xs text-[#1a1c1b]/80 font-sans cursor-pointer group select-none"
+                    style={{ paddingLeft: `${depth * 18}px` }}
+                  >
                     <input
                       type="checkbox"
                       checked={selectedCategories[cat.id] || false}
@@ -276,7 +273,7 @@ export default function ListOrchids({ categoryId, categories, onNavigate }: List
                     <span className="group-hover:text-botanical-green transition-colors">{cat.name}</span>
                   </label>
                 ))}
-                {rootCategories.length === 0 && (
+                {categoryOptions.length === 0 && (
                   <p className="text-xs text-[#747878]">Chưa có danh mục từ máy chủ.</p>
                 )}
               </div>
@@ -330,7 +327,7 @@ export default function ListOrchids({ categoryId, categories, onNavigate }: List
             
             {/* Top result statistics bar */}
             <div className="flex items-center justify-between text-xs text-[#747878] font-sans border-b border-[#747878]/10 pb-3">
-              <span>Đang hiển thị {filteredOrchids.length} loài lan</span>
+              <span>{isSearching ? 'Đang tìm kiếm bằng API...' : `Đang hiển thị ${filteredOrchids.length} loài lan`}</span>
               {showSavedOnly && (
                 <span className="bg-[#56642b]/10 text-botanical-green px-2 py-0.5 text-[10px] rounded-[2px] font-semibold">
                   MỤC ĐÃ LƯU
@@ -410,6 +407,7 @@ export default function ListOrchids({ categoryId, categories, onNavigate }: List
           </div>
         </div>
       </div>
+      <PublicFooter />
     </div>
   );
 }
