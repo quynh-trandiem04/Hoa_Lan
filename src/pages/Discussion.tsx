@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ImagePlus, LoaderCircle, LockKeyhole, MessageSquare, RefreshCw, Search, Send, Trash2, X } from 'lucide-react';
 import {
   createDiscussion,
@@ -47,6 +47,85 @@ const getDiscussionBody = (value: string) => {
     imageUrl: match?.[1] ?? '',
   };
 };
+
+function ZoomableDiscussionImage({ src, alt }: { src: string; alt: string }) {
+  const imageRef = useRef<HTMLImageElement>(null);
+  const [lens, setLens] = useState({
+    visible: false,
+    left: 0,
+    top: 0,
+    xPercent: 50,
+    yPercent: 50,
+    imageWidth: 0,
+    imageHeight: 0,
+  });
+
+  const handleMouseMove = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    const image = imageRef.current;
+    if (!image) return;
+
+    const containerBounds = event.currentTarget.getBoundingClientRect();
+    const imageBounds = image.getBoundingClientRect();
+    const isInsideImage = event.clientX >= imageBounds.left
+      && event.clientX <= imageBounds.right
+      && event.clientY >= imageBounds.top
+      && event.clientY <= imageBounds.bottom;
+
+    if (!isInsideImage) {
+      setLens((current) => ({ ...current, visible: false }));
+      return;
+    }
+
+    setLens({
+      visible: true,
+      left: event.clientX - containerBounds.left,
+      top: event.clientY - containerBounds.top,
+      xPercent: ((event.clientX - imageBounds.left) / imageBounds.width) * 100,
+      yPercent: ((event.clientY - imageBounds.top) / imageBounds.height) * 100,
+      imageWidth: imageBounds.width,
+      imageHeight: imageBounds.height,
+    });
+  };
+
+  return (
+    <a
+      href={src}
+      target="_blank"
+      rel="noreferrer"
+      className="relative mt-4 flex cursor-crosshair justify-center overflow-hidden rounded-xl border border-[#e0e1dc] bg-[#f4f4f0]"
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => setLens((current) => ({ ...current, visible: false }))}
+      title="Di chuột để phóng to, nhấn để mở ảnh gốc"
+    >
+      <img
+        ref={imageRef}
+        src={src}
+        alt={alt}
+        className="block h-auto w-auto max-w-full object-contain"
+        loading="lazy"
+        referrerPolicy="no-referrer"
+      />
+      {lens.visible && (
+        <span
+          aria-hidden="true"
+          data-zoom-lens="true"
+          className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white bg-white shadow-2xl"
+          style={{
+            display: 'block',
+            width: 176,
+            height: 176,
+            left: lens.left,
+            top: lens.top,
+            backgroundImage: `url(${src})`,
+            backgroundRepeat: 'no-repeat',
+            backgroundSize: `${lens.imageWidth * 2.5}px ${lens.imageHeight * 2.5}px`,
+            backgroundPosition: `${lens.xPercent}% ${lens.yPercent}%`,
+          }}
+        />
+      )}
+    </a>
+  );
+}
 
 export default function Discussion() {
   const [posts, setPosts] = useState<DiscussionPostDto[]>([]);
@@ -291,20 +370,10 @@ export default function Discussion() {
                 <h2 className="font-serif text-xl font-bold">{post.title}</h2>
                 <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#434748]">{postBody.text}</p>
                 {postBody.imageUrl && (
-                  <a
-                    href={postBody.imageUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-4 block overflow-hidden rounded-xl border border-[#e0e1dc] bg-[#f4f4f0]"
-                  >
-                    <img
-                      src={postBody.imageUrl}
-                      alt={`Ảnh trong bài ${post.title}`}
-                      className="max-h-[420px] w-full object-contain"
-                      loading="lazy"
-                      referrerPolicy="no-referrer"
-                    />
-                  </a>
+                  <ZoomableDiscussionImage
+                    src={postBody.imageUrl}
+                    alt={`Ảnh trong bài ${post.title}`}
+                  />
                 )}
                 <div className="my-5 flex items-center gap-2 border-y border-[#eeeeea] py-3 text-xs text-[#666b69]">
                   <MessageSquare size={16} />
