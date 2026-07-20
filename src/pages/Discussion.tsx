@@ -147,7 +147,27 @@ export default function Discussion() {
     setError('');
     try {
       const result = await getDiscussions({ pageNumber: 1, pageSize: 50, searchTerm: term || undefined });
-      setPosts(result.items ?? []);
+      const items = result.items ?? [];
+      const hydratedItems = await Promise.all(items.map(async (post) => {
+        const listedComments = Array.isArray(post.comments) ? post.comments : [];
+        const expectedCommentCount = post.commentCount ?? listedComments.length;
+
+        if (listedComments.length >= expectedCommentCount) {
+          return { ...post, comments: listedComments };
+        }
+
+        try {
+          const detail = await getDiscussionById(post.id);
+          return {
+            ...post,
+            ...detail,
+            comments: Array.isArray(detail.comments) ? detail.comments : listedComments,
+          };
+        } catch {
+          return { ...post, comments: listedComments };
+        }
+      }));
+      setPosts(hydratedItems);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Không thể tải danh sách thảo luận.');
     } finally {
