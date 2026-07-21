@@ -1235,3 +1235,20 @@ export const createDiscussionComment = async (
   }
   return '';
 };
+
+export const deleteDiscussion = async (
+  id: string,
+  apiVersion?: string,
+): Promise<void> => {
+  const params = new URLSearchParams();
+  if (apiVersion) params.set('api-version', apiVersion);
+  const suffix = params.size ? `?${params.toString()}` : '';
+  const response = await fetch(`${API_BASE_URL}/api/Discussions/${encodeURIComponent(id)}${suffix}`, {
+    method: 'DELETE',
+    headers: discussionHeaders(),
+  });
+  const body = await readApiResponse(response);
+  if (!response.ok) {
+    throwDiscussionApiError(response.status, body, 'Không thể xóa bài thảo luận.');
+  }
+};

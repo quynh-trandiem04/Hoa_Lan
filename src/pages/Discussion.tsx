@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, ImagePlus, LoaderCircle, LockKeyhole, Messag
 import {
   createDiscussion,
   createDiscussionComment,
+  deleteDiscussion,
   getDiscussionById,
   getDiscussions,
   uploadImage,
@@ -286,6 +287,18 @@ export default function Discussion() {
     }
   }, []);
 
+  const handleDeletePost = async (id: string) => {
+    if (!requireLogin()) return;
+    if (!window.confirm('Bạn có chắc chắn muốn xóa bài thảo luận này?')) return;
+    try {
+      await deleteDiscussion(id);
+      addToast('Đã xóa bài thảo luận thành công.', 'success');
+      void loadPosts(searchTerm);
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Không thể xóa bài thảo luận.', 'error');
+    }
+  };
+
   useEffect(() => {
     void loadPosts(new URLSearchParams(window.location.search).get('q') ?? '');
   }, [loadPosts]);
@@ -485,12 +498,21 @@ export default function Discussion() {
               const postBody = getDiscussionBody(post.content);
               return (
               <article key={post.id} className="rounded-xl border border-[#e0e1dc] bg-white p-5 shadow-sm">
-                <div className="mb-4 flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#e8edda] text-xs font-bold text-[#56642b]">{initials(post.authorName)}</div>
-                  <div>
-                    <p className="text-sm font-bold">{post.authorName || 'Thành viên'}</p>
-                    <time className="text-xs text-[#747878]">{formatDate(post.createdAt)}</time>
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#e8edda] text-xs font-bold text-[#56642b]">{initials(post.authorName)}</div>
+                    <div>
+                      <p className="text-sm font-bold">{post.authorName || 'Thành viên'}</p>
+                      <time className="text-xs text-[#747878]">{formatDate(post.createdAt)}</time>
+                    </div>
                   </div>
+                  <button
+                    onClick={() => void handleDeletePost(post.id)}
+                    className="rounded p-1.5 text-red-600 transition-colors hover:bg-red-50"
+                    title="Xóa bài thảo luận"
+                  >
+                    <Trash2 size={18} />
+                  </button>
                 </div>
                 <h2 className="font-serif text-xl font-bold">{post.title}</h2>
                 <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#434748]">{postBody.text}</p>
