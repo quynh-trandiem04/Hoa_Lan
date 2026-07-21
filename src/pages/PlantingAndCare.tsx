@@ -38,6 +38,7 @@ export default function PlantingAndCare({
   const [searchTerm, setSearchTerm] = useState(() => new URLSearchParams(window.location.search).get('q') || '');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
   const [currentPage, setCurrentPage] = useState(1);
+  const linkedArticleId = new URLSearchParams(window.location.search).get('articleId') ?? '';
 
   const categoryOptions = useMemo(() => {
     const result: Array<ArticleCategory & { depth: number }> = [];
@@ -100,6 +101,24 @@ export default function PlantingAndCare({
     void loadArticles();
     return () => { active = false; };
   }, [section, selectedCategoryId, debouncedSearchTerm]);
+
+  useEffect(() => {
+    if (!linkedArticleId) return;
+    let active = true;
+    const loadTimer = window.setTimeout(() => {
+      setOpeningArticleId(linkedArticleId);
+      void getArticleById(linkedArticleId)
+        .then((article) => { if (active) setSelectedArticle(article); })
+        .catch((loadError) => {
+          if (active) setError(loadError instanceof Error ? loadError.message : 'Không thể tải nội dung bài viết.');
+        })
+        .finally(() => { if (active) setOpeningArticleId(null); });
+    }, 0);
+    return () => {
+      active = false;
+      window.clearTimeout(loadTimer);
+    };
+  }, [linkedArticleId]);
 
   const selectCategory = (categoryId?: string) => {
     setSelectedCategoryId(categoryId);

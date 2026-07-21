@@ -10,6 +10,7 @@ import Discussion from './pages/Discussion';
 import PlantingAndCare from './pages/PlantingAndCare';
 import Applications from './pages/Applications';
 import DocumentPage from './pages/Document';
+import GlobalSearch from './pages/GlobalSearch';
 import {
   LayoutDashboard,
   FolderKanban,
@@ -190,7 +191,7 @@ export default function App() {
   const { toasts, addToast, removeToast } = useToasts();
 
   
-  type ScreenType = "home" | "signup" | "login" | "forgot_password" | "dashboard" | "discussion" | "planting_and_care" | "applications" | "document" | "list_orchids" | "orchid_detail" | "profile";
+  type ScreenType = "home" | "signup" | "login" | "forgot_password" | "dashboard" | "discussion" | "planting_and_care" | "applications" | "document" | "search" | "list_orchids" | "orchid_detail" | "profile";
 
   const getInitialScreen = (): ScreenType => {
     const path = window.location.pathname;
@@ -205,6 +206,7 @@ export default function App() {
     if (path === '/planting-and-care') return 'planting_and_care';
     if (path === '/applications') return 'applications';
     if (path === '/document') return 'document';
+    if (path === '/search') return 'search';
     if (path === '/profile') return 'profile';
     if (path === '/list-orchids') return 'list_orchids';
     if (path.startsWith('/orchids/')) return 'orchid_detail';
@@ -245,6 +247,7 @@ export default function App() {
     else if (newScreen === 'planting_and_care') path = '/planting-and-care';
     else if (newScreen === 'applications') path = '/applications';
     else if (newScreen === 'document') path = '/document';
+    else if (newScreen === 'search') path = '/search';
     else if (newScreen === 'profile') path = '/profile';
     else if (newScreen === 'list_orchids') {
       if (id) {
@@ -1432,6 +1435,8 @@ export default function App() {
       {screen === "list_orchids" && <ListOrchids categoryId={selectedCategoryId} categories={categories} orchids={orchids} onNavigate={(s, id) => setScreen(s as any, id)} />}
       
       {screen === "orchid_detail" && selectedOrchidId && <OrchidDetail id={selectedOrchidId} categories={categories} onNavigate={(s, id) => setScreen(s as any, id)} />}
+
+      {screen === "search" && <GlobalSearch />}
 
       {/* =================== SCREEN 1: SIGN UP =================== */}
       {screen === "signup" && (

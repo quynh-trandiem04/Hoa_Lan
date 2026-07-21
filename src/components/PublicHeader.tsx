@@ -342,8 +342,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
     const query = searchTerm.trim();
     const params = new URLSearchParams();
     if (query) params.set('q', query);
-    const targetPath = path === '/discussion' ? '/discussion' : '/list-orchids';
-    window.location.href = `${targetPath}${params.size ? `?${params.toString()}` : ''}`;
+    window.location.href = `/search${params.size ? `?${params.toString()}` : ''}`;
   };
 
   const isCatalog = path === '/list-orchids' || path.startsWith('/orchids/');
@@ -391,7 +390,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
             type="button"
             onClick={() => setSearchOpen((current) => !current)}
             className="rounded-full p-1.5 text-botanical-green transition-colors hover:bg-[#56642b]/5"
-            title="Tìm kiếm loài lan"
+            title="Tìm kiếm toàn hệ thống"
             aria-expanded={searchOpen}
           >
             {searchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
@@ -530,8 +529,8 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               className="min-w-0 flex-1 px-3 py-2 text-sm outline-none"
-              placeholder={path === '/discussion' ? 'Tìm bài thảo luận...' : 'Nhập tên loài lan...'}
-              aria-label={path === '/discussion' ? 'Từ khóa tìm kiếm bài thảo luận' : 'Từ khóa tìm kiếm loài lan'}
+              placeholder="Tìm lan, tài liệu, cách trồng, ứng dụng..."
+              aria-label="Từ khóa tìm kiếm toàn hệ thống"
             />
             <button type="submit" className="rounded-md bg-[#56642b] px-4 py-2 text-xs font-bold uppercase tracking-wider text-white">Tìm</button>
           </form>
