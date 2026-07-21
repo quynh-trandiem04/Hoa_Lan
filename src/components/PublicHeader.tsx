@@ -126,43 +126,90 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
     || sessionStorage.getItem('orchidee_auth_token'),
   );
 
-  return (
-    <header className="sticky top-0 z-50 h-16 w-full border-b border-[#56642b]/10 bg-surface-cream/95 backdrop-blur-md">
-      <div className="relative mx-auto flex h-full max-w-7xl items-center justify-between px-6 md:px-16">
-        <a href="/" className="select-none font-serif text-xl font-bold italic tracking-tight text-botanical-green md:text-2xl">Orchids</a>
+    const careCategoryOptions = useMemo(() => {
+      const result: Array<{ category: Category; depth: number }> = [];
+      const visited = new Set<string>();
+      const appendChildren = (parentId: string | null, depth: number) => {
+        loadedCategories
+          .filter((category) => (category.parentId ?? null) === parentId)
+          .forEach((category) => {
+            if (visited.has(category.id)) return;
+            visited.add(category.id);
+            result.push({ category, depth });
+            appendChildren(category.id, depth + 1);
+          });
+      };
+      
+      const root = loadedCategories.find(c => (c.name.toLowerCase() === 'trồng và chăm sóc' || c.name.toLowerCase() === 'cách trồng và chăm sóc') && !c.parentId);
+      if (root) {
+        appendChildren(root.id, 0);
+      }
+      return result;
+    }, [loadedCategories]);
 
-        <nav className="hidden h-full items-center space-x-8 md:flex">
-          <a href="/" className={`font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${path === '/' ? activeClass : normalClass}`}>Trang chủ</a>
-
-          <div className="group relative flex h-full items-center">
-            <a href="/list-orchids" className={`flex cursor-pointer items-center gap-1 font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${isCatalog ? activeClass : normalClass}`}>
-              Danh mục lan <ChevronRight className="h-3.5 w-3.5 rotate-90" />
-            </a>
-            <div className="invisible absolute left-0 top-[calc(100%-7px)] z-50 max-h-[70vh] w-72 overflow-y-auto rounded border border-[#747878]/10 bg-white py-3 opacity-0 shadow-xl transition-all duration-200 group-hover:visible group-hover:opacity-100">
-              <ul className="flex flex-col">
-                {categoryOptions.map(({ category, depth }) => (
-                  <li key={category.id}>
-                    <a
-                      href={`/list-orchids?cat=${encodeURIComponent(category.id)}`}
-                      className={`block w-full pr-5 text-left font-serif transition-colors hover:bg-[#56642b]/5 hover:text-botanical-green ${
-                        depth === 0 
-                          ? 'py-3 text-[15px] text-[#1a1c1b] mt-2 first:mt-0' 
-                          : 'py-2 text-[14.5px] text-[#434748]'
-                      }`}
-                      style={{ paddingLeft: `${24 + depth * 24}px` }}
-                    >
-                      {depth > 0 && <span className="mr-3 text-[#899073] font-sans font-light">—</span>}
-                      {category.name}
-                    </a>
-                  </li>
-                ))}
-                {categoryOptions.length === 0 && <li className="px-5 py-2 text-xs text-[#747878]">Chưa có danh mục</li>}
-              </ul>
+    return (
+      <header className="sticky top-0 z-50 h-16 w-full border-b border-[#56642b]/10 bg-surface-cream/95 backdrop-blur-md">
+        <div className="relative mx-auto flex h-full max-w-7xl items-center justify-between px-6 md:px-16">
+          <a href="/" className="select-none font-serif text-xl font-bold italic tracking-tight text-botanical-green md:text-2xl">Orchids</a>
+  
+          <nav className="hidden h-full items-center space-x-8 md:flex">
+            <a href="/" className={`font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${path === '/' ? activeClass : normalClass}`}>Trang chủ</a>
+  
+            <div className="group relative flex h-full items-center">
+              <a href="/list-orchids" className={`flex cursor-pointer items-center gap-1 font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${isCatalog ? activeClass : normalClass}`}>
+                Danh mục lan <ChevronRight className="h-3.5 w-3.5 rotate-90" />
+              </a>
+              <div className="invisible absolute left-0 top-[calc(100%-7px)] z-50 max-h-[70vh] w-72 overflow-y-auto rounded border border-[#747878]/10 bg-white py-3 opacity-0 shadow-xl transition-all duration-200 group-hover:visible group-hover:opacity-100">
+                <ul className="flex flex-col">
+                  {categoryOptions.map(({ category, depth }) => (
+                    <li key={category.id}>
+                      <a
+                        href={`/list-orchids?cat=${encodeURIComponent(category.id)}`}
+                        className={`block w-full pr-5 text-left font-serif transition-colors hover:bg-[#56642b]/5 hover:text-botanical-green ${
+                          depth === 0 
+                            ? 'py-3 text-[15px] text-[#1a1c1b] mt-2 first:mt-0' 
+                            : 'py-2 text-[14.5px] text-[#434748]'
+                        }`}
+                        style={{ paddingLeft: `${24 + depth * 24}px` }}
+                      >
+                        {depth > 0 && <span className="mr-3 text-[#899073] font-sans font-light">—</span>}
+                        {category.name}
+                      </a>
+                    </li>
+                  ))}
+                  {categoryOptions.length === 0 && <li className="px-5 py-2 text-xs text-[#747878]">Chưa có danh mục</li>}
+                </ul>
+              </div>
             </div>
-          </div>
+  
+            <div className="group relative flex h-full items-center">
+              <a href="/planting-and-care" className={`flex cursor-pointer items-center gap-1 font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${path === '/planting-and-care' ? activeClass : normalClass}`}>
+                Cách trồng và chăm sóc <ChevronRight className="h-3.5 w-3.5 rotate-90" />
+              </a>
+              <div className="invisible absolute left-0 top-[calc(100%-7px)] z-50 max-h-[70vh] w-72 overflow-y-auto rounded border border-[#747878]/10 bg-white py-3 opacity-0 shadow-xl transition-all duration-200 group-hover:visible group-hover:opacity-100">
+                <ul className="flex flex-col">
+                  {careCategoryOptions.map(({ category, depth }) => (
+                    <li key={category.id}>
+                      <a
+                        href={`/planting-and-care?cat=${encodeURIComponent(category.id)}`}
+                        className={`block w-full pr-5 text-left font-serif transition-colors hover:bg-[#56642b]/5 hover:text-botanical-green ${
+                          depth === 0 
+                            ? 'py-3 text-[15px] text-[#1a1c1b] mt-2 first:mt-0' 
+                            : 'py-2 text-[14.5px] text-[#434748]'
+                        }`}
+                        style={{ paddingLeft: `${24 + depth * 24}px` }}
+                      >
+                        {depth > 0 && <span className="mr-3 text-[#899073] font-sans font-light">—</span>}
+                        {category.name}
+                      </a>
+                    </li>
+                  ))}
+                  {careCategoryOptions.length === 0 && <li className="px-5 py-2 text-xs text-[#747878]">Chưa có danh mục</li>}
+                </ul>
+              </div>
+            </div>
 
-          <a href="/planting-and-care" className={`font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${path === '/planting-and-care' ? activeClass : normalClass}`}>Cách trồng và chăm sóc</a>
-          <a href={ungDungCat ? `/list-orchids?cat=${encodeURIComponent(ungDungCat.id)}` : "/list-orchids"} className={`font-sans text-xs font-semibold uppercase tracking-wider transition-colors normalClass`}>Ứng dụng</a>
+            <a href={ungDungCat ? `/list-orchids?cat=${encodeURIComponent(ungDungCat.id)}` : "/list-orchids"} className={`font-sans text-xs font-semibold uppercase tracking-wider transition-colors normalClass`}>Ứng dụng</a>
           <a href="/document" className={`font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${path === '/document' ? activeClass : normalClass}`}>Tài liệu</a>
           <a href="/discussion" className={`font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${path === '/discussion' ? activeClass : normalClass}`}>Thảo luận</a>
         </nav>
