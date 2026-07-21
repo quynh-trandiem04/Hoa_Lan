@@ -617,6 +617,14 @@ export default function App() {
   };
 
   const [activeTab, setActiveTab] = useState<'overview' | 'categories' | 'orchids' | 'articles' | 'users' | 'community' | 'care' | 'cultivation_cats' | 'application_cats' | 'applications'>('overview');
+  const [expandedAdminMenus, setExpandedAdminMenus] = useState({
+    orchids: true,
+    applications: false,
+    cultivation: false,
+  });
+  const toggleAdminMenu = (menu: keyof typeof expandedAdminMenus) => {
+    setExpandedAdminMenus((current) => ({ ...current, [menu]: !current[menu] }));
+  };
   const [dashboardDiscussions, setDashboardDiscussions] = useState<DiscussionPostDto[]>([]);
   const [loadingDashboardDiscussions, setLoadingDashboardDiscussions] = useState(false);
 
@@ -1897,11 +1905,11 @@ export default function App() {
           </p>
         </div>
 
-        <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-4">
           {/* 1. Tổng Quan */}
           <button
             onClick={() => { setActiveTab('overview'); setSearchQuery(''); }}
-            className={`flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
+            className={`order-0 flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
               activeTab === 'overview'
                 ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
@@ -1911,17 +1919,56 @@ export default function App() {
             <span className="text-xs uppercase tracking-wider font-semibold font-sans">Tổng quan</span>
           </button>
 
+          <button
+            onClick={() => toggleAdminMenu('orchids')}
+            className={`order-10 flex w-full items-center gap-3 rounded px-4 py-3 text-left transition-all duration-300 ${
+              ['categories', 'orchids'].includes(activeTab)
+                ? 'bg-[#d6e7a1]/20 font-bold text-[#56642b]'
+                : 'text-[#434748] hover:bg-[#d6e7a1]/20 hover:text-[#56642b]'
+            }`}
+          >
+            <Layers className="h-5 w-5 shrink-0" />
+            <span className="text-xs font-semibold uppercase tracking-wider">Quản lý hoa lan</span>
+            <ChevronRight className={`ml-auto h-4 w-4 transition-transform ${expandedAdminMenus.orchids ? 'rotate-90' : ''}`} />
+          </button>
+
+          <button
+            onClick={() => toggleAdminMenu('applications')}
+            className={`order-20 flex w-full items-center gap-3 rounded px-4 py-3 text-left transition-all duration-300 ${
+              ['applications', 'application_cats'].includes(activeTab)
+                ? 'bg-[#d6e7a1]/20 font-bold text-[#56642b]'
+                : 'text-[#434748] hover:bg-[#d6e7a1]/20 hover:text-[#56642b]'
+            }`}
+          >
+            <Sparkles className="h-5 w-5 shrink-0" />
+            <span className="text-xs font-semibold uppercase tracking-wider">Ứng dụng</span>
+            <ChevronRight className={`ml-auto h-4 w-4 transition-transform ${expandedAdminMenus.applications ? 'rotate-90' : ''}`} />
+          </button>
+
+          <button
+            onClick={() => toggleAdminMenu('cultivation')}
+            className={`order-30 flex w-full items-center gap-3 rounded px-4 py-3 text-left transition-all duration-300 ${
+              ['care', 'cultivation_cats'].includes(activeTab)
+                ? 'bg-[#d6e7a1]/20 font-bold text-[#56642b]'
+                : 'text-[#434748] hover:bg-[#d6e7a1]/20 hover:text-[#56642b]'
+            }`}
+          >
+            <FileText className="h-5 w-5 shrink-0" />
+            <span className="text-xs font-semibold uppercase tracking-wider">Cách trồng và chăm sóc</span>
+            <ChevronRight className={`ml-auto h-4 w-4 transition-transform ${expandedAdminMenus.cultivation ? 'rotate-90' : ''}`} />
+          </button>
+
           {/* 2. Chi Danh Mục */}
           <button
             onClick={() => { setActiveTab('categories'); setSearchQuery(''); }}
-            className={`flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
+            className={`${expandedAdminMenus.orchids ? 'flex' : 'hidden'} order-[11] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
               activeTab === 'categories'
                 ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
             }`}
           >
             <FolderKanban className="w-5 h-5 shrink-0" />
-            <span className="text-xs uppercase tracking-wider font-semibold font-sans">Chi Danh mục</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Quản lý danh mục lan</span>
             <span className="ml-auto text-[10px] font-mono bg-surface-container-high px-2 py-0.5 rounded text-outline font-bold">
               {categories.length}
             </span>
@@ -1930,14 +1977,14 @@ export default function App() {
           {/* 3. Danh mục Cách trồng và chăm sóc */}
           <button
             onClick={() => { setActiveTab('cultivation_cats'); setSearchQuery(''); }}
-            className={`flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
+            className={`${expandedAdminMenus.cultivation ? 'flex' : 'hidden'} order-[32] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
               activeTab === 'cultivation_cats'
                 ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
             }`}
           >
             <Layers className="w-5 h-5 shrink-0" />
-            <span className="text-xs uppercase tracking-wider font-semibold font-sans">Danh mục Cách trồng và chăm sóc</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Danh mục CT&amp;CS</span>
             <span className="ml-auto text-[10px] font-mono bg-surface-container-high px-2 py-0.5 rounded text-outline font-bold">
               {cultivationCategories.length}
             </span>
@@ -1946,14 +1993,14 @@ export default function App() {
           {/* 4. Danh mục Ứng dụng */}
           <button
             onClick={() => { setActiveTab('application_cats'); setSearchQuery(''); }}
-            className={`flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
+            className={`${expandedAdminMenus.applications ? 'flex' : 'hidden'} order-[22] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
               activeTab === 'application_cats'
                 ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
             }`}
           >
             <Sparkles className="w-5 h-5 shrink-0" />
-            <span className="text-xs uppercase tracking-wider font-semibold font-sans">Danh mục Ứng dụng</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Danh mục ứng dụng</span>
             <span className="ml-auto text-[10px] font-mono bg-surface-container-high px-2 py-0.5 rounded text-outline font-bold">
               {applicationCategories.length}
             </span>
@@ -1962,14 +2009,14 @@ export default function App() {
           {/* 5. Quản lý Hoa Lan */}
           <button
             onClick={() => { setActiveTab('orchids'); setSearchQuery(''); }}
-            className={`flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
+            className={`${expandedAdminMenus.orchids ? 'flex' : 'hidden'} order-[12] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
               activeTab === 'orchids'
                 ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
             }`}
           >
             <Layers className="w-5 h-5 shrink-0" />
-            <span className="text-xs uppercase tracking-wider font-semibold font-sans">Quản lý Hoa Lan</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Quản lý loại lan</span>
             <span className="ml-auto text-[10px] font-mono bg-surface-container-high px-2 py-0.5 rounded text-outline font-bold">
               {orchids.length}
             </span>
@@ -1978,14 +2025,14 @@ export default function App() {
           {/* 6. Cách trồng và chăm sóc */}
           <button
             onClick={() => { setActiveTab('care'); setSearchQuery(''); }}
-            className={`flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
+            className={`${expandedAdminMenus.cultivation ? 'flex' : 'hidden'} order-[31] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
               activeTab === 'care'
                 ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
             }`}
           >
             <FileText className="w-5 h-5 shrink-0" />
-            <span className="text-xs uppercase tracking-wider font-semibold font-sans">Cách trồng và chăm sóc</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Quản lý bài CT&amp;CS</span>
             <span className="ml-auto text-[10px] font-mono bg-surface-container-high px-2 py-0.5 rounded text-outline font-bold">
               {articleCounts.cultivation}
             </span>
@@ -1994,14 +2041,14 @@ export default function App() {
           {/* 7. Ứng dụng */}
           <button
             onClick={() => { setActiveTab('applications'); setSearchQuery(''); }}
-            className={`flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
+            className={`${expandedAdminMenus.applications ? 'flex' : 'hidden'} order-[21] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
               activeTab === 'applications'
                 ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
             }`}
           >
             <Sparkles className="w-5 h-5 shrink-0" />
-            <span className="text-xs uppercase tracking-wider font-semibold font-sans">Ứng dụng</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Quản lý ứng dụng</span>
             <span className="ml-auto text-[10px] font-mono bg-surface-container-high px-2 py-0.5 rounded text-outline font-bold">
               {articleCounts.application}
             </span>
@@ -2010,14 +2057,14 @@ export default function App() {
           {/* 8. Quản lý Tài liệu về Lan */}
           <button
             onClick={() => { setActiveTab('articles'); setSearchQuery(''); }}
-            className={`flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
+            className={`order-40 flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
               activeTab === 'articles'
                 ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
             }`}
           >
             <BookOpen className="w-5 h-5 shrink-0" />
-            <span className="text-xs uppercase tracking-wider font-semibold font-sans">Quản lý Tài liệu về Lan</span>
+            <span className="text-xs uppercase tracking-wider font-semibold font-sans">Tài liệu</span>
             <span className="ml-auto text-[10px] font-mono bg-[#56642b]/10 text-[#5a682f] px-2 py-0.5 rounded font-bold">
               {documentsData?.totalCount || 0}
             </span>
@@ -2026,7 +2073,7 @@ export default function App() {
           {/* 9. Người dùng */}
           <button
             onClick={() => { setActiveTab('users'); setSearchQuery(''); }}
-            className={`flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
+            className={`order-50 flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
               activeTab === 'users'
                 ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
