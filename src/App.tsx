@@ -609,7 +609,7 @@ export default function App() {
     }
   };
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'categories' | 'orchids' | 'articles' | 'users' | 'community' | 'care' | 'cultivation_cats' | 'application_cats'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'categories' | 'orchids' | 'articles' | 'users' | 'community' | 'care' | 'cultivation_cats' | 'application_cats' | 'applications'>('overview');
   const [dashboardDiscussions, setDashboardDiscussions] = useState<DiscussionPostDto[]>([]);
   const [loadingDashboardDiscussions, setLoadingDashboardDiscussions] = useState(false);
 
@@ -1831,6 +1831,7 @@ export default function App() {
         </div>
 
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
+          {/* 1. Tổng Quan */}
           <button
             onClick={() => { setActiveTab('overview'); setSearchQuery(''); }}
             className={`flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
@@ -1843,6 +1844,7 @@ export default function App() {
             <span className="text-xs uppercase tracking-wider font-semibold font-sans">Tổng quan</span>
           </button>
 
+          {/* 2. Chi Danh Mục */}
           <button
             onClick={() => { setActiveTab('categories'); setSearchQuery(''); }}
             className={`flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
@@ -1858,6 +1860,33 @@ export default function App() {
             </span>
           </button>
 
+          {/* 3. Danh mục Cách trồng và chăm sóc */}
+          <button
+            onClick={() => { setActiveTab('cultivation_cats'); setSearchQuery(''); }}
+            className={`flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
+              activeTab === 'cultivation_cats'
+                ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
+                : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
+            }`}
+          >
+            <Layers className="w-5 h-5 shrink-0" />
+            <span className="text-xs uppercase tracking-wider font-semibold font-sans">Danh mục Cách trồng và chăm sóc</span>
+          </button>
+
+          {/* 4. Danh mục Ứng dụng */}
+          <button
+            onClick={() => { setActiveTab('application_cats'); setSearchQuery(''); }}
+            className={`flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
+              activeTab === 'application_cats'
+                ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
+                : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
+            }`}
+          >
+            <Sparkles className="w-5 h-5 shrink-0" />
+            <span className="text-xs uppercase tracking-wider font-semibold font-sans">Danh mục Ứng dụng</span>
+          </button>
+
+          {/* 5. Quản lý Hoa Lan */}
           <button
             onClick={() => { setActiveTab('orchids'); setSearchQuery(''); }}
             className={`flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
@@ -1873,21 +1902,7 @@ export default function App() {
             </span>
           </button>
 
-          <button
-            onClick={() => { setActiveTab('articles'); setSearchQuery(''); }}
-            className={`flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
-              activeTab === 'articles'
-                ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
-                : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
-            }`}
-          >
-            <BookOpen className="w-5 h-5 shrink-0" />
-            <span className="text-xs uppercase tracking-wider font-semibold font-sans">QUẢN LÝ TÀI LIỆU VỀ LAN</span>
-            <span className="ml-auto text-[10px] font-mono bg-[#56642b]/10 text-[#5a682f] px-2 py-0.5 rounded font-bold">
-              {documentsData?.totalCount || 0}
-            </span>
-          </button>
-
+          {/* 6. Cách trồng và chăm sóc */}
           <button
             onClick={() => { setActiveTab('care'); setSearchQuery(''); }}
             className={`flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
@@ -1897,36 +1912,42 @@ export default function App() {
             }`}
           >
             <FileText className="w-5 h-5 shrink-0" />
-            <span className="text-xs uppercase tracking-wider font-semibold font-sans">TRỒNG & CHĂM SÓC</span>
+            <span className="text-xs uppercase tracking-wider font-semibold font-sans">Cách trồng và chăm sóc</span>
             <span className="ml-auto text-[10px] font-mono bg-surface-container-high px-2 py-0.5 rounded text-outline font-bold">
               {careArticles.length}
             </span>
           </button>
 
+          {/* 7. Ứng dụng */}
           <button
-            onClick={() => { setActiveTab('cultivation_cats'); setSearchQuery(''); }}
+            onClick={() => { setActiveTab('applications'); setSearchQuery(''); }}
             className={`flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
-              activeTab === 'cultivation_cats'
-                ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
-                : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
-            }`}
-          >
-            <Layers className="w-5 h-5 shrink-0" />
-            <span className="text-xs uppercase tracking-wider font-semibold font-sans">DM Trồng & Chăm Sóc</span>
-          </button>
-
-          <button
-            onClick={() => { setActiveTab('application_cats'); setSearchQuery(''); }}
-            className={`flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
-              activeTab === 'application_cats'
+              activeTab === 'applications'
                 ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
             }`}
           >
             <Sparkles className="w-5 h-5 shrink-0" />
-            <span className="text-xs uppercase tracking-wider font-semibold font-sans">DM Ứng Dụng</span>
+            <span className="text-xs uppercase tracking-wider font-semibold font-sans">Ứng dụng</span>
           </button>
 
+          {/* 8. Quản lý Tài liệu về Lan */}
+          <button
+            onClick={() => { setActiveTab('articles'); setSearchQuery(''); }}
+            className={`flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
+              activeTab === 'articles'
+                ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
+                : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
+            }`}
+          >
+            <BookOpen className="w-5 h-5 shrink-0" />
+            <span className="text-xs uppercase tracking-wider font-semibold font-sans">Quản lý Tài liệu về Lan</span>
+            <span className="ml-auto text-[10px] font-mono bg-[#56642b]/10 text-[#5a682f] px-2 py-0.5 rounded font-bold">
+              {documentsData?.totalCount || 0}
+            </span>
+          </button>
+
+          {/* 9. Người dùng */}
           <button
             onClick={() => { setActiveTab('users'); setSearchQuery(''); }}
             className={`flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
@@ -2906,6 +2927,25 @@ export default function App() {
                 <Sparkles className="w-12 h-12 mx-auto mb-3 text-botanical-green/30" />
                 <p className="font-semibold text-on-surface mb-1">Quản lý danh mục Ứng Dụng</p>
                 <p>Dữ liệu lấy từ <code className="text-xs bg-surface-container px-1 rounded">/api/application-categories</code>. Tính năng CRUD sẽ được tích hợp sớm.</p>
+              </div>
+            </div>
+          )}
+
+          {/* ======================= TAB: APPLICATIONS / ỨNG DỤNG ======================= */}
+          {activeTab === 'applications' && (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
+                <div>
+                  <h2 className="font-serif text-3xl font-semibold text-on-surface">Ứng Dụng</h2>
+                  <p className="text-sm text-on-surface-variant mt-1">
+                    Quản lý nội dung ứng dụng từ API <code className="text-xs bg-surface-container px-1 rounded">/api/application-categories/articles</code>
+                  </p>
+                </div>
+              </div>
+              <div className="bg-white rounded-xl border border-outline-variant/30 p-8 text-center text-sm text-outline">
+                <Sparkles className="w-12 h-12 mx-auto mb-3 text-botanical-green/30" />
+                <p className="font-semibold text-on-surface mb-1">Quản lý Ứng Dụng</p>
+                <p>Tính năng CRUD bài viết ứng dụng sẽ được tích hợp sớm.</p>
               </div>
             </div>
           )}
