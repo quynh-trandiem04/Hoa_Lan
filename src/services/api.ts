@@ -845,6 +845,9 @@ const normalizeOrchid = (orchid: RawOrchid): Orchid => ({
   uploadedImageIds: orchid.uploadedImageIds ?? [],
   imageUrls: getRawOrchidImageUrls(orchid),
   displayOrder: orchid.displayOrder ?? 0,
+  regions: orchid.regions ?? [],
+  bloomSeasons: orchid.bloomSeasons ?? [],
+  colors: orchid.colors ?? [],
 });
 
 const throwOrchidApiError = (body: unknown, fallback: string): never => {
