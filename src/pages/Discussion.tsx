@@ -251,7 +251,7 @@ export default function Discussion() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [commentingId, setCommentingId] = useState<string | null>(null);
-  const [viewerState, setViewerState] = useState<{ post: DiscussionPostDto; startIndex: number } | null>(null);
+  const [viewerState, setViewerState] = useState<{ postId: string; startIndex: number } | null>(null);
   const { toasts, addToast, removeToast } = useToasts();
 
   const loadPosts = useCallback(async (term = '') => {
@@ -497,7 +497,7 @@ export default function Discussion() {
                 {postBody.imageUrls && postBody.imageUrls.length > 0 && (
                   <PostImageGrid 
                     images={postBody.imageUrls} 
-                    onImageClick={(index) => setViewerState({ post, startIndex: index })} 
+                    onImageClick={(index) => setViewerState({ postId: post.id, startIndex: index })} 
                   />
                 )}
                 <div className="my-5 flex items-center gap-2 border-y border-[#eeeeea] py-3 text-xs text-[#666b69]">
@@ -611,18 +611,22 @@ export default function Discussion() {
         </div>
       )}
 
-      {viewerState && (
-        <PhotoViewerModal
-          post={viewerState.post}
-          initialIndex={viewerState.startIndex}
-          onClose={() => setViewerState(null)}
-          commentInputs={commentInputs}
-          setCommentInputs={setCommentInputs}
-          handleComment={handleComment}
-          commentingId={commentingId}
-          requireLogin={requireLogin}
-        />
-      )}
+      {(() => {
+        const activeViewerPost = viewerState ? posts.find(p => p.id === viewerState.postId) : null;
+        if (!activeViewerPost || !viewerState) return null;
+        return (
+          <PhotoViewerModal
+            post={activeViewerPost}
+            initialIndex={viewerState.startIndex}
+            onClose={() => setViewerState(null)}
+            commentInputs={commentInputs}
+            setCommentInputs={setCommentInputs}
+            handleComment={handleComment}
+            commentingId={commentingId}
+            requireLogin={requireLogin}
+          />
+        );
+      })()}
 
       <Toasts toasts={toasts} removeToast={removeToast} />
     </div>
