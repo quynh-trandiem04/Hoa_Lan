@@ -337,7 +337,7 @@ export default function App() {
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState(() => localStorage.getItem("orchidee_remembered_email") || "");
-  const [password, setPassword] = useState("");
+  const [password, setPassword] = useState(() => localStorage.getItem("orchidee_remembered_password") || "");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [rememberMe, setRememberMe] = useState(() => Boolean(localStorage.getItem("orchidee_remembered_email")));
@@ -449,8 +449,10 @@ export default function App() {
 
       if (rememberMe) {
         localStorage.setItem("orchidee_remembered_email", normalizedEmail);
+        localStorage.setItem("orchidee_remembered_password", password);
       } else {
         localStorage.removeItem("orchidee_remembered_email");
+        localStorage.removeItem("orchidee_remembered_password");
       }
 
       storage.setItem("orchidee_auth_token", token);
