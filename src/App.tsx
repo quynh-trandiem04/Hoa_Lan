@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Editor } from '@tinymce/tinymce-react';
 import CustomerHome from './pages/CustomerHome';
 import Discussion from './pages/Discussion';
 import PlantingAndCare from './pages/PlantingAndCare';
@@ -3059,13 +3060,24 @@ export default function App() {
 
                     <div className="space-y-1">
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Nội dung chi tiết *</label>
-                      <textarea
+                      <Editor
+                        apiKey="no-api-key"
                         value={careArticleForm.content}
-                        onChange={(e) => setCareArticleForm({ ...careArticleForm, content: e.target.value })}
-                        rows={10}
-                        placeholder="Nhập nội dung kỹ thuật chi tiết..."
-                        className="w-full bg-[#f4f4f2] border border-outline-variant rounded p-3 text-sm focus:outline-none focus:border-botanical-green resize-none leading-relaxed"
-                        required
+                        onEditorChange={(content) => setCareArticleForm({ ...careArticleForm, content })}
+                        init={{
+                          height: 300,
+                          menubar: false,
+                          plugins: [
+                            'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+                            'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+                            'insertdatetime', 'media', 'table', 'code', 'help', 'wordcount'
+                          ],
+                          toolbar: 'undo redo | blocks | ' +
+                            'bold italic forecolor | alignleft aligncenter ' +
+                            'alignright alignjustify | bullist numlist outdent indent | ' +
+                            'image | removeformat | help',
+                          content_style: 'body { font-family:Inter,Helvetica,Arial,sans-serif; font-size:14px }',
+                        }}
                       />
                     </div>
 
