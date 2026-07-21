@@ -2931,10 +2931,7 @@ export default function App() {
                               });
                           };
 
-                          const rootCat = categories.find(c => (c.name.toLowerCase() === 'trồng và chăm sóc' || c.name.toLowerCase() === 'cách trồng và chăm sóc') && !c.parentId);
-                          if (!rootCat) return null;
-                          
-                          appendChildren(rootCat.id, 0);
+                          appendChildren(null, 0);
                           
                           return result.map(c => (
                             <option key={c.id} value={c.id}>
