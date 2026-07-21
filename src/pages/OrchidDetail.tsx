@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Heart, UserCheck, Search, User, ChevronRight } from 'lucide-react';
-import { Category, Orchid } from '../types';
+import { Category, Orchid, Region, BloomSeason, FlowerColor } from '../types';
 import SearchModal from '../components/SearchModal';
 import { getOrchidImageUrls } from '../utils/orchidImages';
 import { getOrchidById } from '../services/api';
@@ -219,6 +219,38 @@ export default function OrchidDetail({ id, categories, onNavigate }: OrchidDetai
                       <td className="py-2.5 text-[#747878] font-medium">Phổ biến</td>
                       <td className="py-2.5 text-[#1a1c1b] text-right font-medium">{orchid.isPopular ? 'Có' : 'Không'}</td>
                     </tr>
+                    {orchid.regions && orchid.regions.length > 0 && (
+                      <tr className="border-b border-[#747878]/10">
+                        <td className="py-2.5 text-[#747878] font-medium">Khu vực phân bố</td>
+                        <td className="py-2.5 text-[#1a1c1b] text-right font-medium">
+                          {orchid.regions.map(r => Region[r as keyof typeof Region]).filter(Boolean).join(', ')}
+                        </td>
+                      </tr>
+                    )}
+                    {orchid.bloomSeasons && orchid.bloomSeasons.length > 0 && (
+                      <tr className="border-b border-[#747878]/10">
+                        <td className="py-2.5 text-[#747878] font-medium">Mùa hoa nở</td>
+                        <td className="py-2.5 text-[#1a1c1b] text-right font-medium">
+                          {orchid.bloomSeasons.map(s => BloomSeason[s as keyof typeof BloomSeason]).filter(Boolean).join(', ')}
+                        </td>
+                      </tr>
+                    )}
+                    {orchid.colors && orchid.colors.length > 0 && (
+                      <tr className="border-b border-[#747878]/10">
+                        <td className="py-2.5 text-[#747878] font-medium">Màu sắc hoa</td>
+                        <td className="py-2.5 text-[#1a1c1b] text-right font-medium">
+                          <div className="flex justify-end gap-1.5 flex-wrap mt-0.5">
+                            {orchid.colors.map(c => {
+                              const hex = FlowerColor[c as keyof typeof FlowerColor];
+                              if (!hex) return null;
+                              return (
+                                <div key={c} title={c} className="w-4 h-4 rounded-full border border-black/10 shadow-sm" style={{ backgroundColor: hex }}></div>
+                              );
+                            })}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
