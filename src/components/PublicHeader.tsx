@@ -96,12 +96,20 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
           appendChildren(category.id, depth + 1);
         });
     };
-    appendChildren(null, 0);
-    loadedCategories.forEach((category) => {
-      if (!visited.has(category.id)) result.push({ category, depth: 0 });
-    });
+    
+    const root = loadedCategories.find(c => c.name.toLowerCase() === 'danh mục lan' && !c.parentId);
+    if (root) {
+      appendChildren(root.id, 0);
+    } else {
+      appendChildren(null, 0);
+      loadedCategories.forEach((category) => {
+        if (!visited.has(category.id)) result.push({ category, depth: 0 });
+      });
+    }
     return result;
   }, [loadedCategories]);
+
+  const ungDungCat = useMemo(() => loadedCategories.find(c => c.name.toLowerCase() === 'ứng dụng' && !c.parentId), [loadedCategories]);
 
   const handleSearch = (event: React.FormEvent) => {
     event.preventDefault();
@@ -154,6 +162,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
           </div>
 
           <a href="/planting-and-care" className={`font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${path === '/planting-and-care' ? activeClass : normalClass}`}>Cách trồng và chăm sóc</a>
+          <a href={ungDungCat ? `/list-orchids?cat=${encodeURIComponent(ungDungCat.id)}` : "/list-orchids"} className={`font-sans text-xs font-semibold uppercase tracking-wider transition-colors normalClass`}>Ứng dụng</a>
           <a href="/document" className={`font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${path === '/document' ? activeClass : normalClass}`}>Tài liệu</a>
           <a href="/discussion" className={`font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${path === '/discussion' ? activeClass : normalClass}`}>Thảo luận</a>
         </nav>
