@@ -2917,11 +2917,29 @@ export default function App() {
                       >
                         <option value="">-- Chọn danh mục --</option>
                         {(() => {
+                          const result: Array<{ id: string; name: string; depth: number }> = [];
+                          const visited = new Set<string>();
+                          
+                          const appendChildren = (parentId: string | null, depth: number) => {
+                            categories
+                              .filter((category) => (category.parentId ?? null) === parentId)
+                              .forEach((category) => {
+                                if (visited.has(category.id)) return;
+                                visited.add(category.id);
+                                result.push({ id: category.id, name: category.name, depth });
+                                appendChildren(category.id, depth + 1);
+                              });
+                          };
+
                           const rootCat = categories.find(c => (c.name.toLowerCase() === 'trồng và chăm sóc' || c.name.toLowerCase() === 'cách trồng và chăm sóc') && !c.parentId);
                           if (!rootCat) return null;
-                          const options = categories.filter(c => c.parentId === rootCat.id);
-                          return options.map(c => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
+                          
+                          appendChildren(rootCat.id, 0);
+                          
+                          return result.map(c => (
+                            <option key={c.id} value={c.id}>
+                              {'\u00A0\u00A0'.repeat(c.depth)}{c.depth > 0 ? '— ' : ''}{c.name}
+                            </option>
                           ));
                         })()}
                       </select>
