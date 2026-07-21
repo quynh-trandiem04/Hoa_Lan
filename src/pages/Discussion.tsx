@@ -330,8 +330,8 @@ export default function Discussion() {
     if (files.length === 0) return;
     if (!requireLogin()) return;
     
-    if (attachedImages.length + files.length > 20) {
-      addToast('Chỉ được chọn tối đa 20 ảnh cho mỗi bài thảo luận.', 'error');
+    if (attachedImages.length + files.length > 5) {
+      addToast('Chỉ được chọn tối đa 5 ảnh cho mỗi bài thảo luận.', 'error');
       return;
     }
     
@@ -464,7 +464,7 @@ export default function Discussion() {
                     />
                   </label>
                 </div>
-                <p className="mt-1.5 text-[11px] text-[#747878]">Hỗ trợ JPG, PNG, WEBP hoặc GIF, tối đa 10 MB.</p>
+                <p className="mt-1.5 text-[11px] text-[#747878]">Hỗ trợ JPG, PNG, WEBP hoặc GIF, tối đa 10 MB/ảnh và tối đa 5 ảnh/bài.</p>
                 <div className="mt-4 flex justify-end">
                   <button disabled={submitting || uploadingImage} className="flex items-center gap-2 rounded-lg bg-[#56642b] px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white disabled:opacity-60">
                     {submitting && <LoaderCircle size={15} className="animate-spin" />}
