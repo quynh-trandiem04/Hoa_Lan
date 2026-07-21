@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ImagePlus, LoaderCircle, LockKeyhole, MessageSquare, RefreshCw, Search, Send, Trash2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ImagePlus, LoaderCircle, LockKeyhole, MessageSquare, RefreshCw, Search, Send, Trash2, X } from 'lucide-react';
 import {
   createDiscussion,
   createDiscussionComment,
@@ -11,6 +11,7 @@ import {
 } from '../services/api';
 import PublicFooter from '../components/PublicFooter';
 import PublicHeader from '../components/PublicHeader';
+import { Toasts, useToasts } from '../components/Toasts';
 
 const LOGIN_URL = `/login?returnUrl=${encodeURIComponent('/discussion')}`;
 
@@ -38,92 +39,203 @@ const formatDate = (value: string) => {
   }).format(date);
 };
 
-const DISCUSSION_IMAGE_PATTERN = /\n*!\[Ảnh đính kèm\]\((https?:\/\/[^\s)]+)\)\s*$/i;
-
 const getDiscussionBody = (value: string) => {
-  const match = value.match(DISCUSSION_IMAGE_PATTERN);
+  const imageUrls = Array.from(value.matchAll(/!\[Ảnh đính kèm\]\((https?:\/\/[^\s)]+)\)/gi)).map(m => m[1]);
   return {
-    text: value.replace(DISCUSSION_IMAGE_PATTERN, '').trim(),
-    imageUrl: match?.[1] ?? '',
+    text: value.replace(/!\[Ảnh đính kèm\]\((https?:\/\/[^\s)]+)\)/gi, '').trim(),
+    imageUrls: imageUrls,
   };
 };
 
-function ZoomableDiscussionImage({ src, alt }: { src: string; alt: string }) {
-  const imageRef = useRef<HTMLImageElement>(null);
-  const [lens, setLens] = useState({
-    visible: false,
-    left: 0,
-    top: 0,
-    xPercent: 50,
-    yPercent: 50,
-    imageWidth: 0,
-    imageHeight: 0,
-  });
+function PostImageGrid({ images, onImageClick }: { images: string[], onImageClick: (index: number) => void }) {
+  const count = images.length;
+  if (count === 0) return null;
 
-  const handleMouseMove = (event: React.MouseEvent<HTMLAnchorElement>) => {
-    const image = imageRef.current;
-    if (!image) return;
+  const renderImage = (index: number, extraClass = '') => (
+    <div key={index} className={`relative cursor-pointer overflow-hidden group ${extraClass}`} onClick={() => onImageClick(index)}>
+      <img src={images[index]} alt={`Ảnh ${index + 1}`} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+      {index === 4 && count > 5 && (
+        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+          <span className="text-white text-3xl font-bold">+{count - 4}</span>
+        </div>
+      )}
+    </div>
+  );
 
-    const containerBounds = event.currentTarget.getBoundingClientRect();
-    const imageBounds = image.getBoundingClientRect();
-    const isInsideImage = event.clientX >= imageBounds.left
-      && event.clientX <= imageBounds.right
-      && event.clientY >= imageBounds.top
-      && event.clientY <= imageBounds.bottom;
+  if (count === 1) {
+    return <div className="mt-4 rounded-xl overflow-hidden border border-[#e0e1dc]">{renderImage(0, 'max-h-[500px] aspect-auto')}</div>;
+  }
+  
+  if (count === 2) {
+    return (
+      <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl overflow-hidden border border-[#e0e1dc] h-64 sm:h-80">
+        {renderImage(0)}
+        {renderImage(1)}
+      </div>
+    );
+  }
 
-    if (!isInsideImage) {
-      setLens((current) => ({ ...current, visible: false }));
-      return;
-    }
+  if (count === 3) {
+    return (
+      <div className="mt-4 grid grid-cols-2 grid-rows-2 gap-1 rounded-xl overflow-hidden border border-[#e0e1dc] h-64 sm:h-96">
+        {renderImage(0, 'row-span-2')}
+        {renderImage(1)}
+        {renderImage(2)}
+      </div>
+    );
+  }
 
-    setLens({
-      visible: true,
-      left: event.clientX - containerBounds.left,
-      top: event.clientY - containerBounds.top,
-      xPercent: ((event.clientX - imageBounds.left) / imageBounds.width) * 100,
-      yPercent: ((event.clientY - imageBounds.top) / imageBounds.height) * 100,
-      imageWidth: imageBounds.width,
-      imageHeight: imageBounds.height,
-    });
-  };
+  if (count === 4) {
+    return (
+      <div className="mt-4 grid grid-cols-2 grid-rows-2 gap-1 rounded-xl overflow-hidden border border-[#e0e1dc] h-64 sm:h-96">
+        {renderImage(0)}
+        {renderImage(1)}
+        {renderImage(2)}
+        {renderImage(3)}
+      </div>
+    );
+  }
 
   return (
-    <a
-      href={src}
-      target="_blank"
-      rel="noreferrer"
-      className="relative mt-4 flex cursor-crosshair justify-center overflow-hidden rounded-xl border border-[#e0e1dc] bg-[#f4f4f0]"
-      onMouseMove={handleMouseMove}
-      onMouseLeave={() => setLens((current) => ({ ...current, visible: false }))}
-      title="Di chuột để phóng to, nhấn để mở ảnh gốc"
-    >
-      <img
-        ref={imageRef}
-        src={src}
-        alt={alt}
-        className="block h-auto w-auto max-w-full object-contain"
-        loading="lazy"
-        referrerPolicy="no-referrer"
-      />
-      {lens.visible && (
-        <span
-          aria-hidden="true"
-          data-zoom-lens="true"
-          className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white bg-white shadow-2xl"
-          style={{
-            display: 'block',
-            width: 176,
-            height: 176,
-            left: lens.left,
-            top: lens.top,
-            backgroundImage: `url(${src})`,
-            backgroundRepeat: 'no-repeat',
-            backgroundSize: `${lens.imageWidth * 2.5}px ${lens.imageHeight * 2.5}px`,
-            backgroundPosition: `${lens.xPercent}% ${lens.yPercent}%`,
-          }}
-        />
-      )}
-    </a>
+    <div className="mt-4 grid grid-cols-6 grid-rows-2 gap-1 rounded-xl overflow-hidden border border-[#e0e1dc] h-72 sm:h-96">
+      {renderImage(0, 'col-span-3 row-span-1')}
+      {renderImage(1, 'col-span-3 row-span-1')}
+      {renderImage(2, 'col-span-2 row-span-1')}
+      {renderImage(3, 'col-span-2 row-span-1')}
+      {renderImage(4, 'col-span-2 row-span-1')}
+    </div>
+  );
+}
+
+function PhotoViewerModal({
+  post,
+  initialIndex,
+  onClose,
+  commentInputs,
+  setCommentInputs,
+  handleComment,
+  commentingId,
+  requireLogin
+}: {
+  post: DiscussionPostDto;
+  initialIndex: number;
+  onClose: () => void;
+  commentInputs: Record<string, string>;
+  setCommentInputs: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  handleComment: (postId: string) => Promise<void>;
+  commentingId: string | null;
+  requireLogin: () => boolean;
+}) {
+  const postBody = getDiscussionBody(post.content);
+  const images = postBody.imageUrls;
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+
+  const prevImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentIndex(i => (i > 0 ? i - 1 : images.length - 1));
+  };
+  const nextImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentIndex(i => (i < images.length - 1 ? i + 1 : 0));
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowLeft') setCurrentIndex(i => (i > 0 ? i - 1 : images.length - 1));
+      if (e.key === 'ArrowRight') setCurrentIndex(i => (i < images.length - 1 ? i + 1 : 0));
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose, images.length]);
+
+  return (
+    <div className="fixed inset-0 z-[200] flex flex-col md:flex-row bg-black/95 md:bg-black backdrop-blur-sm">
+      <button onClick={onClose} className="absolute top-4 left-4 z-[210] p-2 bg-black/50 text-white rounded-full hover:bg-black/70 transition" aria-label="Đóng">
+        <X size={24} />
+      </button>
+
+      <div className="flex-1 relative flex items-center justify-center min-h-[50vh] md:min-h-screen">
+        <img src={images[currentIndex]} alt="View" className="max-w-full max-h-full object-contain" />
+        
+        {images.length > 1 && (
+          <>
+            <button onClick={prevImage} className="absolute left-4 top-1/2 -translate-y-1/2 p-2 md:p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition" aria-label="Ảnh trước">
+              <ChevronLeft size={28} />
+            </button>
+            <button onClick={nextImage} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 md:p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition" aria-label="Ảnh tiếp theo">
+              <ChevronRight size={28} />
+            </button>
+          </>
+        )}
+      </div>
+
+      <div className="w-full md:w-[360px] lg:w-[400px] bg-white h-[50vh] md:h-screen flex flex-col shrink-0 rounded-t-2xl md:rounded-none overflow-hidden shadow-2xl">
+        <div className="flex-1 overflow-y-auto p-5">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#e8edda] text-xs font-bold text-[#56642b]">
+              {initials(post.authorName)}
+            </div>
+            <div>
+              <p className="text-sm font-bold">{post.authorName || 'Thành viên'}</p>
+              <time className="text-xs text-[#747878]">{formatDate(post.createdAt)}</time>
+            </div>
+          </div>
+          
+          <h2 className="font-serif text-lg font-bold">{post.title}</h2>
+          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#434748]">{postBody.text}</p>
+          
+          <div className="my-5 flex items-center gap-2 border-y border-[#eeeeea] py-3 text-xs text-[#666b69]">
+            <MessageSquare size={16} />
+            <span>{post.commentCount ?? post.comments?.length ?? 0} bình luận</span>
+          </div>
+
+          <div className="space-y-4 pb-4">
+            {(post.comments ?? []).map((comment) => (
+              <div key={comment.id} className="flex gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f0f1ec] text-[10px] font-bold text-[#56642b]">
+                  {initials(comment.authorName)}
+                </div>
+                <div className="min-w-0 flex-1 rounded-2xl bg-[#f0f2f5] px-3.5 py-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <strong className="text-xs">{comment.authorName || 'Thành viên'}</strong>
+                    <time className="text-[10px] text-[#747878]">{formatDate(comment.createdAt)}</time>
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap text-sm text-[#434748]">{comment.content}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="p-4 border-t border-[#eeeeea] bg-white">
+          <div className="flex items-center gap-2 rounded-full border border-[#dfe1dc] bg-[#f0f2f5] px-4 py-2">
+            <input
+              value={commentInputs[post.id] ?? ''}
+              onChange={(event) => setCommentInputs((current) => ({ ...current, [post.id]: event.target.value }))}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  void handleComment(post.id);
+                }
+              }}
+              onFocus={() => requireLogin()}
+              className="min-w-0 flex-1 bg-transparent py-1 text-sm outline-none"
+              placeholder="Viết bình luận..."
+            />
+            <button
+              type="button"
+              disabled={commentingId === post.id || !commentInputs[post.id]?.trim()}
+              onClick={() => void handleComment(post.id)}
+              className="text-[#56642b] disabled:opacity-40 transition-opacity"
+              aria-label="Gửi bình luận"
+            >
+              {commentingId === post.id ? <LoaderCircle size={18} className="animate-spin" /> : <Send size={18} />}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -131,7 +243,7 @@ export default function Discussion() {
   const [posts, setPosts] = useState<DiscussionPostDto[]>([]);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [attachedImage, setAttachedImage] = useState<UploadedImage | null>(null);
+  const [attachedImages, setAttachedImages] = useState<UploadedImage[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [searchTerm, setSearchTerm] = useState(() => new URLSearchParams(window.location.search).get('q') ?? '');
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
@@ -139,8 +251,8 @@ export default function Discussion() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [commentingId, setCommentingId] = useState<string | null>(null);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [viewerState, setViewerState] = useState<{ post: DiscussionPostDto; startIndex: number } | null>(null);
+  const { toasts, addToast, removeToast } = useToasts();
 
   const loadPosts = useCallback(async (term = '') => {
     setLoading(true);
@@ -169,7 +281,7 @@ export default function Discussion() {
       }));
       setPosts(hydratedItems);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Không thể tải danh sách thảo luận.');
+      addToast(loadError instanceof Error ? loadError.message : 'Không thể tải danh sách thảo luận.', 'error');
     } finally {
       setLoading(false);
     }
@@ -190,54 +302,53 @@ export default function Discussion() {
     event.preventDefault();
     if (!requireLogin()) return;
     if (!title.trim() || !content.trim()) {
-      setError('Vui lòng nhập đầy đủ tiêu đề và nội dung.');
+      addToast('Vui lòng nhập đầy đủ tiêu đề và nội dung.', 'error');
       return;
     }
     setSubmitting(true);
-    setError('');
-    setNotice('');
     try {
-      const discussionContent = attachedImage?.url
-        ? `${content.trim()}\n\n![Ảnh đính kèm](${attachedImage.url})`
-        : content.trim();
+      const imagesMarkdown = attachedImages.length > 0
+        ? `\n\n` + attachedImages.map((img) => `![Ảnh đính kèm](${img.url})`).join('\n')
+        : '';
+      const discussionContent = `${content.trim()}${imagesMarkdown}`;
       const id = await createDiscussion({ title: title.trim(), content: discussionContent });
       const created = await getDiscussionById(id);
       setPosts((current) => [created, ...current.filter((post) => post.id !== id)]);
       setTitle('');
       setContent('');
-      setAttachedImage(null);
-      setNotice('Đăng bài thảo luận thành công.');
+      setAttachedImages([]);
+      addToast('Đăng bài thảo luận thành công.', 'success');
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Không thể đăng bài thảo luận.');
+      addToast(submitError instanceof Error ? submitError.message : 'Không thể đăng bài thảo luận.', 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files ?? []);
     event.target.value = '';
-    if (!file) return;
+    if (files.length === 0) return;
     if (!requireLogin()) return;
-    if (!file.type.startsWith('image/')) {
-      setError('Vui lòng chọn đúng tệp ảnh.');
+    
+    if (attachedImages.length + files.length > 20) {
+      addToast('Chỉ được chọn tối đa 20 ảnh cho mỗi bài thảo luận.', 'error');
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setError('Ảnh không được lớn hơn 10 MB.');
+    
+    const invalidFile = files.find(f => !f.type.startsWith('image/') || f.size > 10 * 1024 * 1024);
+    if (invalidFile) {
+      addToast('Vui lòng chọn đúng định dạng ảnh và mỗi ảnh không vượt quá 10 MB.', 'error');
       return;
     }
 
     setUploadingImage(true);
-    setError('');
-    setNotice('');
     try {
-      const uploaded = await uploadImage(file);
-      if (!uploaded.url) throw new Error('API đã tải ảnh nhưng không trả về URL ảnh.');
-      setAttachedImage(uploaded);
-      setNotice('Tải ảnh lên thành công.');
+      const uploads = await Promise.all(files.map((file) => uploadImage(file)));
+      setAttachedImages((current) => [...current, ...uploads]);
+      addToast(`Tải thành công ${uploads.length} ảnh lên.`, 'success');
     } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : 'Không thể tải ảnh lên.');
+      addToast(uploadError instanceof Error ? uploadError.message : 'Không thể tải ảnh lên.', 'error');
     } finally {
       setUploadingImage(false);
     }
@@ -248,16 +359,14 @@ export default function Discussion() {
     const comment = commentInputs[postId]?.trim();
     if (!comment || commentingId) return;
     setCommentingId(postId);
-    setError('');
-    setNotice('');
     try {
       await createDiscussionComment(postId, comment);
       const refreshed = await getDiscussionById(postId);
       setPosts((current) => current.map((post) => post.id === postId ? refreshed : post));
       setCommentInputs((current) => ({ ...current, [postId]: '' }));
-      setNotice('Đã gửi bình luận.');
+      addToast('Đã gửi bình luận.', 'success');
     } catch (commentError) {
-      setError(commentError instanceof Error ? commentError.message : 'Không thể gửi bình luận.');
+      addToast(commentError instanceof Error ? commentError.message : 'Không thể gửi bình luận.', 'error');
     } finally {
       setCommentingId(null);
     }
@@ -296,12 +405,6 @@ export default function Discussion() {
           </form>
         </div>
 
-        {(error || notice) && (
-          <div className={`mb-5 rounded-lg border px-4 py-3 text-sm ${error ? 'border-red-200 bg-red-50 text-red-700' : 'border-green-200 bg-green-50 text-green-700'}`}>
-            {error || notice}
-          </div>
-        )}
-
         <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
           <section className="space-y-5">
             <form onSubmit={handleCreatePost} className="rounded-xl border border-[#e0e1dc] bg-white p-5 shadow-sm">
@@ -323,41 +426,44 @@ export default function Discussion() {
                   placeholder="Mô tả vấn đề hoặc chia sẻ kinh nghiệm của bạn..."
                 />
                 <div className="mt-4 rounded-lg border border-dashed border-[#cfd2cb] bg-[#fafaf7] p-3">
-                  {attachedImage ? (
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={attachedImage.url}
-                        alt="Ảnh đính kèm bài thảo luận"
-                        className="h-20 w-24 shrink-0 rounded-md border border-[#dfe1dc] object-cover"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-[#1a1c1b]">{attachedImage.fileName || 'Ảnh đính kèm'}</p>
-                        <p className="mt-1 text-xs text-[#747878]">Ảnh đã tải lên và sẽ xuất hiện trong bài viết.</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setAttachedImage(null)}
-                        disabled={submitting || uploadingImage}
-                        className="rounded-full p-2 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
-                        aria-label="Gỡ ảnh đính kèm"
-                        title="Gỡ ảnh"
-                      >
-                        <Trash2 size={17} />
-                      </button>
+                  {attachedImages.length > 0 && (
+                    <div className="mb-3 space-y-2">
+                      {attachedImages.map((img, index) => (
+                        <div key={img.url || index} className="flex items-center gap-3 rounded-md border border-[#dfe1dc] bg-white p-2">
+                          <img
+                            src={img.url}
+                            alt="Ảnh đính kèm"
+                            className="h-12 w-12 shrink-0 rounded-md object-cover"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-[#1a1c1b]">{img.fileName || `Ảnh ${index + 1}`}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setAttachedImages((curr) => curr.filter((_, i) => i !== index))}
+                            disabled={submitting || uploadingImage}
+                            className="rounded p-1.5 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+                            aria-label="Gỡ ảnh"
+                            title="Gỡ ảnh"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                  ) : (
-                    <label className={`flex items-center justify-center gap-2 rounded-md px-4 py-3 text-sm font-semibold text-[#56642b] transition-colors ${uploadingImage ? 'cursor-wait opacity-60' : 'cursor-pointer hover:bg-[#edf1e2]'}`}>
-                      {uploadingImage ? <LoaderCircle size={18} className="animate-spin" /> : <ImagePlus size={18} />}
-                      {uploadingImage ? 'Đang tải ảnh lên...' : 'Thêm ảnh từ máy tính'}
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp,image/gif"
-                        disabled={uploadingImage || submitting}
-                        onChange={(event) => void handleImageUpload(event)}
-                        className="hidden"
-                      />
-                    </label>
                   )}
+                  <label className={`flex items-center justify-center gap-2 rounded-md px-4 py-3 text-sm font-semibold text-[#56642b] transition-colors ${uploadingImage ? 'cursor-wait opacity-60' : 'cursor-pointer hover:bg-[#edf1e2]'}`}>
+                    {uploadingImage ? <LoaderCircle size={18} className="animate-spin" /> : <ImagePlus size={18} />}
+                    {uploadingImage ? 'Đang tải ảnh lên...' : attachedImages.length > 0 ? 'Thêm ảnh khác' : 'Thêm ảnh từ máy tính'}
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      disabled={uploadingImage || submitting}
+                      onChange={(event) => void handleImageUpload(event)}
+                      className="hidden"
+                    />
+                  </label>
                 </div>
                 <p className="mt-1.5 text-[11px] text-[#747878]">Hỗ trợ JPG, PNG, WEBP hoặc GIF, tối đa 10 MB.</p>
                 <div className="mt-4 flex justify-end">
@@ -389,10 +495,10 @@ export default function Discussion() {
                 </div>
                 <h2 className="font-serif text-xl font-bold">{post.title}</h2>
                 <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#434748]">{postBody.text}</p>
-                {postBody.imageUrl && (
-                  <ZoomableDiscussionImage
-                    src={postBody.imageUrl}
-                    alt={`Ảnh trong bài ${post.title}`}
+                {postBody.imageUrls && postBody.imageUrls.length > 0 && (
+                  <PostImageGrid 
+                    images={postBody.imageUrls} 
+                    onImageClick={(index) => setViewerState({ post, startIndex: index })} 
                   />
                 )}
                 <div className="my-5 flex items-center gap-2 border-y border-[#eeeeea] py-3 text-xs text-[#666b69]">
@@ -505,6 +611,21 @@ export default function Discussion() {
           </div>
         </div>
       )}
+
+      {viewerState && (
+        <PhotoViewerModal
+          post={viewerState.post}
+          initialIndex={viewerState.startIndex}
+          onClose={() => setViewerState(null)}
+          commentInputs={commentInputs}
+          setCommentInputs={setCommentInputs}
+          handleComment={handleComment}
+          commentingId={commentingId}
+          requireLogin={requireLogin}
+        />
+      )}
+
+      <Toasts toasts={toasts} removeToast={removeToast} />
     </div>
   );
 }

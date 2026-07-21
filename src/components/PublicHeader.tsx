@@ -183,7 +183,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
             >
               <User className="h-5 w-5" />
               {isAuthenticated && favoriteCount > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#56642b] px-1 text-[9px] font-bold leading-none text-white">
+                <span className="absolute right-0 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#56642b] px-1 text-[9px] font-bold leading-none text-white">
                   {favoriteCount > 99 ? '99+' : favoriteCount}
                 </span>
               )}
