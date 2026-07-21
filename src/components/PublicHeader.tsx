@@ -31,7 +31,7 @@ const CascadingMenuDropdown = ({ categories, rootNames, basePath }: { categories
           const hasChildren = children.length > 0;
           return (
             <li key={cat.id} className="group/item relative">
-              <a href={`${basePath}?cat=${encodeURIComponent(cat.id)}`} className="flex items-center justify-between w-full px-5 py-3 text-[14.5px] font-serif font-bold text-[#1a1c1b] transition-colors hover:bg-[#56642b]/5 hover:text-botanical-green">
+              <a href={`${basePath}?cat=${encodeURIComponent(cat.id)}`} className="flex items-center justify-between w-full px-5 py-3 text-[14.5px] font-serif text-[#1a1c1b] transition-colors hover:bg-[#56642b]/5 hover:text-botanical-green">
                 {cat.name}
                 {hasChildren && <ChevronRight className="h-3.5 w-3.5 text-outline" />}
               </a>
