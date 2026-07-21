@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tailwindcss/typography": "^0.5.20",
     "@tinymce/tinymce-react": "^6.3.0",
     "lucide-react": "^1.21.0",
     "motion": "^12.40.0",

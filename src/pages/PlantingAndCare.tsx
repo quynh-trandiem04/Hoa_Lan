@@ -100,9 +100,10 @@ export default function PlantingAndCare() {
                 {selectedArticle.summary}
               </p>
             )}
-            <div className="mt-9 whitespace-pre-line border-t border-[#747878]/10 pt-8 text-sm leading-8 text-[#343837]">
-              {selectedArticle.content}
-            </div>
+            <div 
+              className="mt-9 border-t border-[#747878]/10 pt-8 text-sm leading-8 text-[#343837] prose prose-sm max-w-none"
+              dangerouslySetInnerHTML={{ __html: selectedArticle.content }}
+            />
           </article>
         ) : (
           <>
@@ -145,7 +146,9 @@ export default function PlantingAndCare() {
                       <div className="p-5">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-[#56642b]">Đã xuất bản</span>
                         <h3 className="mt-2 line-clamp-2 font-serif text-xl font-bold leading-snug">{article.title}</h3>
-                        <p className="mt-3 line-clamp-3 text-sm leading-6 text-[#686d6a]">{article.summary || article.content}</p>
+                        <p className="mt-3 line-clamp-3 text-sm leading-6 text-[#686d6a]">
+                          {article.summary || article.content.replace(/<[^>]+>/g, '')}
+                        </p>
                         <span className="mt-5 inline-block text-xs font-bold uppercase tracking-wider text-[#56642b]">Đọc tiếp →</span>
                       </div>
                     </button>
