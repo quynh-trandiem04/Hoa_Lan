@@ -102,10 +102,10 @@ export default function DocumentPage() {
       <PublicHeader />
 
       <main className="mx-auto max-w-7xl px-5 pb-24 pt-8 md:px-16">
-        <div className="mb-8 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-[#747878]">
+        <div className="mb-8 flex items-center gap-2 text-xs font-medium tracking-wider text-[#747878]">
           <a href="/" className="hover:text-[#56642b]">Trang chủ</a>
           <span>›</span>
-          <span className="text-[#1a1c1b]">Tài nguyên</span>
+          <span className="font-semibold uppercase text-[#1a1c1b]">Tài nguyên</span>
         </div>
 
         <section className="mb-12 max-w-3xl">

@@ -425,10 +425,10 @@ export default function Discussion() {
       <PublicHeader />
 
       <main className="mx-auto max-w-7xl px-5 py-8 md:px-16">
-        <div className="mb-8 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-[#747878]">
+        <div className="mb-8 flex items-center gap-2 text-xs font-medium tracking-wider text-[#747878]">
           <a href="/" className="hover:text-[#56642b]">Trang chủ</a>
           <span>›</span>
-          <span className="text-[#1a1c1b]">Thảo luận</span>
+          <span className="font-semibold uppercase text-[#1a1c1b]">Thảo luận</span>
         </div>
 
         <div className="mb-12 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">

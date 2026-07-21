@@ -229,12 +229,12 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
       <div className="max-w-7xl mx-auto px-4 md:px-16 py-8 animate-fade-in">
         
         {/* Back and Breadcrumb */}
-        <div className="flex items-center space-x-2 text-xs font-sans tracking-wider text-[#747878] mb-8 uppercase font-medium">
+        <div className="mb-8 flex items-center space-x-2 font-sans text-xs font-medium tracking-wider text-[#747878]">
           <button onClick={() => onNavigate('home')} className="hover:text-botanical-green transition-colors flex items-center gap-1">
             <ArrowLeft size={14} /> Trang chủ
           </button>
           <span>&gt;</span>
-          <span className="text-[#1a1c1b]">Danh Mục Lan</span>
+          <span className="font-semibold uppercase text-[#1a1c1b]">Danh mục lan</span>
         </div>
 
         {/* Catalog title section */}

@@ -115,17 +115,17 @@ export default function OrchidDetail({ id, categories, onNavigate }: OrchidDetai
 
         {/* Breadcrumbs / Back button */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-          <div className="flex items-center space-x-2 text-xs font-sans tracking-wider text-[#747878] uppercase font-medium">
+          <div className="flex items-center space-x-2 font-sans text-xs font-medium tracking-wider text-[#747878]">
             <button 
               onClick={() => onNavigate('home')} 
-              className="hover:text-botanical-green transition-colors"
+              className="transition-colors hover:text-botanical-green"
             >
               Trang chủ
             </button>
             <span>/</span>
             <button 
               onClick={() => onNavigate('list_orchids')} 
-              className="hover:text-botanical-green transition-colors"
+              className="uppercase transition-colors hover:text-botanical-green"
             >
               Danh Mục Lan
             </button>

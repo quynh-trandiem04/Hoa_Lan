@@ -38,26 +38,44 @@ export default function PlantingAndCare({
   const [searchTerm, setSearchTerm] = useState(() => new URLSearchParams(window.location.search).get('q') || '');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
   const [currentPage, setCurrentPage] = useState(1);
+  const [expandedCategoryIds, setExpandedCategoryIds] = useState<Set<string>>(new Set());
   const linkedArticleId = new URLSearchParams(window.location.search).get('articleId') ?? '';
 
   const categoryOptions = useMemo(() => {
-    const result: Array<ArticleCategory & { depth: number }> = [];
+    const result: Array<ArticleCategory & { depth: number; hasChildren: boolean }> = [];
+    const childrenByParent = new Map<string | null, ArticleCategory[]>();
+    categories.forEach((category) => {
+      const parentId = category.parentId ?? null;
+      childrenByParent.set(parentId, [...(childrenByParent.get(parentId) ?? []), category]);
+    });
     const visited = new Set<string>();
-    const append = (parentId: string | null, depth: number) => {
-      categories
-        .filter((category) => (category.parentId ?? null) === parentId)
+    const append = (parentId: string | null, depth: number, forceVisible = false) => {
+      (childrenByParent.get(parentId) ?? [])
         .sort((a, b) => a.name.localeCompare(b.name, 'vi'))
         .forEach((category) => {
           if (visited.has(category.id)) return;
           visited.add(category.id);
-          result.push({ ...category, depth });
-          append(category.id, depth + 1);
+          const children = childrenByParent.get(category.id) ?? [];
+          result.push({ ...category, depth, hasChildren: children.length > 0 });
+          if (forceVisible || expandedCategoryIds.has(category.id)) append(category.id, depth + 1);
         });
     };
     append(null, 0);
-    categories.filter((category) => !visited.has(category.id)).forEach((category) => result.push({ ...category, depth: 0 }));
+    categories
+      .filter((category) => !visited.has(category.id))
+      .sort((a, b) => a.name.localeCompare(b.name, 'vi'))
+      .forEach((category) => result.push({ ...category, depth: 0, hasChildren: false }));
     return result;
-  }, [categories]);
+  }, [categories, expandedCategoryIds]);
+
+  const toggleCategoryBranch = (categoryId: string) => {
+    setExpandedCategoryIds((current) => {
+      const next = new Set(current);
+      if (next.has(categoryId)) next.delete(categoryId);
+      else next.add(categoryId);
+      return next;
+    });
+  };
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setDebouncedSearchTerm(searchTerm.trim()), 300);
@@ -67,7 +85,12 @@ export default function PlantingAndCare({
   useEffect(() => {
     let active = true;
     void getArticleCategories(section, { pageNumber: 1, pageSize: 100, sortBy: 'name' })
-      .then((result) => { if (active) setCategories(result); })
+      .then((result) => {
+        if (!active) return;
+        setCategories(result);
+        const parentIds = new Set(result.map((category) => category.parentId).filter((id): id is string => Boolean(id)));
+        setExpandedCategoryIds(new Set(result.filter((category) => parentIds.has(category.id)).map((category) => category.id)));
+      })
       .catch(() => { if (active) setCategories([]); })
       .finally(() => { if (active) setLoadingCategories(false); });
     return () => { active = false; };
@@ -163,12 +186,12 @@ export default function PlantingAndCare({
       <PublicHeader />
 
       <main className="mx-auto max-w-7xl px-4 py-8 font-sans animate-fade-in md:px-16">
-        <div className="mb-8 flex items-center space-x-2 text-xs font-medium uppercase tracking-wider text-[#747878]">
+        <div className="mb-8 flex items-center space-x-2 text-xs font-medium tracking-wider text-[#747878]">
           <a href="/" className="flex items-center gap-1 transition-colors hover:text-botanical-green"><ArrowLeft size={14} /> Trang chủ</a>
           <span>&gt;</span>
           {selectedArticle ? (
             <>
-              <button type="button" onClick={() => setSelectedArticle(null)} className="hover:text-[#56642b]">
+              <button type="button" onClick={() => setSelectedArticle(null)} className="uppercase hover:text-[#56642b]">
                 {breadcrumbLabel}
               </button>
               <span>›</span>
@@ -177,7 +200,7 @@ export default function PlantingAndCare({
               </span>
             </>
           ) : (
-            <span className="text-[#1a1c1b]">{breadcrumbLabel}</span>
+            <span className="font-semibold uppercase text-[#1a1c1b]">{breadcrumbLabel}</span>
           )}
         </div>
 
@@ -237,21 +260,34 @@ export default function PlantingAndCare({
 
               <div className="space-y-4">
                 <h4 className="border-b border-[#747878]/10 pb-2 font-sans text-[11px] font-bold uppercase tracking-widest text-[#1a1c1b]">Phân loại nội dung</h4>
-                <div className="max-h-[430px] space-y-2.5 overflow-y-auto pr-2 custom-scrollbar">
-                  <label className="group flex cursor-pointer select-none items-center space-x-3 font-sans text-xs text-[#1a1c1b]/80">
-                    <input type="checkbox" checked={!selectedCategoryId} onChange={() => selectCategory(undefined)} className="h-4 w-4 rounded-[2px] border-[#747878]/30 text-botanical-green accent-botanical-green focus:ring-botanical-green/20" />
-                    <span>Tất cả danh mục</span>
-                  </label>
+                <div className="custom-scrollbar max-h-[430px] space-y-1 overflow-y-auto pr-2">
+                  <button
+                    type="button"
+                    onClick={() => selectCategory(undefined)}
+                    className={`flex w-full items-center rounded px-2 py-2 text-left font-sans text-xs transition-colors ${!selectedCategoryId ? 'bg-[#56642b] font-semibold text-white' : 'text-[#1a1c1b]/80 hover:bg-[#56642b]/8 hover:text-[#56642b]'}`}
+                  >
+                    Tất cả danh mục
+                  </button>
                   {categoryOptions.map((category) => (
-                    <label key={category.id} className="group flex cursor-pointer select-none items-center space-x-3 font-sans text-xs text-[#1a1c1b]/80" style={{ paddingLeft: `${category.depth * 18}px` }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedCategoryId === category.id}
-                        onChange={() => selectCategory(selectedCategoryId === category.id ? undefined : category.id)}
-                        className="h-4 w-4 shrink-0 rounded-[2px] border-[#747878]/30 text-botanical-green accent-botanical-green focus:ring-botanical-green/20"
-                      />
-                      <span className="transition-colors group-hover:text-botanical-green">{category.name}</span>
-                    </label>
+                    <div key={category.id} className="flex items-center" style={{ paddingLeft: `${category.depth * 18}px` }}>
+                      {category.hasChildren ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleCategoryBranch(category.id)}
+                          className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-[#747878] transition-colors hover:bg-[#56642b]/10 hover:text-[#56642b]"
+                          aria-label={`${expandedCategoryIds.has(category.id) ? 'Thu gọn' : 'Mở rộng'} ${category.name}`}
+                        >
+                          <ChevronRight className={`h-4 w-4 transition-transform ${expandedCategoryIds.has(category.id) ? 'rotate-90' : ''}`} />
+                        </button>
+                      ) : <span className="w-7 shrink-0" />}
+                      <button
+                        type="button"
+                        onClick={() => selectCategory(category.id)}
+                        className={`min-w-0 flex-1 rounded px-2 py-2 text-left font-sans text-xs transition-colors ${selectedCategoryId === category.id ? 'bg-[#56642b] font-semibold text-white' : 'text-[#1a1c1b]/80 hover:bg-[#56642b]/8 hover:text-[#56642b]'}`}
+                      >
+                        {category.name}
+                      </button>
+                    </div>
                   ))}
                   {!loadingCategories && categoryOptions.length === 0 && <p className="text-xs text-[#858a85]">Chưa có danh mục.</p>}
                   {loadingCategories && <p className="text-xs text-[#858a85]">Đang tải danh mục...</p>}
