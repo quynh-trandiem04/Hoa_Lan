@@ -3061,7 +3061,7 @@ export default function App() {
                     <div className="space-y-1">
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Nội dung chi tiết *</label>
                       <Editor
-                        apiKey="no-api-key"
+                        apiKey="zrlyc4qub67z3kuxndjjrn8c2043rdcb40itl176715lrh3y"
                         value={careArticleForm.content}
                         onEditorChange={(content) => setCareArticleForm({ ...careArticleForm, content })}
                         init={{
