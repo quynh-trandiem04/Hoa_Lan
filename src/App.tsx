@@ -618,7 +618,7 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState<'overview' | 'categories' | 'orchids' | 'articles' | 'users' | 'community' | 'care' | 'cultivation_cats' | 'application_cats' | 'applications'>('overview');
   const [expandedAdminMenus, setExpandedAdminMenus] = useState({
-    orchids: true,
+    orchids: false,
     applications: false,
     cultivation: false,
   });
