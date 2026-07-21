@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronRight, LogOut, Search, User, X } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Bell, ChevronRight, LogOut, MessageSquare, Search, User, X } from 'lucide-react';
 import type { ArticleCategory, Category } from '../types';
-import { getArticleCategories, getCategories } from '../services/api';
+import { getArticleCategories, getCategories, getDiscussionById, getDiscussions } from '../services/api';
 
 interface PublicHeaderProps {
   categories?: Category[];
@@ -17,6 +17,80 @@ const readFavoriteCount = () => {
   } catch {
     return 0;
   }
+};
+
+const readCurrentUserName = (): string => {
+  const readJson = (key: string): Record<string, unknown> | null => {
+    const raw = localStorage.getItem(key) || sessionStorage.getItem(key);
+    if (!raw) return null;
+    try {
+      const value: unknown = JSON.parse(raw);
+      return value !== null && typeof value === 'object' ? value as Record<string, unknown> : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const profile = readJson('orchidee_user');
+  const auth = readJson('orchidee_auth');
+  const candidates = [profile?.fullName, profile?.name, auth?.fullName, auth?.name, profile?.email, auth?.email];
+  const storedEmail = localStorage.getItem('orchidee_admin_user') || sessionStorage.getItem('orchidee_admin_user');
+  if (storedEmail) candidates.push(storedEmail);
+  const displayName = candidates.find((value) => typeof value === 'string' && value.trim());
+  return typeof displayName === 'string' ? displayName.trim() : 'Tài khoản';
+};
+
+interface StoredUserIdentity {
+  id: string;
+  name: string;
+}
+
+interface CommentNotification {
+  id: string;
+  postId: string;
+  postTitle: string;
+  authorName: string;
+  content: string;
+  createdAt: string;
+}
+
+const readCurrentUserIdentity = (): StoredUserIdentity | null => {
+  const rawProfile = localStorage.getItem('orchidee_user') || sessionStorage.getItem('orchidee_user');
+  if (rawProfile) {
+    try {
+      const profile = JSON.parse(rawProfile) as { id?: unknown; fullName?: unknown; name?: unknown };
+      const id = typeof profile.id === 'string' ? profile.id : '';
+      const nameValue = typeof profile.fullName === 'string' ? profile.fullName : profile.name;
+      const name = typeof nameValue === 'string' ? nameValue.trim() : readCurrentUserName();
+      if (id || name) return { id, name };
+    } catch {
+      // Fall back to the stored account name below.
+    }
+  }
+  const name = readCurrentUserName();
+  return name !== 'Tài khoản' ? { id: '', name } : null;
+};
+
+const notificationReadKey = (identity: StoredUserIdentity | null) =>
+  `orchidee_read_comment_notifications_${identity?.id || identity?.name || 'guest'}`;
+
+const readNotificationIds = (identity: StoredUserIdentity | null): string[] => {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(notificationReadKey(identity)) || '[]');
+    return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+};
+
+const formatNotificationTime = (value: string) => {
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return '';
+  const elapsedMinutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60_000));
+  if (elapsedMinutes < 1) return 'Vừa xong';
+  if (elapsedMinutes < 60) return `${elapsedMinutes} phút trước`;
+  if (elapsedMinutes < 1440) return `${Math.floor(elapsedMinutes / 60)} giờ trước`;
+  return new Date(value).toLocaleDateString('vi-VN');
 };
 
 type MenuCategory = Pick<Category, 'id' | 'name' | 'parentId'> | Pick<ArticleCategory, 'id' | 'name' | 'parentId'>;
@@ -90,23 +164,27 @@ const CascadingMenuDropdown = ({ categories, rootNames, basePath }: { categories
 };
 
 export default function PublicHeader({ categories: suppliedCategories }: PublicHeaderProps) {
-  const [loadedCategories, setLoadedCategories] = useState<Category[]>(suppliedCategories ?? []);
+  const [loadedCategories, setLoadedCategories] = useState<Category[]>([]);
   const [cultivationCategories, setCultivationCategories] = useState<ArticleCategory[]>([]);
   const [applicationCategories, setApplicationCategories] = useState<ArticleCategory[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [favoriteCount, setFavoriteCount] = useState(readFavoriteCount);
+  const [currentUserName, setCurrentUserName] = useState(readCurrentUserName);
+  const [notificationMenuOpen, setNotificationMenuOpen] = useState(false);
+  const [commentNotifications, setCommentNotifications] = useState<CommentNotification[]>([]);
+  const [readCommentNotificationIds, setReadCommentNotificationIds] = useState(() => readNotificationIds(readCurrentUserIdentity()));
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
   const [searchTerm, setSearchTerm] = useState(() => new URLSearchParams(window.location.search).get('q') ?? '');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
+  const notificationMenuRef = useRef<HTMLDivElement>(null);
+  const notificationMenuOpenRef = useRef(false);
   const profileCloseTimerRef = useRef<number | null>(null);
   const path = window.location.pathname;
 
   useEffect(() => {
-    if (suppliedCategories) {
-      setLoadedCategories(suppliedCategories);
-      return;
-    }
+    if (suppliedCategories) return;
     let active = true;
     void getCategories({ pageNumber: 1, pageSize: 100 })
       .then((result) => { if (active) setLoadedCategories(result.items); })
@@ -131,6 +209,68 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
     return () => { active = false; };
   }, []);
 
+  const loadCommentNotifications = useCallback(async () => {
+    const hasToken = Boolean(localStorage.getItem('orchidee_auth_token') || sessionStorage.getItem('orchidee_auth_token'));
+    const identity = readCurrentUserIdentity();
+    if (!hasToken || !identity) {
+      setCommentNotifications([]);
+      return;
+    }
+
+    setLoadingNotifications(true);
+    try {
+      const result = await getDiscussions({ pageNumber: 1, pageSize: 100 });
+      const ownedPosts = (result.items ?? []).filter((post) =>
+        (identity.id && post.authorId === identity.id)
+        || (!identity.id && post.authorName?.trim().toLocaleLowerCase('vi') === identity.name.toLocaleLowerCase('vi')),
+      );
+      const hydratedPosts = await Promise.all(ownedPosts.map(async (post) => {
+        const comments = Array.isArray(post.comments) ? post.comments : [];
+        if (comments.length >= (post.commentCount ?? comments.length)) return post;
+        try {
+          return await getDiscussionById(post.id);
+        } catch {
+          return post;
+        }
+      }));
+      const nextNotifications = hydratedPosts.flatMap((post) => (post.comments ?? [])
+        .filter((comment) => {
+          const isCurrentUserById = Boolean(identity.id && comment.authorId === identity.id);
+          const isCurrentUserByName = !identity.id
+            && comment.authorName?.trim().toLocaleLowerCase('vi') === identity.name.toLocaleLowerCase('vi');
+          return !isCurrentUserById && !isCurrentUserByName;
+        })
+        .map((comment) => ({
+          id: comment.id,
+          postId: post.id,
+          postTitle: post.title || 'Bài thảo luận của bạn',
+          authorName: comment.authorName || 'Một thành viên',
+          content: comment.content || '',
+          createdAt: comment.createdAt,
+        })))
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setCommentNotifications(nextNotifications);
+      if (notificationMenuOpenRef.current) {
+        const notificationIds = nextNotifications.map((notification) => notification.id);
+        setReadCommentNotificationIds(notificationIds);
+        localStorage.setItem(notificationReadKey(identity), JSON.stringify(notificationIds));
+      }
+    } catch (error) {
+      console.error('Không thể tải thông báo bình luận:', error);
+    } finally {
+      setLoadingNotifications(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const initialLoad = window.setTimeout(() => void loadCommentNotifications(), 0);
+    const interval = window.setInterval(() => void loadCommentNotifications(), 60_000);
+    return () => {
+      window.clearTimeout(initialLoad);
+      window.clearInterval(interval);
+    };
+  }, [loadCommentNotifications]);
+
   useEffect(() => {
     if (searchOpen) searchInputRef.current?.focus();
   }, [searchOpen]);
@@ -138,24 +278,36 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
   useEffect(() => {
     const closeProfileMenu = (event: MouseEvent) => {
       if (!profileMenuRef.current?.contains(event.target as Node)) setProfileMenuOpen(false);
+      if (!notificationMenuRef.current?.contains(event.target as Node)) {
+        notificationMenuOpenRef.current = false;
+        setNotificationMenuOpen(false);
+      }
     };
     document.addEventListener('mousedown', closeProfileMenu);
     return () => document.removeEventListener('mousedown', closeProfileMenu);
   }, []);
 
   useEffect(() => {
-    const refreshFavoriteCount = () => setFavoriteCount(readFavoriteCount());
-    window.addEventListener('storage', refreshFavoriteCount);
-    window.addEventListener('orchidee-favorites-updated', refreshFavoriteCount);
-    return () => {
-      window.removeEventListener('storage', refreshFavoriteCount);
-      window.removeEventListener('orchidee-favorites-updated', refreshFavoriteCount);
+    const refreshAccountSummary = () => {
+      setFavoriteCount(readFavoriteCount());
+      setCurrentUserName(readCurrentUserName());
+      setReadCommentNotificationIds(readNotificationIds(readCurrentUserIdentity()));
+      void loadCommentNotifications();
     };
-  }, []);
+    window.addEventListener('storage', refreshAccountSummary);
+    window.addEventListener('orchidee-favorites-updated', refreshAccountSummary);
+    window.addEventListener('orchidee-profile-updated', refreshAccountSummary);
+    return () => {
+      window.removeEventListener('storage', refreshAccountSummary);
+      window.removeEventListener('orchidee-favorites-updated', refreshAccountSummary);
+      window.removeEventListener('orchidee-profile-updated', refreshAccountSummary);
+    };
+  }, [loadCommentNotifications]);
 
   const openProfileMenu = () => {
     if (profileCloseTimerRef.current) window.clearTimeout(profileCloseTimerRef.current);
     setFavoriteCount(readFavoriteCount());
+    setCurrentUserName(readCurrentUserName());
     setProfileMenuOpen(true);
   };
 
@@ -172,6 +324,19 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
     window.location.replace('/');
   };
 
+  const toggleNotificationMenu = () => {
+    const willOpen = !notificationMenuOpen;
+    notificationMenuOpenRef.current = willOpen;
+    setNotificationMenuOpen(willOpen);
+    setProfileMenuOpen(false);
+    if (!willOpen) return;
+    const identity = readCurrentUserIdentity();
+    const notificationIds = commentNotifications.map((notification) => notification.id);
+    setReadCommentNotificationIds(notificationIds);
+    localStorage.setItem(notificationReadKey(identity), JSON.stringify(notificationIds));
+    void loadCommentNotifications();
+  };
+
   const handleSearch = (event: React.FormEvent) => {
     event.preventDefault();
     const query = searchTerm.trim();
@@ -186,6 +351,8 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
     localStorage.getItem('orchidee_auth_token')
     || sessionStorage.getItem('orchidee_auth_token'),
   );
+  const unreadNotificationCount = commentNotifications.filter((notification) => !readCommentNotificationIds.includes(notification.id)).length;
+  const orchidCategories = suppliedCategories ?? loadedCategories;
 
   return (
     <header className="sticky top-0 z-50 h-16 w-full border-b border-[#56642b]/10 bg-surface-cream/95 backdrop-blur-md">
@@ -199,7 +366,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
             <a href="/list-orchids" className={`flex cursor-pointer items-center gap-1 font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors ${isCatalog ? activeClass : normalClass}`}>
               Danh mục lan <ChevronRight className="h-3.5 w-3.5 rotate-90" />
             </a>
-            <CascadingMenuDropdown categories={loadedCategories} rootNames={['Danh mục lan']} basePath="/list-orchids" />
+            <CascadingMenuDropdown categories={orchidCategories} rootNames={['Danh mục lan']} basePath="/list-orchids" />
           </div>
 
           <div className="group relative flex h-full items-center">
@@ -229,6 +396,59 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
           >
             {searchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
           </button>
+          {isAuthenticated && (
+            <div ref={notificationMenuRef} className="relative flex h-full items-center">
+              <button
+                type="button"
+                onClick={toggleNotificationMenu}
+                className={`relative rounded-full p-1.5 text-botanical-green transition-colors hover:bg-[#56642b]/5 ${notificationMenuOpen ? 'bg-[#56642b]/10' : ''}`}
+                aria-label="Mở thông báo bình luận"
+                aria-expanded={notificationMenuOpen}
+                aria-haspopup="menu"
+              >
+                <Bell className="h-5 w-5" />
+                {unreadNotificationCount > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold leading-none text-white">
+                    {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+                  </span>
+                )}
+              </button>
+
+              {notificationMenuOpen && (
+                <div className="absolute right-0 top-[calc(100%-7px)] z-50 w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-lg border border-[#747878]/10 bg-white shadow-xl" role="menu">
+                  <div className="flex items-center justify-between border-b border-[#eeeeea] px-5 py-3">
+                    <div>
+                      <p className="font-serif text-base font-bold text-[#1a1c1b]">Thông báo</p>
+                      <p className="mt-0.5 text-[10px] text-[#747878]">Bình luận mới trên bài viết của bạn</p>
+                    </div>
+                    {unreadNotificationCount > 0 && <span className="rounded-full bg-red-50 px-2 py-1 text-[10px] font-bold text-red-600">{unreadNotificationCount} mới</span>}
+                  </div>
+                  <div className="max-h-96 overflow-y-auto">
+                    {loadingNotifications && commentNotifications.length === 0 ? (
+                      <p className="px-5 py-8 text-center text-xs text-[#747878]">Đang tải thông báo...</p>
+                    ) : commentNotifications.length === 0 ? (
+                      <div className="px-5 py-10 text-center text-[#747878]">
+                        <Bell className="mx-auto mb-2 h-7 w-7 opacity-40" />
+                        <p className="text-xs">Chưa có bình luận mới.</p>
+                      </div>
+                    ) : commentNotifications.map((notification) => (
+                      <a key={notification.id} href="/discussion" className="flex gap-3 border-b border-[#eeeeea] px-4 py-3 transition-colors last:border-0 hover:bg-[#56642b]/5" role="menuitem">
+                        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#e8edda] text-[#56642b]">
+                          <MessageSquare size={16} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs leading-5 text-[#343837]"><strong>{notification.authorName}</strong> đã bình luận về “{notification.postTitle}”.</p>
+                          {notification.content && <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-[#747878]">{notification.content}</p>}
+                          <time className="mt-1 block text-[10px] font-medium text-[#56642b]">{formatNotificationTime(notification.createdAt)}</time>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                  <a href="/discussion" className="block border-t border-[#eeeeea] px-5 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-[#56642b] hover:bg-[#56642b]/5">Xem trang thảo luận</a>
+                </div>
+              )}
+            </div>
+          )}
           <div
             ref={profileMenuRef}
             className="relative flex h-full items-center"
@@ -241,12 +461,17 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
                 setFavoriteCount(readFavoriteCount());
                 setProfileMenuOpen((current) => !current);
               }}
-              className={`rounded-full p-1.5 text-botanical-green transition-colors hover:bg-[#56642b]/5 ${profileMenuOpen ? 'bg-[#56642b]/10' : ''}`}
+              className={`relative flex min-w-0 items-center gap-2 rounded-full p-1.5 text-botanical-green transition-colors hover:bg-[#56642b]/5 ${isAuthenticated ? 'pr-3' : ''} ${profileMenuOpen ? 'bg-[#56642b]/10' : ''}`}
               aria-label={isAuthenticated ? 'Mở menu tài khoản' : 'Mở menu đăng nhập'}
               aria-expanded={profileMenuOpen}
               aria-haspopup="menu"
             >
-              <User className="h-5 w-5" />
+              <User className="h-5 w-5 shrink-0" />
+              {isAuthenticated && (
+                <span className="max-w-28 truncate font-sans text-[11px] font-semibold text-[#434748]" title={currentUserName}>
+                  {currentUserName}
+                </span>
+              )}
               {isAuthenticated && favoriteCount > 0 && (
                 <span className="absolute right-0 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#56642b] px-1 text-[9px] font-bold leading-none text-white">
                   {favoriteCount > 99 ? '99+' : favoriteCount}
@@ -260,6 +485,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
                   <>
                     <div className="border-b border-[#eeeeea] px-5 py-3">
                       <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#899073]">Tài khoản của bạn</p>
+                      <p className="mt-1 truncate font-serif text-sm font-semibold text-[#1a1c1b]" title={currentUserName}>{currentUserName}</p>
                     </div>
                     <a href="/profile" className="block px-5 py-3 font-serif text-sm text-[#1a1c1b] transition-colors hover:bg-[#56642b]/5 hover:text-[#56642b]" role="menuitem">
                       Thông tin tài khoản
