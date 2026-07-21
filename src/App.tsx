@@ -2917,7 +2917,7 @@ export default function App() {
                       >
                         <option value="">-- Chọn danh mục --</option>
                         {(() => {
-                          const rootCat = categories.find(c => c.name.toLowerCase() === 'trồng và chăm sóc' && !c.parentId);
+                          const rootCat = categories.find(c => (c.name.toLowerCase() === 'trồng và chăm sóc' || c.name.toLowerCase() === 'cách trồng và chăm sóc') && !c.parentId);
                           if (!rootCat) return null;
                           const options = categories.filter(c => c.parentId === rootCat.id);
                           return options.map(c => (
