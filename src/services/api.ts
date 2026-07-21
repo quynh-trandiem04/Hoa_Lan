@@ -938,7 +938,7 @@ export const updateOrchid = async (
       Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
-    body: JSON.stringify({ ...updateData, id })
+    body: JSON.stringify(updateData)
   });
   const body = await readApiResponse(response);
   if (!response.ok) throwOrchidApiError(body, `Không thể cập nhật hoa lan (HTTP ${response.status}).`);
