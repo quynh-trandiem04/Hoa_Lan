@@ -163,31 +163,31 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
       <div className="relative mx-auto flex h-full max-w-7xl items-center justify-between px-6 md:px-16">
         <a href="/" className="select-none font-serif text-xl font-bold italic tracking-tight text-botanical-green md:text-2xl">Orchids</a>
 
-        <nav className="hidden h-full items-center space-x-8 md:flex">
-          <a href="/" className={`font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${path === '/' ? activeClass : normalClass}`}>Trang chủ</a>
+        <nav className="hidden h-full items-center space-x-4 md:flex">
+          <a href="/" className={`font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors ${path === '/' ? activeClass : normalClass}`}>Trang chủ</a>
 
           <div className="group relative flex h-full items-center">
-            <a href="/list-orchids" className={`flex cursor-pointer items-center gap-1 font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${isCatalog ? activeClass : normalClass}`}>
+            <a href="/list-orchids" className={`flex cursor-pointer items-center gap-1 font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors ${isCatalog ? activeClass : normalClass}`}>
               Danh mục lan <ChevronRight className="h-3.5 w-3.5 rotate-90" />
             </a>
             <CascadingMenuDropdown categories={loadedCategories} rootNames={['Danh mục lan']} basePath="/list-orchids" />
           </div>
 
           <div className="group relative flex h-full items-center">
-            <a href="/planting-and-care" className={`flex cursor-pointer items-center gap-1 font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${path === '/planting-and-care' ? activeClass : normalClass}`}>
+            <a href="/planting-and-care" className={`flex cursor-pointer items-center gap-1 font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors ${path === '/planting-and-care' ? activeClass : normalClass}`}>
               Cách trồng và chăm sóc <ChevronRight className="h-3.5 w-3.5 rotate-90" />
             </a>
             <CascadingMenuDropdown categories={loadedCategories} rootNames={['Trồng và chăm sóc', 'Cách trồng và chăm sóc']} basePath="/planting-and-care" />
           </div>
 
           <div className="group relative flex h-full items-center">
-            <a href="/applications" className={`flex cursor-pointer items-center gap-1 font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${path === '/applications' ? activeClass : normalClass}`}>
+            <a href="/applications" className={`flex cursor-pointer items-center gap-1 font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors ${path === '/applications' ? activeClass : normalClass}`}>
               Ứng dụng <ChevronRight className="h-3.5 w-3.5 rotate-90" />
             </a>
             <CascadingMenuDropdown categories={loadedCategories} rootNames={['Ứng dụng', 'Ung dung', 'ApplicationCategories']} basePath="/applications" />
           </div>
-          <a href="/document" className={`font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${path === '/document' ? activeClass : normalClass}`}>Tài liệu</a>
-          <a href="/discussion" className={`font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${path === '/discussion' ? activeClass : normalClass}`}>Thảo luận</a>
+          <a href="/document" className={`font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors ${path === '/document' ? activeClass : normalClass}`}>Tài liệu</a>
+          <a href="/discussion" className={`font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors ${path === '/discussion' ? activeClass : normalClass}`}>Thảo luận</a>
         </nav>
 
         <div className="flex h-full items-center space-x-5">
