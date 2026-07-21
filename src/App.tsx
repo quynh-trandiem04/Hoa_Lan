@@ -1977,7 +1977,7 @@ export default function App() {
           {/* 3. Danh mục Cách trồng và chăm sóc */}
           <button
             onClick={() => { setActiveTab('cultivation_cats'); setSearchQuery(''); }}
-            className={`${expandedAdminMenus.cultivation ? 'flex' : 'hidden'} order-[32] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
+            className={`${expandedAdminMenus.cultivation ? 'flex' : 'hidden'} order-[31] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
               activeTab === 'cultivation_cats'
                 ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
@@ -1993,7 +1993,7 @@ export default function App() {
           {/* 4. Danh mục Ứng dụng */}
           <button
             onClick={() => { setActiveTab('application_cats'); setSearchQuery(''); }}
-            className={`${expandedAdminMenus.applications ? 'flex' : 'hidden'} order-[22] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
+            className={`${expandedAdminMenus.applications ? 'flex' : 'hidden'} order-[21] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
               activeTab === 'application_cats'
                 ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
@@ -2025,7 +2025,7 @@ export default function App() {
           {/* 6. Cách trồng và chăm sóc */}
           <button
             onClick={() => { setActiveTab('care'); setSearchQuery(''); }}
-            className={`${expandedAdminMenus.cultivation ? 'flex' : 'hidden'} order-[31] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
+            className={`${expandedAdminMenus.cultivation ? 'flex' : 'hidden'} order-[32] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
               activeTab === 'care'
                 ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
@@ -2041,7 +2041,7 @@ export default function App() {
           {/* 7. Ứng dụng */}
           <button
             onClick={() => { setActiveTab('applications'); setSearchQuery(''); }}
-            className={`${expandedAdminMenus.applications ? 'flex' : 'hidden'} order-[21] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
+            className={`${expandedAdminMenus.applications ? 'flex' : 'hidden'} order-[22] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
               activeTab === 'applications'
                 ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
