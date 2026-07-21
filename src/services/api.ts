@@ -756,6 +756,11 @@ export interface OrchidQuery {
   sortBy?: string;
   sortDescending?: boolean;
   apiVersion?: string;
+  isPopular?: boolean;
+  hasFragrance?: boolean;
+  colors?: string[];
+  regions?: string[];
+  bloomSeasons?: string[];
 }
 
 export type CreateOrchidPayload = Omit<Orchid, 'id'>;
@@ -859,6 +864,12 @@ export const getOrchids = async (query: OrchidQuery = {}): Promise<Orchid[]> => 
   if (query.sortBy) params.set('SortBy', query.sortBy);
   if (query.sortDescending !== undefined) params.set('SortDescending', String(query.sortDescending));
   if (query.apiVersion) params.set('api-version', query.apiVersion);
+  if (query.isPopular !== undefined) params.set('IsPopular', String(query.isPopular));
+  if (query.hasFragrance !== undefined) params.set('HasFragrance', String(query.hasFragrance));
+  if (query.colors?.length) query.colors.forEach(c => params.append('Colors', c));
+  if (query.regions?.length) query.regions.forEach(r => params.append('Regions', r));
+  if (query.bloomSeasons?.length) query.bloomSeasons.forEach(s => params.append('BloomSeasons', s));
+
   const response = await fetch(`${API_BASE_URL}/api/Orchids?${params.toString()}`, {
     headers: {
       Accept: 'application/json',

@@ -3,6 +3,39 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export enum Region {
+  NORTHERN_MIDLANDS_AND_MOUNTAINS = "Trung trung bộ và Miền núi phía Bắc",
+  RED_RIVER_DELTA = "Đồng bằng sông Hồng",
+  NORTH_CENTRAL = "Bắc Trung Bộ",
+  SOUTH_CENTRAL_COAST = "Duyên hải Nam Trung Bộ",
+  CENTRAL_HIGHLANDS = "Tây Nguyên",
+  SOUTHEAST = "Đông Nam Bộ",
+  MEKONG_DELTA = "Đồng bằng sông Cửu Long",
+}
+
+export enum BloomSeason {
+  SPRING = "Mùa xuân",
+  SUMMER = "Mùa hạ",
+  AUTUMN = "Mùa thu",
+  WINTER = "Mùa đông",
+  ALL_YEAR = "Quanh năm",
+}
+
+export enum FlowerColor {
+  RED = "#FF0000",
+  ORANGE = "#FFA500",
+  YELLOW = "#FFD700",
+  WHITE = "#FFFFFF",
+  PINK = "#FFC0CB",
+  PURPLE = "#800080",
+  GREEN = "#008000",
+  LIGHT_GREEN = "#90EE90",
+  BLUE = "#0000FF",
+  CREAM = "#FFFDD0",
+  BROWN = "#A52A2A",
+  BLACK = "#000000"
+}
+
 export interface Orchid {
   id?: string;
   name: string;
@@ -23,6 +56,9 @@ export interface Orchid {
   watering?: string;
   fertilizer?: string;
   soilType?: string;
+  regions?: (keyof typeof Region)[];
+  bloomSeasons?: (keyof typeof BloomSeason)[];
+  colors?: (keyof typeof FlowerColor)[];
 }
 
 export interface Question {
