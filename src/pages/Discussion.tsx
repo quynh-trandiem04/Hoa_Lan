@@ -256,7 +256,6 @@ export default function Discussion() {
 
   const loadPosts = useCallback(async (term = '') => {
     setLoading(true);
-    setError('');
     try {
       const result = await getDiscussions({ pageNumber: 1, pageSize: 50, searchTerm: term || undefined });
       const items = result.items ?? [];
