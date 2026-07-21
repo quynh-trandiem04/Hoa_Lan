@@ -461,7 +461,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
                 setFavoriteCount(readFavoriteCount());
                 setProfileMenuOpen((current) => !current);
               }}
-              className={`relative flex min-w-0 items-center gap-2 rounded-full p-1.5 text-botanical-green transition-colors hover:bg-[#56642b]/5 ${isAuthenticated ? 'pr-3' : ''} ${profileMenuOpen ? 'bg-[#56642b]/10' : ''}`}
+              className={`flex min-w-0 items-center gap-2 rounded-full p-1.5 text-botanical-green transition-colors hover:bg-[#56642b]/5 ${profileMenuOpen ? 'bg-[#56642b]/10' : ''}`}
               aria-label={isAuthenticated ? 'Mở menu tài khoản' : 'Mở menu đăng nhập'}
               aria-expanded={profileMenuOpen}
               aria-haspopup="menu"
@@ -473,7 +473,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
                 </span>
               )}
               {isAuthenticated && favoriteCount > 0 && (
-                <span className="absolute right-0 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#56642b] px-1 text-[9px] font-bold leading-none text-white">
+                <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-[#56642b] px-1 text-[9px] font-bold leading-none text-white">
                   {favoriteCount > 99 ? '99+' : favoriteCount}
                 </span>
               )}
