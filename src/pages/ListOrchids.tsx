@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, ChevronLeft, ChevronRight, X, Heart, HelpCircle, ArrowLeft, User } from 'lucide-react';
 import OrchidCard from '../components/OrchidCard';
-import { Category, Orchid } from '../types';
+import { Category, Orchid, Region, BloomSeason, FlowerColor } from '../types';
 import SearchModal from '../components/SearchModal';
 import PublicFooter from '../components/PublicFooter';
 import PublicHeader from '../components/PublicHeader';
@@ -21,6 +21,9 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
   const [isSearching, setIsSearching] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<Record<string, boolean>>({});
+  const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
+  const [selectedSeasons, setSelectedSeasons] = useState<string[]>([]);
+  const [selectedColors, setSelectedColors] = useState<string[]>([]);
   const [showSavedOnly, setShowSavedOnly] = useState(false);
 
   // Bookmark state (saved in localStorage)
@@ -50,7 +53,14 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
     let active = true;
     setIsSearching(true);
     const timer = window.setTimeout(() => {
-      void getOrchids({ pageNumber: 1, pageSize: 100, searchTerm: query })
+      void getOrchids({ 
+        pageNumber: 1, 
+        pageSize: 100, 
+        searchTerm: query,
+        regions: selectedRegions,
+        bloomSeasons: selectedSeasons,
+        colors: selectedColors
+      })
         .then((result) => {
           if (active) setApiOrchids(result);
         })
@@ -66,7 +76,7 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
       active = false;
       window.clearTimeout(timer);
     };
-  }, [searchQuery, orchids]);
+  }, [searchQuery, orchids, selectedRegions, selectedSeasons, selectedColors]);
 
   const categoryOptions = (() => {
     const result: Array<{ category: Category; depth: number }> = [];
@@ -136,7 +146,7 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
   // Reset pagination when filter parameters shift
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedCategories, showSavedOnly]);
+  }, [searchQuery, selectedCategories, showSavedOnly, selectedRegions, selectedSeasons, selectedColors]);
 
   const handleCategoryChange = (key: string) => {
     setSelectedCategories(prev => ({
@@ -152,6 +162,9 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
       resetCats[cat.id] = false;
     });
     setSelectedCategories(resetCats);
+    setSelectedRegions([]);
+    setSelectedSeasons([]);
+    setSelectedColors([]);
     setShowSavedOnly(false);
   };
 
@@ -279,6 +292,80 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
               </div>
             </div>
 
+            {/* Filter group: Region */}
+            <div className="space-y-4">
+              <h4 className="text-[11px] font-sans font-bold tracking-widest text-[#1a1c1b] uppercase border-b border-[#747878]/10 pb-2">
+                KHU VỰC PHÂN BỐ
+              </h4>
+              <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                {Object.entries(Region).map(([key, value]) => (
+                  <label key={key} className="flex items-center gap-3 cursor-pointer group">
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${selectedRegions.includes(key) ? 'bg-[#56642b] border-[#56642b]' : 'border-[#747878]/40 group-hover:border-[#56642b]'}`}>
+                      {selectedRegions.includes(key) && <Search className="w-3 h-3 text-white" />}
+                    </div>
+                    <input
+                      type="checkbox"
+                      className="hidden"
+                      checked={selectedRegions.includes(key)}
+                      onChange={(e) => setSelectedRegions(prev => e.target.checked ? [...prev, key] : prev.filter(k => k !== key))}
+                    />
+                    <span className={`text-sm font-sans transition-colors ${selectedRegions.includes(key) ? 'text-[#1a1c1b] font-medium' : 'text-[#747878] group-hover:text-[#1a1c1b]'}`}>
+                      {value}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Filter group: BloomSeason */}
+            <div className="space-y-4">
+              <h4 className="text-[11px] font-sans font-bold tracking-widest text-[#1a1c1b] uppercase border-b border-[#747878]/10 pb-2">
+                MÙA HOA NỞ
+              </h4>
+              <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                {Object.entries(BloomSeason).map(([key, value]) => (
+                  <label key={key} className="flex items-center gap-3 cursor-pointer group">
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${selectedSeasons.includes(key) ? 'bg-[#56642b] border-[#56642b]' : 'border-[#747878]/40 group-hover:border-[#56642b]'}`}>
+                      {selectedSeasons.includes(key) && <Search className="w-3 h-3 text-white" />}
+                    </div>
+                    <input
+                      type="checkbox"
+                      className="hidden"
+                      checked={selectedSeasons.includes(key)}
+                      onChange={(e) => setSelectedSeasons(prev => e.target.checked ? [...prev, key] : prev.filter(k => k !== key))}
+                    />
+                    <span className={`text-sm font-sans transition-colors ${selectedSeasons.includes(key) ? 'text-[#1a1c1b] font-medium' : 'text-[#747878] group-hover:text-[#1a1c1b]'}`}>
+                      {value}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Filter group: Color */}
+            <div className="space-y-4">
+              <h4 className="text-[11px] font-sans font-bold tracking-widest text-[#1a1c1b] uppercase border-b border-[#747878]/10 pb-2">
+                MÀU SẮC HOA
+              </h4>
+              <div className="flex flex-wrap gap-3">
+                {Object.entries(FlowerColor).map(([key, value]) => (
+                  <label key={key} className="flex items-center gap-2 cursor-pointer group" title={key}>
+                    <div className={`w-6 h-6 rounded-full border shadow-sm flex items-center justify-center transition-all ${selectedColors.includes(key) ? 'ring-2 ring-offset-1 ring-[#56642b] scale-110' : 'border-[#747878]/20 group-hover:scale-110'}`} style={{ backgroundColor: value }}>
+                      {selectedColors.includes(key) && (
+                        <div className={`w-2 h-2 rounded-full ${value === '#FFFFFF' || value === '#FFFDD0' ? 'bg-[#56642b]' : 'bg-white'}`}></div>
+                      )}
+                    </div>
+                    <input
+                      type="checkbox"
+                      className="hidden"
+                      checked={selectedColors.includes(key)}
+                      onChange={(e) => setSelectedColors(prev => e.target.checked ? [...prev, key] : prev.filter(k => k !== key))}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+
             {/* Sidebar Bookmark view filter toggle */}
             <div className="space-y-4 pt-1">
               <button
@@ -293,10 +380,13 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
                   <Heart size={14} fill={showSavedOnly ? 'currentColor' : 'none'} />
                   <span>Chỉ xem lan đã lưu</span>
                 </span>
-                <span className="bg-[#747878]/10 text-[10px] py-0.5 px-2 rounded-full font-bold">
-                  {savedOrchids.length}
-                </span>
+                <div className={`w-8 h-4 rounded-full relative transition-colors ${showSavedOnly ? 'bg-botanical-green' : 'bg-gray-200'}`}>
+                  <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${showSavedOnly ? 'left-4.5' : 'left-0.5'}`} />
+                </div>
               </button>
+              <p className="text-[10px] font-sans text-[#747878] italic px-2">
+                Bật để chỉ hiển thị những loại lan bạn đã đánh dấu yêu thích.
+              </p>
             </div>
 
             {/* Additional informational card block */}

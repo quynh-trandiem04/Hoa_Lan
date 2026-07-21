@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { X, FolderPlus, PlusCircle, Upload, Trash2 } from 'lucide-react';
-import { Orchid, Category } from '../types';
+import { Orchid, Category, Region, BloomSeason, FlowerColor } from '../types';
 import { motion } from 'motion/react';
 import { deleteUploadedImage, uploadImage, type UploadedImage } from '../services/api';
 import { getOrchidImageUrls } from '../utils/orchidImages';
@@ -61,6 +61,9 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
   const [hasFragrance, setHasFragrance] = useState(false);
   const [isPopular, setIsPopular] = useState(false);
   const [slug, setSlug] = useState('');
+  const [regions, setRegions] = useState<string[]>([]);
+  const [bloomSeasons, setBloomSeasons] = useState<string[]>([]);
+  const [colors, setColors] = useState<string[]>([]);
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
 
   const [errorMsg, setErrorMsg] = useState('');
@@ -78,6 +81,9 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
       setHasFragrance(editOrchidData.hasFragrance);
       setIsPopular(editOrchidData.isPopular);
       setSlug(editOrchidData.slug);
+      setRegions((editOrchidData.regions || []) as string[]);
+      setBloomSeasons((editOrchidData.bloomSeasons || []) as string[]);
+      setColors((editOrchidData.colors || []) as string[]);
       const existingUrls = getOrchidImageUrls(editOrchidData);
       setUploadedImages(editOrchidData.uploadedImageIds.map((id, index) => ({
         id,
@@ -93,6 +99,9 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
       setHasFragrance(false);
       setIsPopular(false);
       setSlug('');
+      setRegions([]);
+      setBloomSeasons([]);
+      setColors([]);
       setUploadedImages([]);
     }
   }, [editOrchidData, isOpen, categories]);
@@ -132,6 +141,9 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
       hasFragrance,
       isPopular,
       slug: finalSlug,
+      regions: regions as any,
+      bloomSeasons: bloomSeasons as any,
+      colors: colors as any,
       uploadedImageIds: uploadedImages.map((image) => image.id),
       imageUrls: uploadedImages.map((image) => image.url).filter(Boolean),
       displayOrder: editOrchidData?.displayOrder ?? 0,
@@ -294,6 +306,43 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
                 />
                 <span className="text-sm font-semibold text-charcoal-text">Phổ biến</span>
               </label>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Khu vực phân bố</label>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              {Object.entries(Region).map(([key, value]) => (
+                <label key={key} className="flex items-center gap-2 text-sm text-charcoal-text cursor-pointer">
+                  <input type="checkbox" checked={regions.includes(key)} onChange={(e) => setRegions(prev => e.target.checked ? [...prev, key] : prev.filter(k => k !== key))} className="w-4 h-4 text-[#56642b] rounded border-outline focus:ring-[#56642b]" />
+                  <span>{value}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Mùa hoa nở</label>
+            <div className="flex flex-wrap gap-4">
+              {Object.entries(BloomSeason).map(([key, value]) => (
+                <label key={key} className="flex items-center gap-2 text-sm text-charcoal-text cursor-pointer">
+                  <input type="checkbox" checked={bloomSeasons.includes(key)} onChange={(e) => setBloomSeasons(prev => e.target.checked ? [...prev, key] : prev.filter(k => k !== key))} className="w-4 h-4 text-[#56642b] rounded border-outline focus:ring-[#56642b]" />
+                  <span>{value}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Màu sắc hoa</label>
+            <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
+              {Object.entries(FlowerColor).map(([key, value]) => (
+                <label key={key} className="flex items-center gap-2 text-sm text-charcoal-text cursor-pointer">
+                  <input type="checkbox" checked={colors.includes(key)} onChange={(e) => setColors(prev => e.target.checked ? [...prev, key] : prev.filter(k => k !== key))} className="w-4 h-4 text-[#56642b] rounded border-outline focus:ring-[#56642b]" />
+                  <span className="w-4 h-4 rounded-full border border-outline-variant shadow-sm" style={{ backgroundColor: value }}></span>
+                  <span className="text-xs">{key}</span>
+                </label>
+              ))}
+            </div>
           </div>
 
           <div className="space-y-1">
