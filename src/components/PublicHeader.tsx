@@ -180,7 +180,12 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
             <CascadingMenuDropdown categories={loadedCategories} rootNames={['Trồng và chăm sóc', 'Cách trồng và chăm sóc']} basePath="/planting-and-care" />
           </div>
 
-          <a href={ungDungCat ? `/list-orchids?cat=${encodeURIComponent(ungDungCat.id)}` : "/list-orchids"} className={`font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${normalClass}`}>Ứng dụng</a>
+          <div className="group relative flex h-full items-center">
+            <a href="/applications" className={`flex cursor-pointer items-center gap-1 font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${path === '/applications' ? activeClass : normalClass}`}>
+              Ứng dụng <ChevronRight className="h-3.5 w-3.5 rotate-90" />
+            </a>
+            <CascadingMenuDropdown categories={loadedCategories} rootNames={['Ứng dụng', 'Ung dung', 'ApplicationCategories']} basePath="/applications" />
+          </div>
           <a href="/document" className={`font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${path === '/document' ? activeClass : normalClass}`}>Tài liệu</a>
           <a href="/discussion" className={`font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${path === '/discussion' ? activeClass : normalClass}`}>Thảo luận</a>
         </nav>
