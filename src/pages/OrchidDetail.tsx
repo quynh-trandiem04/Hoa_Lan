@@ -284,9 +284,10 @@ export default function OrchidDetail({ id, categories, onNavigate }: OrchidDetai
                   Mô tả chi tiết
                 </h2>
               </div>
-              <p className="max-w-4xl whitespace-pre-line font-sans text-[13px] leading-7 text-[#1a1c1b]/80">
-                {orchid.detailedDescription}
-              </p>
+              <div
+                className="max-w-4xl font-sans text-[13px] leading-7 text-[#1a1c1b]/80 prose prose-sm"
+                dangerouslySetInnerHTML={{ __html: orchid.detailedDescription }}
+              />
             </section>
           </>
         )}

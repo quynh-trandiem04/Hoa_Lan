@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Editor } from '@tinymce/tinymce-react';
 import { X, FolderPlus, PlusCircle, Upload, Trash2 } from 'lucide-react';
 import { Orchid, Category, Region, BloomSeason, FlowerColor } from '../types';
 import { motion } from 'motion/react';
@@ -357,11 +358,21 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
 
           <div className="space-y-1">
             <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Mô tả chi tiết</label>
-            <textarea
+            <Editor
+              apiKey="zrlyc4qub67z3kuxndjjrn8c2043rdcb40itl176715lrh3y"
               value={detailedDescription}
-              onChange={(e) => setDetailedDescription(e.target.value)}
-              rows={4}
-              className="w-full bg-surface-container-low border border-outline-variant rounded p-3 text-sm focus:outline-none focus:border-[#56642b] resize-y"
+              onEditorChange={(content) => setDetailedDescription(content)}
+              init={{
+                height: 300,
+                menubar: false,
+                plugins: [
+                  'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+                  'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+                  'insertdatetime', 'media', 'table', 'help', 'wordcount',
+                ],
+                toolbar: 'undo redo | blocks | bold italic forecolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image table | removeformat | code preview fullscreen',
+                content_style: 'body { font-family: Inter, Helvetica, Arial, sans-serif; font-size: 14px; }',
+              }}
             />
           </div>
 

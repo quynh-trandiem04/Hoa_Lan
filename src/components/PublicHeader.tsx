@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRight, LogOut, Search, User, X } from 'lucide-react';
-import type { Category } from '../types';
-import { getCategories } from '../services/api';
+import type { ArticleCategory, Category } from '../types';
+import { getArticleCategories, getCategories } from '../services/api';
 
 interface PublicHeaderProps {
   categories?: Category[];
@@ -19,9 +19,21 @@ const readFavoriteCount = () => {
   }
 };
 
-const CascadingMenuDropdown = ({ categories, rootNames, basePath }: { categories: Category[], rootNames: string[], basePath: string }) => {
-  const root = useMemo(() => categories.find(c => rootNames.some(name => c.name.toLowerCase() === name.toLowerCase()) && !c.parentId), [categories, rootNames]);
-  const level1Cats = useMemo(() => root ? categories.filter(c => c.parentId === root.id) : [], [categories, root]);
+type MenuCategory = Pick<Category, 'id' | 'name' | 'parentId'> | Pick<ArticleCategory, 'id' | 'name' | 'parentId'>;
+
+const CascadingMenuDropdown = ({ categories, rootNames, basePath }: { categories: MenuCategory[], rootNames?: string[], basePath: string }) => {
+  const root = useMemo(
+    () => rootNames?.length
+      ? categories.find((category) => rootNames.some((name) => category.name.toLowerCase() === name.toLowerCase()) && !category.parentId)
+      : undefined,
+    [categories, rootNames],
+  );
+  const level1Cats = useMemo(
+    () => root
+      ? categories.filter((category) => category.parentId === root.id)
+      : categories.filter((category) => !category.parentId),
+    [categories, root],
+  );
   
   return (
     <div className="invisible absolute left-0 top-[calc(100%-7px)] z-50 min-w-[260px] rounded border border-[#747878]/10 bg-white shadow-xl opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100">
@@ -79,6 +91,8 @@ const CascadingMenuDropdown = ({ categories, rootNames, basePath }: { categories
 
 export default function PublicHeader({ categories: suppliedCategories }: PublicHeaderProps) {
   const [loadedCategories, setLoadedCategories] = useState<Category[]>(suppliedCategories ?? []);
+  const [cultivationCategories, setCultivationCategories] = useState<ArticleCategory[]>([]);
+  const [applicationCategories, setApplicationCategories] = useState<ArticleCategory[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [favoriteCount, setFavoriteCount] = useState(readFavoriteCount);
@@ -99,6 +113,23 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
       .catch(() => { if (active) setLoadedCategories([]); });
     return () => { active = false; };
   }, [suppliedCategories]);
+
+  useEffect(() => {
+    let active = true;
+    void Promise.all([
+      getArticleCategories('cultivation', { pageNumber: 1, pageSize: 100, sortBy: 'name' }),
+      getArticleCategories('application', { pageNumber: 1, pageSize: 100, sortBy: 'name' }),
+    ]).then(([cultivation, application]) => {
+      if (!active) return;
+      setCultivationCategories(cultivation);
+      setApplicationCategories(application);
+    }).catch(() => {
+      if (!active) return;
+      setCultivationCategories([]);
+      setApplicationCategories([]);
+    });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (searchOpen) searchInputRef.current?.focus();
@@ -141,8 +172,6 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
     window.location.replace('/');
   };
 
-  const ungDungCat = useMemo(() => loadedCategories.find(c => c.name.toLowerCase() === 'ứng dụng' && !c.parentId), [loadedCategories]);
-
   const handleSearch = (event: React.FormEvent) => {
     event.preventDefault();
     const query = searchTerm.trim();
@@ -177,10 +206,15 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
             <a href="/planting-and-care" className={`flex cursor-pointer items-center gap-1 font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors ${path === '/planting-and-care' ? activeClass : normalClass}`}>
               Cách trồng và chăm sóc <ChevronRight className="h-3.5 w-3.5 rotate-90" />
             </a>
-            <CascadingMenuDropdown categories={loadedCategories} rootNames={['Trồng và chăm sóc', 'Cách trồng và chăm sóc']} basePath="/planting-and-care" />
+            <CascadingMenuDropdown categories={cultivationCategories} basePath="/planting-and-care" />
           </div>
 
-          <a href="/applications" className={`font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors ${path === '/applications' ? activeClass : normalClass}`}>Ứng dụng</a>
+          <div className="group relative flex h-full items-center">
+            <a href="/applications" className={`flex cursor-pointer items-center gap-1 font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors ${path === '/applications' ? activeClass : normalClass}`}>
+              Ứng dụng <ChevronRight className="h-3.5 w-3.5 rotate-90" />
+            </a>
+            <CascadingMenuDropdown categories={applicationCategories} basePath="/applications" />
+          </div>
           <a href="/document" className={`font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors ${path === '/document' ? activeClass : normalClass}`}>Tài liệu</a>
           <a href="/discussion" className={`font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors ${path === '/discussion' ? activeClass : normalClass}`}>Thảo luận</a>
         </nav>

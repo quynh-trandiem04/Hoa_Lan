@@ -8,6 +8,7 @@ import { Editor } from '@tinymce/tinymce-react';
 import CustomerHome from './pages/CustomerHome';
 import Discussion from './pages/Discussion';
 import PlantingAndCare from './pages/PlantingAndCare';
+import Applications from './pages/Applications';
 import DocumentPage from './pages/Document';
 import {
   LayoutDashboard,
@@ -189,7 +190,7 @@ export default function App() {
   const { toasts, addToast, removeToast } = useToasts();
 
   
-  type ScreenType = "home" | "signup" | "login" | "forgot_password" | "dashboard" | "discussion" | "planting_and_care" | "document" | "list_orchids" | "orchid_detail" | "profile";
+  type ScreenType = "home" | "signup" | "login" | "forgot_password" | "dashboard" | "discussion" | "planting_and_care" | "applications" | "document" | "list_orchids" | "orchid_detail" | "profile";
 
   const getInitialScreen = (): ScreenType => {
     const path = window.location.pathname;
@@ -202,6 +203,7 @@ export default function App() {
     }
     if (path === '/discussion') return 'discussion';
     if (path === '/planting-and-care') return 'planting_and_care';
+    if (path === '/applications') return 'applications';
     if (path === '/document') return 'document';
     if (path === '/profile') return 'profile';
     if (path === '/list-orchids') return 'list_orchids';
@@ -241,6 +243,7 @@ export default function App() {
     else if (newScreen === 'dashboard') path = '/admin/dashboard';
     else if (newScreen === 'discussion') path = '/discussion';
     else if (newScreen === 'planting_and_care') path = '/planting-and-care';
+    else if (newScreen === 'applications') path = '/applications';
     else if (newScreen === 'document') path = '/document';
     else if (newScreen === 'profile') path = '/profile';
     else if (newScreen === 'list_orchids') {
@@ -3427,6 +3430,7 @@ export default function App() {
 
           {screen === 'discussion' && <Discussion />}
           {screen === 'planting_and_care' && <PlantingAndCare />}
+          {screen === 'applications' && <Applications />}
           {screen === 'document' && <DocumentPage />}
           {screen === 'profile' && <CustomerProfile />}
 
