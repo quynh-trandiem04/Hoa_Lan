@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Calendar, Download, Eye, FileText, HardDrive } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Calendar, Download, Eye, FileText, HardDrive, Search, X } from 'lucide-react';
 import type { DocumentItem } from '../types';
 import { getDocuments } from '../services/api';
 import PublicHeader from '../components/PublicHeader';
@@ -17,11 +17,31 @@ const formatDate = (value?: string) => {
   return Number.isNaN(date.getTime()) ? 'Không rõ' : date.toLocaleDateString('vi-VN');
 };
 
+const normalizeSearchText = (value: string) => value
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/đ/g, 'd')
+  .replace(/Đ/g, 'D')
+  .toLocaleLowerCase('vi');
+
 export default function DocumentPage() {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [searchInput, setSearchInput] = useState(() => new URLSearchParams(window.location.search).get('q') ?? '');
+  const [searchTerm, setSearchTerm] = useState(() => new URLSearchParams(window.location.search).get('q') ?? '');
+
+  const filteredDocuments = useMemo(() => {
+    const keyword = normalizeSearchText(searchTerm.trim());
+    if (!keyword) return documents;
+    return documents.filter((document) => normalizeSearchText([
+      document.title,
+      document.originalName,
+      document.description,
+      document.extension,
+    ].filter(Boolean).join(' ')).includes(keyword));
+  }, [documents, searchTerm]);
 
   useEffect(() => {
     let active = true;
@@ -62,6 +82,21 @@ export default function DocumentPage() {
     }
   };
 
+  const handleSearch = (event: React.FormEvent) => {
+    event.preventDefault();
+    const keyword = searchInput.trim();
+    setSearchTerm(keyword);
+    const params = new URLSearchParams();
+    if (keyword) params.set('q', keyword);
+    window.history.replaceState(null, '', `/document${params.size ? `?${params.toString()}` : ''}`);
+  };
+
+  const clearSearch = () => {
+    setSearchInput('');
+    setSearchTerm('');
+    window.history.replaceState(null, '', '/document');
+  };
+
   return (
     <div className="min-h-screen bg-[#f9f9f7] text-[#1a1c1b]">
       <PublicHeader />
@@ -80,18 +115,41 @@ export default function DocumentPage() {
           </p>
         </section>
 
+        <form onSubmit={handleSearch} className="mb-8 flex w-full max-w-xl overflow-hidden rounded border border-[#cfd2cb] bg-white shadow-sm focus-within:border-[#56642b]">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#899073]" size={18} />
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Tìm theo tên tài liệu, tên tệp hoặc mô tả..."
+              className="w-full bg-transparent py-3 pl-11 pr-10 text-sm outline-none placeholder:text-[#92978f]"
+            />
+            {searchInput && (
+              <button type="button" onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-[#747878] hover:bg-[#f0f1ec]" aria-label="Xóa từ khóa tìm kiếm">
+                <X size={15} />
+              </button>
+            )}
+          </div>
+          <button type="submit" className="flex shrink-0 items-center gap-2 bg-[#56642b] px-5 text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-[#445022]">
+            <Search size={16} />
+            <span className="hidden sm:inline">Tìm kiếm</span>
+          </button>
+        </form>
+
         {loading ? (
           <div className="py-20 text-center text-sm text-[#747878]">Đang tải danh sách tài liệu...</div>
         ) : error ? (
           <div className="border border-red-200 bg-red-50 px-6 py-12 text-center text-sm text-red-700">{error}</div>
-        ) : documents.length === 0 ? (
+        ) : filteredDocuments.length === 0 ? (
           <div className="border border-dashed border-[#cfd2cb] bg-white px-6 py-20 text-center">
             <FileText className="mx-auto mb-3 text-[#92978f]" />
-            <p className="font-serif text-xl font-bold">Chưa có tài liệu</p>
+            <p className="font-serif text-xl font-bold">{searchTerm ? 'Không tìm thấy tài liệu phù hợp' : 'Chưa có tài liệu'}</p>
+            {searchTerm && <p className="mt-2 text-sm text-[#747878]">Thử một từ khóa khác hoặc xóa bộ lọc tìm kiếm.</p>}
           </div>
         ) : (
           <section className="space-y-6">
-            {documents.map((document) => (
+            {filteredDocuments.map((document) => (
               <article key={document.id} className="relative flex flex-col gap-5 border border-[#eeeeea] bg-white p-6 shadow-[0_8px_24px_rgba(0,0,0,0.035)] sm:flex-row sm:items-start">
                 <div className="flex h-[76px] w-[60px] shrink-0 flex-col items-center justify-center rounded border border-[#dedfdb] bg-[#f4f4f2] text-red-500">
                   <FileText size={29} strokeWidth={1.8} />
