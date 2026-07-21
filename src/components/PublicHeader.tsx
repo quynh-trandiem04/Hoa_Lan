@@ -19,6 +19,67 @@ const readFavoriteCount = () => {
   }
 };
 
+const MegaMenuDropdown = ({ categories, rootNames, basePath }: { categories: Category[], rootNames: string[], basePath: string }) => {
+  const root = useMemo(() => categories.find(c => rootNames.some(name => c.name.toLowerCase() === name.toLowerCase()) && !c.parentId), [categories, rootNames]);
+  const level1Cats = useMemo(() => root ? categories.filter(c => c.parentId === root.id) : [], [categories, root]);
+  
+  const [activeLevel1, setActiveLevel1] = useState<string | null>(null);
+
+  const currentActiveId = activeLevel1 || level1Cats[0]?.id;
+
+  return (
+    <div className="invisible absolute left-0 top-[calc(100%-7px)] z-50 flex min-h-[350px] w-[750px] rounded border border-[#747878]/10 bg-white shadow-xl opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100 overflow-hidden">
+      <div className="w-1/3 border-r border-outline-variant bg-[#f4f4f2]/50 py-3">
+        <ul className="flex flex-col">
+          {level1Cats.map(cat => {
+            const isActive = currentActiveId === cat.id;
+            return (
+              <li key={cat.id} 
+                  onMouseEnter={() => setActiveLevel1(cat.id)}
+                  className={`cursor-pointer px-5 py-3 text-[14.5px] font-bold transition-all ${isActive ? 'bg-white text-botanical-green shadow-[inset_3px_0_0_0_#56642b]' : 'text-charcoal-text hover:bg-white hover:text-botanical-green'}`}>
+                <a href={`${basePath}?cat=${encodeURIComponent(cat.id)}`} className="block w-full">{cat.name}</a>
+              </li>
+            );
+          })}
+          {level1Cats.length === 0 && <li className="px-5 py-2 text-xs text-[#747878]">Chưa có danh mục</li>}
+        </ul>
+      </div>
+
+      <div className="flex-1 bg-white p-7">
+        {currentActiveId ? (
+          <div className="columns-2 gap-8">
+            {categories.filter(c => c.parentId === currentActiveId).map(level2Cat => (
+              <div key={level2Cat.id} className="mb-6 break-inside-avoid">
+                <a href={`${basePath}?cat=${encodeURIComponent(level2Cat.id)}`} className="mb-3 block font-serif text-[15px] font-bold text-on-surface hover:text-botanical-green">
+                  {level2Cat.name}
+                </a>
+                <ul className="space-y-2.5">
+                  {categories.filter(c => c.parentId === level2Cat.id).map(level3Cat => (
+                    <li key={level3Cat.id}>
+                      <a href={`${basePath}?cat=${encodeURIComponent(level3Cat.id)}`} className="text-[13.5px] text-charcoal-text transition-colors hover:text-botanical-green block">
+                        {level3Cat.name}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+            {categories.filter(c => c.parentId === currentActiveId).length === 0 && (
+              <div className="flex h-full items-center text-sm text-outline col-span-2">
+                Chưa có danh mục con chi tiết
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex h-full items-center justify-center text-sm text-outline">
+            Không có danh mục con
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export default function PublicHeader({ categories: suppliedCategories }: PublicHeaderProps) {
   const [loadedCategories, setLoadedCategories] = useState<Category[]>(suppliedCategories ?? []);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -83,32 +144,6 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
     window.location.replace('/');
   };
 
-  const categoryOptions = useMemo(() => {
-    const result: Array<{ category: Category; depth: number }> = [];
-    const visited = new Set<string>();
-    const appendChildren = (parentId: string | null, depth: number) => {
-      loadedCategories
-        .filter((category) => (category.parentId ?? null) === parentId)
-        .forEach((category) => {
-          if (visited.has(category.id)) return;
-          visited.add(category.id);
-          result.push({ category, depth });
-          appendChildren(category.id, depth + 1);
-        });
-    };
-    
-    const root = loadedCategories.find(c => c.name.toLowerCase() === 'danh mục lan' && !c.parentId);
-    if (root) {
-      appendChildren(root.id, 0);
-    } else {
-      appendChildren(null, 0);
-      loadedCategories.forEach((category) => {
-        if (!visited.has(category.id)) result.push({ category, depth: 0 });
-      });
-    }
-    return result;
-  }, [loadedCategories]);
-
   const ungDungCat = useMemo(() => loadedCategories.find(c => c.name.toLowerCase() === 'ứng dụng' && !c.parentId), [loadedCategories]);
 
   const handleSearch = (event: React.FormEvent) => {
@@ -126,90 +161,29 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
     || sessionStorage.getItem('orchidee_auth_token'),
   );
 
-    const careCategoryOptions = useMemo(() => {
-      const result: Array<{ category: Category; depth: number }> = [];
-      const visited = new Set<string>();
-      const appendChildren = (parentId: string | null, depth: number) => {
-        loadedCategories
-          .filter((category) => (category.parentId ?? null) === parentId)
-          .forEach((category) => {
-            if (visited.has(category.id)) return;
-            visited.add(category.id);
-            result.push({ category, depth });
-            appendChildren(category.id, depth + 1);
-          });
-      };
-      
-      const root = loadedCategories.find(c => (c.name.toLowerCase() === 'trồng và chăm sóc' || c.name.toLowerCase() === 'cách trồng và chăm sóc') && !c.parentId);
-      if (root) {
-        appendChildren(root.id, 0);
-      }
-      return result;
-    }, [loadedCategories]);
+  return (
+    <header className="sticky top-0 z-50 h-16 w-full border-b border-[#56642b]/10 bg-surface-cream/95 backdrop-blur-md">
+      <div className="relative mx-auto flex h-full max-w-7xl items-center justify-between px-6 md:px-16">
+        <a href="/" className="select-none font-serif text-xl font-bold italic tracking-tight text-botanical-green md:text-2xl">Orchids</a>
 
-    return (
-      <header className="sticky top-0 z-50 h-16 w-full border-b border-[#56642b]/10 bg-surface-cream/95 backdrop-blur-md">
-        <div className="relative mx-auto flex h-full max-w-7xl items-center justify-between px-6 md:px-16">
-          <a href="/" className="select-none font-serif text-xl font-bold italic tracking-tight text-botanical-green md:text-2xl">Orchids</a>
-  
-          <nav className="hidden h-full items-center space-x-8 md:flex">
-            <a href="/" className={`font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${path === '/' ? activeClass : normalClass}`}>Trang chủ</a>
-  
-            <div className="group relative flex h-full items-center">
-              <a href="/list-orchids" className={`flex cursor-pointer items-center gap-1 font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${isCatalog ? activeClass : normalClass}`}>
-                Danh mục lan <ChevronRight className="h-3.5 w-3.5 rotate-90" />
-              </a>
-              <div className="invisible absolute left-0 top-[calc(100%-7px)] z-50 max-h-[70vh] w-72 overflow-y-auto rounded border border-[#747878]/10 bg-white py-3 opacity-0 shadow-xl transition-all duration-200 group-hover:visible group-hover:opacity-100">
-                <ul className="flex flex-col">
-                  {categoryOptions.map(({ category, depth }) => (
-                    <li key={category.id}>
-                      <a
-                        href={`/list-orchids?cat=${encodeURIComponent(category.id)}`}
-                        className={`block w-full pr-5 text-left font-serif transition-colors hover:bg-[#56642b]/5 hover:text-botanical-green ${
-                          depth === 0 
-                            ? 'py-3 text-[15px] text-[#1a1c1b] mt-2 first:mt-0' 
-                            : 'py-2 text-[14.5px] text-[#434748]'
-                        }`}
-                        style={{ paddingLeft: `${24 + depth * 24}px` }}
-                      >
-                        {depth > 0 && <span className="mr-3 text-[#899073] font-sans font-light">—</span>}
-                        {category.name}
-                      </a>
-                    </li>
-                  ))}
-                  {categoryOptions.length === 0 && <li className="px-5 py-2 text-xs text-[#747878]">Chưa có danh mục</li>}
-                </ul>
-              </div>
-            </div>
-  
-            <div className="group relative flex h-full items-center">
-              <a href="/planting-and-care" className={`flex cursor-pointer items-center gap-1 font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${path === '/planting-and-care' ? activeClass : normalClass}`}>
-                Cách trồng và chăm sóc <ChevronRight className="h-3.5 w-3.5 rotate-90" />
-              </a>
-              <div className="invisible absolute left-0 top-[calc(100%-7px)] z-50 max-h-[70vh] w-72 overflow-y-auto rounded border border-[#747878]/10 bg-white py-3 opacity-0 shadow-xl transition-all duration-200 group-hover:visible group-hover:opacity-100">
-                <ul className="flex flex-col">
-                  {careCategoryOptions.map(({ category, depth }) => (
-                    <li key={category.id}>
-                      <a
-                        href={`/planting-and-care?cat=${encodeURIComponent(category.id)}`}
-                        className={`block w-full pr-5 text-left font-serif transition-colors hover:bg-[#56642b]/5 hover:text-botanical-green ${
-                          depth === 0 
-                            ? 'py-3 text-[15px] text-[#1a1c1b] mt-2 first:mt-0' 
-                            : 'py-2 text-[14.5px] text-[#434748]'
-                        }`}
-                        style={{ paddingLeft: `${24 + depth * 24}px` }}
-                      >
-                        {depth > 0 && <span className="mr-3 text-[#899073] font-sans font-light">—</span>}
-                        {category.name}
-                      </a>
-                    </li>
-                  ))}
-                  {careCategoryOptions.length === 0 && <li className="px-5 py-2 text-xs text-[#747878]">Chưa có danh mục</li>}
-                </ul>
-              </div>
-            </div>
+        <nav className="hidden h-full items-center space-x-8 md:flex">
+          <a href="/" className={`font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${path === '/' ? activeClass : normalClass}`}>Trang chủ</a>
 
-            <a href={ungDungCat ? `/list-orchids?cat=${encodeURIComponent(ungDungCat.id)}` : "/list-orchids"} className={`font-sans text-xs font-semibold uppercase tracking-wider transition-colors normalClass`}>Ứng dụng</a>
+          <div className="group relative flex h-full items-center">
+            <a href="/list-orchids" className={`flex cursor-pointer items-center gap-1 font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${isCatalog ? activeClass : normalClass}`}>
+              Danh mục lan <ChevronRight className="h-3.5 w-3.5 rotate-90" />
+            </a>
+            <MegaMenuDropdown categories={loadedCategories} rootNames={['Danh mục lan']} basePath="/list-orchids" />
+          </div>
+
+          <div className="group relative flex h-full items-center">
+            <a href="/planting-and-care" className={`flex cursor-pointer items-center gap-1 font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${path === '/planting-and-care' ? activeClass : normalClass}`}>
+              Cách trồng và chăm sóc <ChevronRight className="h-3.5 w-3.5 rotate-90" />
+            </a>
+            <MegaMenuDropdown categories={loadedCategories} rootNames={['Trồng và chăm sóc', 'Cách trồng và chăm sóc']} basePath="/planting-and-care" />
+          </div>
+
+          <a href={ungDungCat ? `/list-orchids?cat=${encodeURIComponent(ungDungCat.id)}` : "/list-orchids"} className={`font-sans text-xs font-semibold uppercase tracking-wider transition-colors normalClass`}>Ứng dụng</a>
           <a href="/document" className={`font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${path === '/document' ? activeClass : normalClass}`}>Tài liệu</a>
           <a href="/discussion" className={`font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${path === '/discussion' ? activeClass : normalClass}`}>Thảo luận</a>
         </nav>
