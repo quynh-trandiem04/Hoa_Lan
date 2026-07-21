@@ -162,6 +162,7 @@ export interface CareArticle {
   isPublished: boolean;
   orchidIds: string[];
   documentIds: string[];
+  categoryId?: string | null;
 }
 export interface OrchidItem {
   id: string;

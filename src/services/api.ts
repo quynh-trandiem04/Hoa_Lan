@@ -639,6 +639,7 @@ const normalizeArticle = (
   isPublished: article.isPublished ?? false,
   orchidIds: article.orchidIds ?? [],
   documentIds: article.documentIds ?? [],
+  categoryId: article.categoryId ?? null,
 });
 
 const throwArticleApiError = (body: unknown, fallback: string): never => {
