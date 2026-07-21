@@ -2137,82 +2137,10 @@ export default function App() {
               </div>
 
               {/* Main Data Grid (8:4 layout) */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              <div className="grid grid-cols-1 gap-8">
                 
-                {/* Q&A Panel (8/12 width) */}
-                <div className="lg:col-span-8 bg-white border border-outline-variant/40 rounded-xl shadow-sm overflow-hidden flex flex-col justify-between">
-                  <div className="px-6 py-5 border-b border-outline-variant flex justify-between items-center bg-[#f4f4f2]/50">
-                    <div>
-                      <h4 className="font-serif text-lg font-semibold text-on-surface">
-                        Câu hỏi Q&A mới nhất cần phản hồi
-                      </h4>
-                      <p className="text-[11px] text-outline mt-0.5">Tương tác trực diện với mạng lưới khách hàng cao cấp</p>
-                    </div>
-                  </div>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-[#f4f4f2] text-on-surface-variant font-bold uppercase text-[10px] tracking-wider border-b border-outline-variant">
-                        <tr>
-                          <th className="px-6 py-2.5">Người gửi</th>
-                          <th className="px-6 py-2.5">Nội dung câu hỏi ngắn</th>
-                          <th className="px-6 py-2.5">Thời gian</th>
-                          <th className="px-6 py-2.5 text-right">Hành động</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-outline-variant/30">
-                        {loadingDashboardDiscussions ? (
-                          <tr>
-                            <td colSpan={4} className="px-6 py-10 text-center text-outline">
-                              Đang tải dữ liệu thảo luận...
-                            </td>
-                          </tr>
-                        ) : dashboardDiscussions.filter((post) => (post.commentCount ?? post.comments?.length ?? 0) === 0).length === 0 ? (
-                          <tr>
-                            <td colSpan={4} className="px-6 py-10 text-center text-outline">
-                              Không có câu hỏi nào đang chờ phản hồi.
-                            </td>
-                          </tr>
-                        ) : dashboardDiscussions
-                          .filter((post) => (post.commentCount ?? post.comments?.length ?? 0) === 0)
-                          .slice(0, 4)
-                          .map((post) => (
-                            <tr key={post.id} className="hover:bg-[#f4f4f2]/40 transition-colors">
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-2.5">
-                                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold leading-none bg-[#d6e7a1] text-[#384315]">
-                                    {post.authorName?.trim().charAt(0).toUpperCase() || '?'}
-                                  </div>
-                                  <span className="font-semibold text-charcoal-text">{post.authorName || 'Thành viên'}</span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 max-w-xs truncate text-[#434748] font-medium" title={post.content}>
-                                {post.title || post.content}
-                              </td>
-                              <td className="px-6 py-4 text-outline font-mono">{formatRelativeTime(post.createdAt)}</td>
-                              <td className="px-6 py-4 text-right">
-                                <button
-                                  onClick={() => setScreen('discussion')}
-                                  className="px-3.5 py-1.5 bg-[#56642b]/15 text-[#56642b] rounded hover:bg-[#56642b] hover:text-white transition-all text-[11px] font-bold uppercase tracking-wider font-sans cursor-pointer"
-                                >
-                                  Trả lời ngay
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  
-                  <div className="p-4 border-t border-outline-variant/50 flex justify-center bg-gray-50">
-                    <span className="text-[11px] text-outline">
-                      Dữ liệu được đồng bộ trực tiếp từ API Discussions.
-                    </span>
-                  </div>
-                </div>
-
                 {/* Right Column Layout (4/12 width) */}
-                <div className="lg:col-span-4 flex flex-col gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   
                   {/* Quick Actions Panel */}
                   <div className="bg-white p-6 luxury-shadow rounded-xl border border-outline-variant/30">
