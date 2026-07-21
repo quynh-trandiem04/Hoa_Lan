@@ -1,6 +1,6 @@
 // src/services/api.ts
 
-import type { CareArticle, Category, Orchid, PaginatedCategories } from '../types';
+import type { ArticleCategory, CareArticle, Category, Orchid, PaginatedCategories } from '../types';
 
 const DEFAULT_API_BASE_URL = '/backend-api';
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL).replace(/\/$/, '');
@@ -639,7 +639,10 @@ const normalizeArticle = (
   isPublished: article.isPublished ?? false,
   orchidIds: article.orchidIds ?? [],
   documentIds: article.documentIds ?? [],
-  categoryId: article.categoryId ?? null,
+  categoryId: article.categoryId ?? article.articleCategoryIds?.[0] ?? article.categories?.[0]?.id ?? null,
+  articleCategoryIds: article.articleCategoryIds ?? article.categories?.map((category) => category.id) ?? [],
+  categories: article.categories ?? [],
+  type: article.type,
 });
 
 const throwArticleApiError = (body: unknown, fallback: string): never => {
@@ -744,6 +747,193 @@ export const deleteArticle = async (id: string, apiVersion?: string): Promise<vo
   });
   const body = await readApiResponse(response);
   if (!response.ok) throwArticleApiError(body, 'Không thể xóa bài viết.');
+};
+
+// ======================= CULTIVATION / APPLICATION SECTIONS API =======================
+
+export type ArticleSection = 'cultivation' | 'application';
+
+export interface ArticleCategoryQuery {
+  parentId?: string;
+  pageNumber?: number;
+  pageSize?: number;
+  searchTerm?: string;
+  sortBy?: string;
+  sortDescending?: boolean;
+}
+
+export interface ArticleCategoryPayload {
+  name: string;
+  description: string;
+  slug: string;
+  parentId: string | null;
+}
+
+export interface SectionArticleQuery extends ArticleQuery {
+  articleCategoryId?: string;
+  includeDescendants?: boolean;
+}
+
+export interface SectionArticlePayload {
+  title: string;
+  slug: string;
+  summary: string;
+  content: string;
+  thumbnailImageId: string | null;
+  isPublished: boolean;
+  articleCategoryIds: string[];
+  orchidIds: string[];
+  documentIds: string[];
+}
+
+const sectionBasePath = (section: ArticleSection) => `/api/${section}-categories`;
+
+const sectionHeaders = (withBody = false): HeadersInit => {
+  const token = getStoredAuthToken();
+  return {
+    ...(withBody ? { 'Content-Type': 'application/json' } : {}),
+    Accept: 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+};
+
+const normalizeArticleCategory = (category: Partial<ArticleCategory> & { id: string; name: string }): ArticleCategory => ({
+  id: category.id,
+  name: category.name,
+  description: category.description ?? '',
+  slug: category.slug ?? '',
+  parentId: category.parentId ?? null,
+  articleCount: category.articleCount ?? 0,
+  children: category.children?.map(normalizeArticleCategory),
+});
+
+const sectionRequest = async (
+  section: ArticleSection,
+  suffix: string,
+  init: RequestInit,
+  fallback: string,
+): Promise<unknown> => {
+  const response = await fetch(`${API_BASE_URL}${sectionBasePath(section)}${suffix}`, {
+    ...init,
+    headers: {
+      ...sectionHeaders(Boolean(init.body)),
+      ...(init.headers ?? {}),
+    },
+  });
+  const body = await readApiResponse(response);
+  if (response.status === 401) throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+  if (!response.ok || (body !== null && typeof body === 'object' && (body as { success?: boolean }).success === false)) {
+    throwArticleApiError(body, fallback);
+  }
+  return body;
+};
+
+export const getArticleCategories = async (
+  section: ArticleSection,
+  query: ArticleCategoryQuery = {},
+): Promise<ArticleCategory[]> => {
+  const params = new URLSearchParams({
+    PageNumber: String(query.pageNumber ?? 1),
+    PageSize: String(query.pageSize ?? 100),
+  });
+  if (query.parentId) params.set('ParentId', query.parentId);
+  if (query.searchTerm) params.set('SearchTerm', query.searchTerm);
+  if (query.sortBy) params.set('SortBy', query.sortBy);
+  if (query.sortDescending !== undefined) params.set('SortDescending', String(query.sortDescending));
+  const body = await sectionRequest(section, `?${params.toString()}`, { method: 'GET' }, 'Không thể tải danh sách danh mục bài viết.');
+  const value = body !== null && typeof body === 'object' && 'data' in body
+    ? (body as { data: unknown }).data
+    : body;
+  const items = Array.isArray(value)
+    ? value
+    : (value as { items?: Array<Partial<ArticleCategory> & { id: string; name: string }> } | null)?.items ?? [];
+  return items.map((item) => normalizeArticleCategory(item as Partial<ArticleCategory> & { id: string; name: string }));
+};
+
+export const getArticleCategoryTree = async (section: ArticleSection): Promise<ArticleCategory[]> => {
+  const body = await sectionRequest(section, '/tree', { method: 'GET' }, 'Không thể tải cây danh mục bài viết.');
+  const value = body !== null && typeof body === 'object' && 'value' in body
+    ? (body as { value: unknown }).value
+    : body;
+  return (Array.isArray(value) ? value : []).map((item) => normalizeArticleCategory(item));
+};
+
+export const getArticleCategoryById = async (section: ArticleSection, id: string): Promise<ArticleCategory> => {
+  const body = await sectionRequest(section, `/${encodeURIComponent(id)}`, { method: 'GET' }, 'Không thể tải thông tin danh mục.');
+  const value = body !== null && typeof body === 'object' && 'data' in body
+    ? (body as { data: unknown }).data
+    : body;
+  return normalizeArticleCategory(value as Partial<ArticleCategory> & { id: string; name: string });
+};
+
+export const createArticleCategory = (
+  section: ArticleSection,
+  payload: ArticleCategoryPayload,
+): Promise<unknown> => sectionRequest(section, '', { method: 'POST', body: JSON.stringify(payload) }, 'Không thể tạo danh mục.');
+
+export const updateArticleCategory = (
+  section: ArticleSection,
+  id: string,
+  payload: ArticleCategoryPayload,
+): Promise<unknown> => sectionRequest(
+  section,
+  `/${encodeURIComponent(id)}`,
+  { method: 'PUT', body: JSON.stringify({ ...payload, id }) },
+  'Không thể cập nhật danh mục.',
+);
+
+export const deleteArticleCategory = async (section: ArticleSection, id: string): Promise<void> => {
+  await sectionRequest(section, `/${encodeURIComponent(id)}`, { method: 'DELETE' }, 'Không thể xóa danh mục.');
+};
+
+const appendSectionArticleQuery = (params: URLSearchParams, query: SectionArticleQuery) => {
+  params.set('PageNumber', String(query.pageNumber ?? 1));
+  params.set('PageSize', String(query.pageSize ?? 100));
+  if (query.orchidId) params.set('OrchidId', query.orchidId);
+  if (query.articleCategoryId) params.set('ArticleCategoryId', query.articleCategoryId);
+  if (query.includeDescendants !== undefined) params.set('IncludeDescendants', String(query.includeDescendants));
+  if (query.isPublished !== undefined) params.set('IsPublished', String(query.isPublished));
+  if (query.searchTerm) params.set('SearchTerm', query.searchTerm);
+  if (query.sortBy) params.set('SortBy', query.sortBy);
+  if (query.sortDescending !== undefined) params.set('SortDescending', String(query.sortDescending));
+};
+
+export const getSectionArticles = async (
+  section: ArticleSection,
+  query: SectionArticleQuery = {},
+  categoryId?: string,
+): Promise<CareArticle[]> => {
+  const params = new URLSearchParams();
+  appendSectionArticleQuery(params, query);
+  const prefix = categoryId ? `/${encodeURIComponent(categoryId)}` : '';
+  const body = await sectionRequest(section, `${prefix}/articles?${params.toString()}`, { method: 'GET' }, 'Không thể tải danh sách bài viết.');
+  const value = body !== null && typeof body === 'object' && 'data' in body
+    ? (body as { data: unknown }).data
+    : body;
+  const items = Array.isArray(value)
+    ? value
+    : (value as { items?: Array<Partial<CareArticle> & { id: string; title: string }> } | null)?.items ?? [];
+  return items.map((item) => normalizeArticle(item));
+};
+
+export const createSectionArticle = (
+  section: ArticleSection,
+  payload: SectionArticlePayload,
+): Promise<unknown> => sectionRequest(section, '/articles', { method: 'POST', body: JSON.stringify(payload) }, 'Không thể tạo bài viết.');
+
+export const updateSectionArticle = (
+  section: ArticleSection,
+  articleId: string,
+  payload: SectionArticlePayload,
+): Promise<unknown> => sectionRequest(
+  section,
+  `/articles/${encodeURIComponent(articleId)}`,
+  { method: 'PUT', body: JSON.stringify(payload) },
+  'Không thể cập nhật bài viết.',
+);
+
+export const deleteSectionArticle = async (section: ArticleSection, articleId: string): Promise<void> => {
+  await sectionRequest(section, `/articles/${encodeURIComponent(articleId)}`, { method: 'DELETE' }, 'Không thể xóa bài viết.');
 };
 
 

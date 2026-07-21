@@ -163,6 +163,19 @@ export interface CareArticle {
   orchidIds: string[];
   documentIds: string[];
   categoryId?: string | null;
+  articleCategoryIds?: string[];
+  categories?: ArticleCategory[];
+  type?: 'CULTIVATION' | 'APPLICATION';
+}
+
+export interface ArticleCategory {
+  id: string;
+  name: string;
+  description: string;
+  slug: string;
+  parentId: string | null;
+  children?: ArticleCategory[];
+  articleCount?: number;
 }
 export interface OrchidItem {
   id: string;

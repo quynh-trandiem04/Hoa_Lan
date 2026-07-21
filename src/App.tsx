@@ -43,8 +43,8 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 
 // Domain Imports
-import { Orchid, Question, Category, CommunityPost, CareArticle, PaginatedDocuments, DocumentItem } from './types';
-import { login, register, loginWithGoogle, refreshAuthToken, getCategories, createCategory, getCategoryById, updateCategory, deleteCategory, getArticles, getArticleById, createArticle, updateArticle, deleteArticle, getOrchids, getOrchidById, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, deleteDocument, uploadImage, getUploadedImageUrl, getUsers, createUser, updateUser, deleteUser, resetUserPassword, getDiscussions, type DiscussionPostDto, type LoginResponse, type UserListItem } from './services/api';
+import { Orchid, Question, Category, CommunityPost, CareArticle, PaginatedDocuments, DocumentItem, type ArticleCategory } from './types';
+import { login, register, loginWithGoogle, refreshAuthToken, getCategories, createCategory, getCategoryById, updateCategory, deleteCategory, getArticleById, getSectionArticles, createSectionArticle, updateSectionArticle, deleteSectionArticle, getArticleCategories, getOrchids, getOrchidById, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, deleteDocument, uploadImage, getUploadedImageUrl, getUsers, createUser, updateUser, deleteUser, resetUserPassword, getDiscussions, type ArticleSection, type DiscussionPostDto, type LoginResponse, type UserListItem } from './services/api';
 import { getOrchidImageUrls } from './utils/orchidImages';
 import {
   INITIAL_ORCHIDS,
@@ -66,6 +66,7 @@ import OrchidDetail from './pages/OrchidDetail';
 import CustomerProfile from './pages/CustomerProfile';
 import GoogleLoginButton from './components/GoogleLoginButton';
 import CaptchaChallenge, { type CaptchaChallengeHandle } from './components/CaptchaChallenge';
+import ArticleCategoryManager from './components/ArticleCategoryManager';
 
 const decodeJwtPayload = (token: string): Record<string, unknown> | null => {
   try {
@@ -729,6 +730,16 @@ export default function App() {
 
   // --- Care Guide state (API) ---
   const [careArticles, setCareArticles] = useState<CareArticle[]>([]);
+  const [articleCounts, setArticleCounts] = useState<Record<ArticleSection, number>>({
+    cultivation: 0,
+    application: 0,
+  });
+  const [cultivationCategories, setCultivationCategories] = useState<ArticleCategory[]>([]);
+  const [applicationCategories, setApplicationCategories] = useState<ArticleCategory[]>([]);
+  const [loadingArticleCategories, setLoadingArticleCategories] = useState<Record<ArticleSection, boolean>>({
+    cultivation: false,
+    application: false,
+  });
   const [careDocumentOptions, setCareDocumentOptions] = useState<DocumentItem[]>([]);
   const [loadingCareArticles, setLoadingCareArticles] = useState(false);
   const [showCareArticleEditor, setShowCareArticleEditor] = useState(false);
@@ -749,20 +760,64 @@ export default function App() {
   const [uploadingCareThumbnail, setUploadingCareThumbnail] = useState(false);
   const [careThumbnailPreviewUrl, setCareThumbnailPreviewUrl] = useState('');
 
-  useEffect(() => {
-    if (activeTab === 'care') {
-      void loadCareArticles();
-      void loadCareDocumentOptions();
-    }
-  }, [activeTab]);
+  const currentArticleSection: ArticleSection = activeTab === 'applications' ? 'application' : 'cultivation';
+  const currentArticleCategories = currentArticleSection === 'application'
+    ? applicationCategories
+    : cultivationCategories;
 
-  const loadCareArticles = async () => {
+  const loadArticleCategories = useCallback(async (section: ArticleSection) => {
+    setLoadingArticleCategories((current) => ({ ...current, [section]: true }));
+    try {
+      const data = await getArticleCategories(section, { pageNumber: 1, pageSize: 100, sortBy: 'name' });
+      if (section === 'application') setApplicationCategories(data);
+      else setCultivationCategories(data);
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Không thể tải danh mục bài viết.', 'error');
+    } finally {
+      setLoadingArticleCategories((current) => ({ ...current, [section]: false }));
+    }
+  }, [addToast]);
+
+  useEffect(() => {
+    if (screen !== 'dashboard') return;
+    void loadArticleCategories('cultivation');
+    void loadArticleCategories('application');
+    void Promise.all([
+      getSectionArticles('cultivation', { pageNumber: 1, pageSize: 100 }),
+      getSectionArticles('application', { pageNumber: 1, pageSize: 100 }),
+    ]).then(([cultivationArticles, applicationArticles]) => {
+      setArticleCounts({
+        cultivation: cultivationArticles.length,
+        application: applicationArticles.length,
+      });
+    }).catch((error) => {
+      console.error('Không thể tải số lượng bài viết theo nhóm:', error);
+    });
+  }, [screen, loadArticleCategories]);
+
+  useEffect(() => {
+    if (activeTab === 'care' || activeTab === 'applications') {
+      const section: ArticleSection = activeTab === 'applications' ? 'application' : 'cultivation';
+      setShowCareArticleEditor(false);
+      setEditingCareArticle(null);
+      void loadCareArticles(section);
+      void loadArticleCategories(section);
+      void loadCareDocumentOptions();
+    } else if (activeTab === 'cultivation_cats') {
+      void loadArticleCategories('cultivation');
+    } else if (activeTab === 'application_cats') {
+      void loadArticleCategories('application');
+    }
+  }, [activeTab, loadArticleCategories]);
+
+  const loadCareArticles = async (section: ArticleSection = currentArticleSection) => {
     setLoadingCareArticles(true);
     try {
-      const data = await getArticles();
+      const data = await getSectionArticles(section, { pageNumber: 1, pageSize: 100 });
       setCareArticles(data);
+      setArticleCounts((current) => ({ ...current, [section]: data.length }));
     } catch (error) {
-      addToast('Không thể tải danh sách cách trồng và chăm sóc', 'error');
+      addToast(error instanceof Error ? error.message : 'Không thể tải danh sách bài viết.', 'error');
     } finally {
       setLoadingCareArticles(false);
     }
@@ -799,31 +854,34 @@ export default function App() {
       content: careArticleForm.content.trim(),
       thumbnailImageId: careArticleForm.thumbnailImageId.trim() || null,
     };
+    const { categoryId, ...sectionArticlePayload } = payload;
 
     setSavingCareArticle(true);
     try {
       if (editingCareArticle && editingCareArticle.id) {
-        await updateArticle(editingCareArticle.id, payload);
+        await updateSectionArticle(currentArticleSection, editingCareArticle.id, {
+          ...sectionArticlePayload,
+          articleCategoryIds: categoryId ? [categoryId] : [],
+        });
         addToast('Cập nhật thành công', 'success');
       } else {
-        await createArticle(payload);
+        await createSectionArticle(currentArticleSection, {
+          ...sectionArticlePayload,
+          articleCategoryIds: categoryId ? [categoryId] : [],
+        });
         addToast('Thêm mới thành công', 'success');
       }
       setShowCareArticleEditor(false);
       setEditingCareArticle(null);
       setCareArticleForm(emptyCareArticleForm);
       setCareThumbnailPreviewUrl('');
-      await loadCareArticles();
+      await loadCareArticles(currentArticleSection);
     } catch (error) {
       addToast(error instanceof Error ? error.message : 'Có lỗi xảy ra khi lưu.', 'error');
     } finally {
       setSavingCareArticle(false);
     }
   };
-
-  useEffect(() => {
-    void loadCareArticles();
-  }, []);
 
   const handleUploadCareThumbnail = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -874,7 +932,7 @@ export default function App() {
         isPublished: article.isPublished,
         orchidIds: article.orchidIds,
         documentIds: article.documentIds,
-        categoryId: article.categoryId ?? '',
+        categoryId: article.articleCategoryIds?.[0] ?? article.categories?.[0]?.id ?? article.categoryId ?? '',
       });
       setCareThumbnailPreviewUrl(article.thumbnailImageUrl || getUploadedImageUrl(article.thumbnailImageId));
       setShowCareArticleEditor(true);
@@ -884,11 +942,12 @@ export default function App() {
   };
 
   const handleDeleteCareArticle = async (id: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa bài hướng dẫn này?')) return;
+    const articleLabel = currentArticleSection === 'application' ? 'bài ứng dụng' : 'bài hướng dẫn';
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa ${articleLabel} này?`)) return;
     try {
-      await deleteArticle(id);
+      await deleteSectionArticle(currentArticleSection, id);
       addToast('Xóa thành công', 'info');
-      loadCareArticles();
+      void loadCareArticles(currentArticleSection);
     } catch (error) {
       addToast(error instanceof Error ? error.message : 'Có lỗi xảy ra khi xóa.', 'error');
     }
@@ -1871,6 +1930,9 @@ export default function App() {
           >
             <Layers className="w-5 h-5 shrink-0" />
             <span className="text-xs uppercase tracking-wider font-semibold font-sans">Danh mục Cách trồng và chăm sóc</span>
+            <span className="ml-auto text-[10px] font-mono bg-surface-container-high px-2 py-0.5 rounded text-outline font-bold">
+              {cultivationCategories.length}
+            </span>
           </button>
 
           {/* 4. Danh mục Ứng dụng */}
@@ -1884,6 +1946,9 @@ export default function App() {
           >
             <Sparkles className="w-5 h-5 shrink-0" />
             <span className="text-xs uppercase tracking-wider font-semibold font-sans">Danh mục Ứng dụng</span>
+            <span className="ml-auto text-[10px] font-mono bg-surface-container-high px-2 py-0.5 rounded text-outline font-bold">
+              {applicationCategories.length}
+            </span>
           </button>
 
           {/* 5. Quản lý Hoa Lan */}
@@ -1914,7 +1979,7 @@ export default function App() {
             <FileText className="w-5 h-5 shrink-0" />
             <span className="text-xs uppercase tracking-wider font-semibold font-sans">Cách trồng và chăm sóc</span>
             <span className="ml-auto text-[10px] font-mono bg-surface-container-high px-2 py-0.5 rounded text-outline font-bold">
-              {careArticles.length}
+              {articleCounts.cultivation}
             </span>
           </button>
 
@@ -1929,6 +1994,9 @@ export default function App() {
           >
             <Sparkles className="w-5 h-5 shrink-0" />
             <span className="text-xs uppercase tracking-wider font-semibold font-sans">Ứng dụng</span>
+            <span className="ml-auto text-[10px] font-mono bg-surface-container-high px-2 py-0.5 rounded text-outline font-bold">
+              {articleCounts.application}
+            </span>
           </button>
 
           {/* 8. Quản lý Tài liệu về Lan */}
@@ -2895,69 +2963,40 @@ export default function App() {
 
           {/* ======================= TAB: CULTIVATION CATEGORIES ======================= */}
           {activeTab === 'cultivation_cats' && (
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
-                <div>
-                  <h2 className="font-serif text-3xl font-semibold text-on-surface">Danh Mục Cách Trồng & Chăm Sóc</h2>
-                  <p className="text-sm text-on-surface-variant mt-1">
-                    Quản lý danh mục từ API <code className="text-xs bg-surface-container px-1 rounded">/api/cultivation-categories</code>
-                  </p>
-                </div>
-              </div>
-              <div className="bg-white rounded-xl border border-outline-variant/30 p-8 text-center text-sm text-outline">
-                <Layers className="w-12 h-12 mx-auto mb-3 text-botanical-green/30" />
-                <p className="font-semibold text-on-surface mb-1">Quản lý danh mục Cách Trồng & Chăm Sóc</p>
-                <p>Dữ liệu lấy từ <code className="text-xs bg-surface-container px-1 rounded">/api/cultivation-categories</code>. Tính năng CRUD sẽ được tích hợp sớm.</p>
-              </div>
-            </div>
+            <ArticleCategoryManager
+              section="cultivation"
+              title="Danh Mục Cách Trồng & Chăm Sóc"
+              categories={cultivationCategories}
+              loading={loadingArticleCategories.cultivation}
+              onReload={() => loadArticleCategories('cultivation')}
+              notify={addToast}
+            />
           )}
 
           {/* ======================= TAB: APPLICATION CATEGORIES ======================= */}
           {activeTab === 'application_cats' && (
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
-                <div>
-                  <h2 className="font-serif text-3xl font-semibold text-on-surface">Danh Mục Ứng Dụng</h2>
-                  <p className="text-sm text-on-surface-variant mt-1">
-                    Quản lý danh mục từ API <code className="text-xs bg-surface-container px-1 rounded">/api/application-categories</code>
-                  </p>
-                </div>
-              </div>
-              <div className="bg-white rounded-xl border border-outline-variant/30 p-8 text-center text-sm text-outline">
-                <Sparkles className="w-12 h-12 mx-auto mb-3 text-botanical-green/30" />
-                <p className="font-semibold text-on-surface mb-1">Quản lý danh mục Ứng Dụng</p>
-                <p>Dữ liệu lấy từ <code className="text-xs bg-surface-container px-1 rounded">/api/application-categories</code>. Tính năng CRUD sẽ được tích hợp sớm.</p>
-              </div>
-            </div>
-          )}
-
-          {/* ======================= TAB: APPLICATIONS / ỨNG DỤNG ======================= */}
-          {activeTab === 'applications' && (
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
-                <div>
-                  <h2 className="font-serif text-3xl font-semibold text-on-surface">Ứng Dụng</h2>
-                  <p className="text-sm text-on-surface-variant mt-1">
-                    Quản lý nội dung ứng dụng từ API <code className="text-xs bg-surface-container px-1 rounded">/api/application-categories/articles</code>
-                  </p>
-                </div>
-              </div>
-              <div className="bg-white rounded-xl border border-outline-variant/30 p-8 text-center text-sm text-outline">
-                <Sparkles className="w-12 h-12 mx-auto mb-3 text-botanical-green/30" />
-                <p className="font-semibold text-on-surface mb-1">Quản lý Ứng Dụng</p>
-                <p>Tính năng CRUD bài viết ứng dụng sẽ được tích hợp sớm.</p>
-              </div>
-            </div>
+            <ArticleCategoryManager
+              section="application"
+              title="Danh Mục Ứng Dụng"
+              categories={applicationCategories}
+              loading={loadingArticleCategories.application}
+              onReload={() => loadArticleCategories('application')}
+              notify={addToast}
+            />
           )}
 
           {/* ======================= TAB: CARE GUIDE / TRỒNG & CHĂM SÓC (API) ======================= */}
-          {activeTab === 'care' && (
+          {(activeTab === 'care' || activeTab === 'applications') && (
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
                 <div>
-                  <h2 className="font-serif text-3xl font-semibold text-on-surface">Hướng Dẫn Trồng & Chăm Sóc</h2>
+                  <h2 className="font-serif text-3xl font-semibold text-on-surface">
+                    {activeTab === 'applications' ? 'Ứng Dụng' : 'Hướng Dẫn Trồng & Chăm Sóc'}
+                  </h2>
                   <p className="text-sm text-on-surface-variant mt-1">
-                    Cơ sở dữ liệu lưu trữ các kỹ thuật chăm sóc, nhân giống và bảo tồn hoa lan (Dữ liệu API).
+                    {activeTab === 'applications'
+                      ? 'Biên soạn và quản lý các bài viết về ứng dụng của hoa lan trong đời sống.'
+                      : 'Biên soạn và quản lý các hướng dẫn trồng, chăm sóc và bảo tồn hoa lan.'}
                   </p>
                 </div>
                 {!showCareArticleEditor && (
@@ -2970,7 +3009,7 @@ export default function App() {
                     }}
                     className="px-5 py-2.5 bg-botanical-green text-white font-sans text-xs font-semibold uppercase tracking-wider rounded-lg hover:shadow cursor-pointer"
                   >
-                    Viết hướng dẫn mới
+                    {activeTab === 'applications' ? 'Viết bài ứng dụng mới' : 'Viết hướng dẫn mới'}
                   </button>
                 )}
               </div>
@@ -2983,7 +3022,9 @@ export default function App() {
                 >
                   <div className="flex justify-between items-center pb-3 border-b border-outline-variant">
                     <h3 className="font-serif text-xl font-bold text-on-surface">
-                      {editingCareArticle ? 'Cập nhật hướng dẫn' : 'Soạn thảo hướng dẫn mới'}
+                      {editingCareArticle
+                        ? (activeTab === 'applications' ? 'Cập nhật bài ứng dụng' : 'Cập nhật hướng dẫn')
+                        : (activeTab === 'applications' ? 'Soạn bài ứng dụng mới' : 'Soạn thảo hướng dẫn mới')}
                     </h3>
                     <button
                       onClick={() => {
@@ -3023,7 +3064,7 @@ export default function App() {
                           const visited = new Set<string>();
                           
                           const appendChildren = (parentId: string | null, depth: number) => {
-                            categories
+                            currentArticleCategories
                               .filter((category) => (category.parentId ?? null) === parentId)
                               .forEach((category) => {
                                 if (visited.has(category.id)) return;
@@ -3252,9 +3293,13 @@ export default function App() {
                       <div className="w-16 h-16 bg-[#d6e7a1]/20 rounded-full flex items-center justify-center mx-auto mb-4 text-[#56642b]">
                         <FileText className="w-8 h-8" />
                       </div>
-                      <h3 className="font-serif text-xl font-bold text-on-surface mb-2">Chưa có bài hướng dẫn nào</h3>
+                      <h3 className="font-serif text-xl font-bold text-on-surface mb-2">
+                        {activeTab === 'applications' ? 'Chưa có bài ứng dụng nào' : 'Chưa có bài hướng dẫn nào'}
+                      </h3>
                       <p className="text-sm text-outline max-w-md mx-auto">
-                        Hãy bắt đầu viết các bài hướng dẫn kỹ thuật trồng và chăm sóc hoa lan để chia sẻ với cộng đồng.
+                        {activeTab === 'applications'
+                          ? 'Hãy bắt đầu tạo nội dung ứng dụng cho hoa lan.'
+                          : 'Hãy bắt đầu viết các bài hướng dẫn kỹ thuật trồng và chăm sóc hoa lan để chia sẻ với cộng đồng.'}
                       </p>
                     </div>
                   ) : (
