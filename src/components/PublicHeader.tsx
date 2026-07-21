@@ -19,63 +19,60 @@ const readFavoriteCount = () => {
   }
 };
 
-const MegaMenuDropdown = ({ categories, rootNames, basePath }: { categories: Category[], rootNames: string[], basePath: string }) => {
+const CascadingMenuDropdown = ({ categories, rootNames, basePath }: { categories: Category[], rootNames: string[], basePath: string }) => {
   const root = useMemo(() => categories.find(c => rootNames.some(name => c.name.toLowerCase() === name.toLowerCase()) && !c.parentId), [categories, rootNames]);
   const level1Cats = useMemo(() => root ? categories.filter(c => c.parentId === root.id) : [], [categories, root]);
   
-  const [activeLevel1, setActiveLevel1] = useState<string | null>(null);
-
-  const currentActiveId = activeLevel1 || level1Cats[0]?.id;
-
   return (
-    <div className="invisible absolute left-0 top-[calc(100%-7px)] z-50 flex min-h-[350px] w-[750px] rounded border border-[#747878]/10 bg-white shadow-xl opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100 overflow-hidden">
-      <div className="w-1/3 border-r border-outline-variant bg-[#f4f4f2]/50 py-3">
-        <ul className="flex flex-col">
-          {level1Cats.map(cat => {
-            const isActive = currentActiveId === cat.id;
-            return (
-              <li key={cat.id} 
-                  onMouseEnter={() => setActiveLevel1(cat.id)}
-                  className={`cursor-pointer px-5 py-3 text-[14.5px] font-bold transition-all ${isActive ? 'bg-white text-botanical-green shadow-[inset_3px_0_0_0_#56642b]' : 'text-charcoal-text hover:bg-white hover:text-botanical-green'}`}>
-                <a href={`${basePath}?cat=${encodeURIComponent(cat.id)}`} className="block w-full">{cat.name}</a>
-              </li>
-            );
-          })}
-          {level1Cats.length === 0 && <li className="px-5 py-2 text-xs text-[#747878]">Chưa có danh mục</li>}
-        </ul>
-      </div>
-
-      <div className="flex-1 bg-white p-7">
-        {currentActiveId ? (
-          <div className="columns-2 gap-8">
-            {categories.filter(c => c.parentId === currentActiveId).map(level2Cat => (
-              <div key={level2Cat.id} className="mb-6 break-inside-avoid">
-                <a href={`${basePath}?cat=${encodeURIComponent(level2Cat.id)}`} className="mb-3 block font-serif text-[15px] font-bold text-on-surface hover:text-botanical-green">
-                  {level2Cat.name}
-                </a>
-                <ul className="space-y-2.5">
-                  {categories.filter(c => c.parentId === level2Cat.id).map(level3Cat => (
-                    <li key={level3Cat.id}>
-                      <a href={`${basePath}?cat=${encodeURIComponent(level3Cat.id)}`} className="text-[13.5px] text-charcoal-text transition-colors hover:text-botanical-green block">
-                        {level3Cat.name}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-            {categories.filter(c => c.parentId === currentActiveId).length === 0 && (
-              <div className="flex h-full items-center text-sm text-outline col-span-2">
-                Chưa có danh mục con chi tiết
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="flex h-full items-center justify-center text-sm text-outline">
-            Không có danh mục con
-          </div>
-        )}
-      </div>
+    <div className="invisible absolute left-0 top-[calc(100%-7px)] z-50 min-w-[260px] rounded border border-[#747878]/10 bg-white shadow-xl opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100">
+      <ul className="flex flex-col py-2">
+        {level1Cats.map(cat => {
+          const children = categories.filter(c => c.parentId === cat.id);
+          const hasChildren = children.length > 0;
+          return (
+            <li key={cat.id} className="group/item relative">
+              <a href={`${basePath}?cat=${encodeURIComponent(cat.id)}`} className="flex items-center justify-between w-full px-5 py-3 text-[14.5px] font-serif font-bold text-[#1a1c1b] transition-colors hover:bg-[#56642b]/5 hover:text-botanical-green">
+                {cat.name}
+                {hasChildren && <ChevronRight className="h-3.5 w-3.5 text-outline" />}
+              </a>
+              
+              {hasChildren && (
+                <div className="invisible absolute left-[100%] top-0 z-50 min-w-[260px] rounded border border-[#747878]/10 bg-white shadow-xl opacity-0 transition-all duration-200 group-hover/item:visible group-hover/item:opacity-100">
+                  <ul className="flex flex-col py-2">
+                    {children.map(child => {
+                      const grandChildren = categories.filter(c => c.parentId === child.id);
+                      const hasGrandChildren = grandChildren.length > 0;
+                      return (
+                        <li key={child.id} className="group/subitem relative">
+                          <a href={`${basePath}?cat=${encodeURIComponent(child.id)}`} className="flex items-center justify-between w-full px-5 py-2.5 text-[14px] font-sans text-[#434748] transition-colors hover:bg-[#56642b]/5 hover:text-botanical-green">
+                            {child.name}
+                            {hasGrandChildren && <ChevronRight className="h-3.5 w-3.5 text-outline" />}
+                          </a>
+                          
+                          {hasGrandChildren && (
+                            <div className="invisible absolute left-[100%] top-0 z-50 min-w-[260px] rounded border border-[#747878]/10 bg-white shadow-xl opacity-0 transition-all duration-200 group-hover/subitem:visible group-hover/subitem:opacity-100">
+                              <ul className="flex flex-col py-2">
+                                {grandChildren.map(grandChild => (
+                                  <li key={grandChild.id}>
+                                    <a href={`${basePath}?cat=${encodeURIComponent(grandChild.id)}`} className="block w-full px-5 py-2.5 text-[14px] font-sans text-[#434748] transition-colors hover:bg-[#56642b]/5 hover:text-botanical-green">
+                                      {grandChild.name}
+                                    </a>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+            </li>
+          );
+        })}
+        {level1Cats.length === 0 && <li className="px-5 py-2 text-xs text-[#747878]">Chưa có danh mục</li>}
+      </ul>
     </div>
   );
 };
@@ -173,14 +170,14 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
             <a href="/list-orchids" className={`flex cursor-pointer items-center gap-1 font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${isCatalog ? activeClass : normalClass}`}>
               Danh mục lan <ChevronRight className="h-3.5 w-3.5 rotate-90" />
             </a>
-            <MegaMenuDropdown categories={loadedCategories} rootNames={['Danh mục lan']} basePath="/list-orchids" />
+            <CascadingMenuDropdown categories={loadedCategories} rootNames={['Danh mục lan']} basePath="/list-orchids" />
           </div>
 
           <div className="group relative flex h-full items-center">
             <a href="/planting-and-care" className={`flex cursor-pointer items-center gap-1 font-sans text-xs font-semibold uppercase tracking-wider transition-colors ${path === '/planting-and-care' ? activeClass : normalClass}`}>
               Cách trồng và chăm sóc <ChevronRight className="h-3.5 w-3.5 rotate-90" />
             </a>
-            <MegaMenuDropdown categories={loadedCategories} rootNames={['Trồng và chăm sóc', 'Cách trồng và chăm sóc']} basePath="/planting-and-care" />
+            <CascadingMenuDropdown categories={loadedCategories} rootNames={['Trồng và chăm sóc', 'Cách trồng và chăm sóc']} basePath="/planting-and-care" />
           </div>
 
           <a href={ungDungCat ? `/list-orchids?cat=${encodeURIComponent(ungDungCat.id)}` : "/list-orchids"} className={`font-sans text-xs font-semibold uppercase tracking-wider transition-colors normalClass`}>Ứng dụng</a>
