@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, ImagePlus, LoaderCircle, LockKeyhole, MessageSquare, MoreHorizontal, RefreshCw, Search, Send, Trash2, X } from 'lucide-react';
 import {
   createDiscussion,
@@ -254,6 +254,8 @@ export default function Discussion() {
   const [commentingId, setCommentingId] = useState<string | null>(null);
   const [viewerState, setViewerState] = useState<{ postId: string; startIndex: number } | null>(null);
   const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
+  const [targetPostId] = useState(() => new URLSearchParams(window.location.search).get('postId') ?? '');
+  const [targetCommentId] = useState(() => new URLSearchParams(window.location.search).get('commentId') ?? '');
   const { toasts, addToast, removeToast } = useToasts();
 
   const loadPosts = useCallback(async (term = '') => {
@@ -261,7 +263,7 @@ export default function Discussion() {
     try {
       const result = await getDiscussions({ pageNumber: 1, pageSize: 50, searchTerm: term || undefined });
       const items = result.items ?? [];
-      const hydratedItems = await Promise.all(items.map(async (post) => {
+      let hydratedItems = await Promise.all(items.map(async (post) => {
         const listedComments = Array.isArray(post.comments) ? post.comments : [];
         const expectedCommentCount = post.commentCount ?? listedComments.length;
 
@@ -280,13 +282,21 @@ export default function Discussion() {
           return { ...post, comments: listedComments };
         }
       }));
+      if (targetPostId && !hydratedItems.some((post) => post.id === targetPostId)) {
+        try {
+          const targetPost = await getDiscussionById(targetPostId);
+          hydratedItems = [targetPost, ...hydratedItems];
+        } catch {
+          // Keep the regular discussion list if the linked post is no longer available.
+        }
+      }
       setPosts(hydratedItems);
     } catch (loadError) {
       addToast(loadError instanceof Error ? loadError.message : 'Không thể tải danh sách thảo luận.', 'error');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [addToast, targetPostId]);
 
   const handleDeletePost = async (id: string) => {
     if (!requireLogin()) return;
@@ -301,8 +311,22 @@ export default function Discussion() {
   };
 
   useEffect(() => {
-    void loadPosts(new URLSearchParams(window.location.search).get('q') ?? '');
+    const loadTimer = window.setTimeout(
+      () => void loadPosts(new URLSearchParams(window.location.search).get('q') ?? ''),
+      0,
+    );
+    return () => window.clearTimeout(loadTimer);
   }, [loadPosts]);
+
+  useEffect(() => {
+    if (loading || !targetPostId) return;
+    const scrollTimer = window.setTimeout(() => {
+      const target = (targetCommentId && document.getElementById(`discussion-comment-${targetCommentId}`))
+        || document.getElementById(`discussion-post-${targetPostId}`);
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+    return () => window.clearTimeout(scrollTimer);
+  }, [loading, posts, targetCommentId, targetPostId]);
 
   const requireLogin = () => {
     const loggedIn = hasAuthToken();
@@ -498,7 +522,11 @@ export default function Discussion() {
             ) : posts.map((post) => {
               const postBody = getDiscussionBody(post.content);
               return (
-              <article key={post.id} className="rounded-xl border border-[#e0e1dc] bg-white p-5 shadow-sm">
+              <article
+                key={post.id}
+                id={`discussion-post-${post.id}`}
+                className={`rounded-xl border bg-white p-5 shadow-sm transition-shadow ${targetPostId === post.id ? 'border-[#899073] ring-2 ring-[#899073]/25' : 'border-[#e0e1dc]'}`}
+              >
                 <div className="mb-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#e8edda] text-xs font-bold text-[#56642b]">{initials(post.authorName)}</div>
@@ -549,7 +577,11 @@ export default function Discussion() {
 
                 <div className="space-y-3">
                   {(post.comments ?? []).map((comment) => (
-                    <div key={comment.id} className="flex gap-3">
+                    <div
+                      key={comment.id}
+                      id={`discussion-comment-${comment.id}`}
+                      className={`flex gap-3 rounded-lg transition-colors ${targetCommentId === comment.id ? 'bg-[#eef2e3] p-2' : ''}`}
+                    >
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f0f1ec] text-[10px] font-bold text-[#56642b]">{initials(comment.authorName)}</div>
                       <div className="min-w-0 flex-1 rounded-lg bg-[#f7f7f3] px-3 py-2.5">
                         <div className="flex flex-wrap items-center justify-between gap-2">

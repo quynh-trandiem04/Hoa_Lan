@@ -432,7 +432,12 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
                         <p className="text-xs">Chưa có bình luận mới.</p>
                       </div>
                     ) : commentNotifications.map((notification) => (
-                      <a key={notification.id} href="/discussion" className="flex gap-3 border-b border-[#eeeeea] px-4 py-3 transition-colors last:border-0 hover:bg-[#56642b]/5" role="menuitem">
+                      <a
+                        key={notification.id}
+                        href={`/discussion?postId=${encodeURIComponent(notification.postId)}&commentId=${encodeURIComponent(notification.id)}`}
+                        className="flex gap-3 border-b border-[#eeeeea] px-4 py-3 transition-colors last:border-0 hover:bg-[#56642b]/5"
+                        role="menuitem"
+                      >
                         <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#e8edda] text-[#56642b]">
                           <MessageSquare size={16} />
                         </div>
