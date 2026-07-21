@@ -411,7 +411,7 @@ export const resetUserPassword = async (
 ): Promise<void> => {
   await userApiRequest(
     `/api/Users/${encodeURIComponent(id)}/password`,
-    { method: 'PUT', body: JSON.stringify({ id, newPassword, confirmPassword }) },
+    { method: 'PUT', body: JSON.stringify({ password: newPassword, confirmPassword }) },
     'Không thể đặt lại mật khẩu người dùng.',
   );
 };
