@@ -2915,7 +2915,7 @@ export default function App() {
                         onChange={(e) => setCareArticleForm({ ...careArticleForm, categoryId: e.target.value })}
                         className="w-full bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green text-charcoal-text"
                       >
-                        <option value="">-- Chọn danh mục --</option>
+                        <option value="" disabled hidden>-- Chọn danh mục --</option>
                         {(() => {
                           const result: Array<{ id: string; name: string; depth: number }> = [];
                           const visited = new Set<string>();
