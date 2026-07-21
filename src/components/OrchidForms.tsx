@@ -10,6 +10,7 @@ import { Orchid, Category, Region, BloomSeason, FlowerColor } from '../types';
 import { motion } from 'motion/react';
 import { deleteUploadedImage, uploadImage, type UploadedImage } from '../services/api';
 import { getOrchidImageUrls } from '../utils/orchidImages';
+import { toRichTextHtml } from '../utils/richText';
 
 const flattenCategoryTree = (categories: Category[]) => {
   const childrenByParent = new Map<string | null, Category[]>();
@@ -78,7 +79,7 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
       setEnglishName(editOrchidData.englishName);
       setCategoryIds(editOrchidData.categoryIds);
       setShortDescription(editOrchidData.shortDescription);
-      setDetailedDescription(editOrchidData.detailedDescription);
+      setDetailedDescription(toRichTextHtml(editOrchidData.detailedDescription));
       setHasFragrance(editOrchidData.hasFragrance);
       setIsPopular(editOrchidData.isPopular);
       setSlug(editOrchidData.slug);

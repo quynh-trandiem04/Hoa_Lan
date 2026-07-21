@@ -6,6 +6,7 @@ import { getOrchidImageUrls } from '../utils/orchidImages';
 import { getOrchidById } from '../services/api';
 import PublicFooter from '../components/PublicFooter';
 import PublicHeader from '../components/PublicHeader';
+import { toRichTextHtml } from '../utils/richText';
 
 interface OrchidDetailProps {
   id: string;
@@ -284,10 +285,12 @@ export default function OrchidDetail({ id, categories, onNavigate }: OrchidDetai
                   Mô tả chi tiết
                 </h2>
               </div>
-              <div
-                className="max-w-4xl font-sans text-[13px] leading-7 text-[#1a1c1b]/80 prose prose-sm"
-                dangerouslySetInnerHTML={{ __html: orchid.detailedDescription }}
-              />
+              <div className="max-w-4xl">
+                <div
+                  className="prose prose-sm max-w-none font-sans text-[13px] text-[#1a1c1b]/80 prose-headings:font-serif prose-headings:text-[#1a1c1b] prose-p:my-3 prose-p:leading-7 prose-li:my-1 prose-li:leading-7 prose-a:text-[#56642b] prose-a:underline prose-blockquote:border-[#899073] prose-img:rounded-lg prose-table:text-sm"
+                  dangerouslySetInnerHTML={{ __html: toRichTextHtml(orchid.detailedDescription) }}
+                />
+              </div>
             </section>
           </>
         )}

@@ -254,11 +254,11 @@ export default function Discussion() {
   const [commentingId, setCommentingId] = useState<string | null>(null);
   const [viewerState, setViewerState] = useState<{ postId: string; startIndex: number } | null>(null);
   const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
-  const [targetPostId] = useState(() => new URLSearchParams(window.location.search).get('postId') ?? '');
-  const [targetCommentId] = useState(() => new URLSearchParams(window.location.search).get('commentId') ?? '');
+  const [targetPostId, setTargetPostId] = useState(() => new URLSearchParams(window.location.search).get('postId') ?? '');
+  const [targetCommentId, setTargetCommentId] = useState(() => new URLSearchParams(window.location.search).get('commentId') ?? '');
   const { toasts, addToast, removeToast } = useToasts();
 
-  const loadPosts = useCallback(async (term = '') => {
+  const loadPosts = useCallback(async (term = '', linkedPostId = targetPostId) => {
     setLoading(true);
     try {
       const result = await getDiscussions({ pageNumber: 1, pageSize: 50, searchTerm: term || undefined });
@@ -282,9 +282,9 @@ export default function Discussion() {
           return { ...post, comments: listedComments };
         }
       }));
-      if (targetPostId && !hydratedItems.some((post) => post.id === targetPostId)) {
+      if (linkedPostId && !hydratedItems.some((post) => post.id === linkedPostId)) {
         try {
-          const targetPost = await getDiscussionById(targetPostId);
+          const targetPost = await getDiscussionById(linkedPostId);
           hydratedItems = [targetPost, ...hydratedItems];
         } catch {
           // Keep the regular discussion list if the linked post is no longer available.
@@ -411,7 +411,13 @@ export default function Discussion() {
 
   const handleSearch = (event: React.FormEvent) => {
     event.preventDefault();
-    void loadPosts(searchTerm.trim());
+    const normalizedTerm = searchTerm.trim();
+    const searchParams = new URLSearchParams();
+    if (normalizedTerm) searchParams.set('q', normalizedTerm);
+    window.history.replaceState(null, '', `/discussion${searchParams.size ? `?${searchParams.toString()}` : ''}`);
+    setTargetPostId('');
+    setTargetCommentId('');
+    void loadPosts(normalizedTerm, '');
   };
 
   return (
@@ -631,7 +637,7 @@ export default function Discussion() {
                 <li>• Không đăng nội dung quảng cáo hoặc spam.</li>
               </ul>
             </section>
-            <button onClick={() => void loadPosts(searchTerm.trim())} disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#56642b] px-4 py-2.5 text-sm font-semibold text-[#56642b] disabled:opacity-50">
+            <button onClick={() => void loadPosts(searchTerm.trim(), '')} disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#56642b] px-4 py-2.5 text-sm font-semibold text-[#56642b] disabled:opacity-50">
               <RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> Làm mới dữ liệu
             </button>
           </aside>
