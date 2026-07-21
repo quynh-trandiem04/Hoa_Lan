@@ -175,7 +175,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
 
           <div className="group relative flex h-full items-center">
             <a href="/planting-and-care" className={`flex cursor-pointer items-center gap-1 font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors ${path === '/planting-and-care' ? activeClass : normalClass}`}>
-              Cách trồng và chăm sóc <ChevronRight className="h-3.5 w-3.5 rotate-90" />
+              Trồng & Chăm sóc <ChevronRight className="h-3.5 w-3.5 rotate-90" />
             </a>
             <CascadingMenuDropdown categories={loadedCategories} rootNames={['Trồng và chăm sóc', 'Cách trồng và chăm sóc']} basePath="/planting-and-care" />
           </div>
