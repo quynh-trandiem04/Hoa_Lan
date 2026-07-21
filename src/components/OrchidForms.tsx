@@ -212,7 +212,7 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-white rounded-xl shadow-2xl border border-outline-variant max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        className="w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-xl border border-outline-variant bg-white shadow-2xl"
       >
         <div className="px-6 py-4 border-b border-outline-variant flex items-center justify-between sticky top-0 bg-white z-10">
           <div className="flex items-center gap-2 text-[#56642b]">
