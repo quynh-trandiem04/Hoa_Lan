@@ -2345,61 +2345,176 @@ export default function App() {
                     Chưa có danh mục nào.
                   </p>
                 )}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {filteredCategories.map((cat) => (
-                    <div key={cat.id} className="bg-white p-5 border border-outline-variant/40 rounded-xl relative overflow-hidden group hover:border-[#56642b]/50 transition-all flex flex-col justify-between">
-                      <div>
-                        <div className="flex justify-between items-start">
-                          <span className="text-[10px] tracking-widest font-mono text-outline uppercase">DANH MỤC CHI</span>
-                          <span className="text-xs font-bold font-mono text-[#5a682f] bg-[#d6e7a0]/30 px-2 py-0.5 rounded">
-                            {orchids.filter(o => o.categoryIds.includes(cat.id)).length} mầm lan
-                          </span>
-                        </div>
-                        <h4 className="font-serif text-lg font-bold text-charcoal-text mt-3">{cat.name}</h4>
-                        {cat.scientificName && (
-                          <p className="text-xs text-outline italic mt-0.5">{cat.scientificName}</p>
-                        )}
-                        <p className="text-xs text-on-surface-variant leading-relaxed mt-2.5">
-                          {cat.description || "Chưa có mô tả chi tiết thực rễ cụ thể."}
-                        </p>
-                      </div>
+                {(() => {
+                  const parentIds = Array.from(new Set(filteredCategories.map(c => c.parentId).filter(Boolean)));
+                  const rootCats = categories.filter(c => !c.parentId && (filteredCategories.includes(c) || parentIds.includes(c.id)));
+                  
+                  return (
+                    <div className="space-y-8">
+                      {rootCats.map(rootCat => {
+                        const childCats = filteredCategories.filter(c => c.parentId === rootCat.id);
+                        
+                        return (
+                          <div key={rootCat.id} className="bg-surface-cream rounded-2xl p-6 border border-outline-variant/30">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 pb-4 border-b border-outline-variant/20 gap-4">
+                              <div>
+                                <div className="flex items-center gap-3">
+                                  <h3 className="font-serif text-2xl font-bold text-charcoal-text">{rootCat.name}</h3>
+                                  <span className="text-[10px] font-bold font-mono text-[#5a682f] bg-[#d6e7a0]/30 px-2 py-0.5 rounded uppercase tracking-wider">
+                                    {childCats.length} danh mục con
+                                  </span>
+                                </div>
+                                {rootCat.description && (
+                                  <p className="text-sm text-on-surface-variant mt-1.5">{rootCat.description}</p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => void handleOpenEditCategory(rootCat.id)}
+                                  className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-outline hover:text-botanical-green hover:bg-surface-container rounded transition-colors flex items-center gap-1.5 cursor-pointer"
+                                  title="Chỉnh sửa danh mục gốc"
+                                >
+                                  <Edit className="w-3.5 h-3.5" /> Sửa
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleDeleteCategory(rootCat)}
+                                  className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-outline hover:text-error hover:bg-error-container/20 rounded transition-colors flex items-center gap-1.5 cursor-pointer"
+                                  title="Xóa danh mục gốc"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" /> Xóa
+                                </button>
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                              {childCats.map((cat) => (
+                                <div key={cat.id} className="bg-white p-5 border border-outline-variant/40 rounded-xl relative overflow-hidden group hover:border-[#56642b]/50 transition-all flex flex-col justify-between">
+                                  <div>
+                                    <div className="flex justify-between items-start">
+                                      <span className="text-[10px] tracking-widest font-mono text-outline uppercase">DANH MỤC CHI</span>
+                                      <span className="text-xs font-bold font-mono text-[#5a682f] bg-[#d6e7a0]/30 px-2 py-0.5 rounded">
+                                        {orchids.filter(o => o.categoryIds.includes(cat.id)).length} mầm lan
+                                      </span>
+                                    </div>
+                                    <h4 className="font-serif text-lg font-bold text-charcoal-text mt-3">{cat.name}</h4>
+                                    {cat.scientificName && (
+                                      <p className="text-xs text-outline italic mt-0.5">{cat.scientificName}</p>
+                                    )}
+                                    <p className="text-xs text-on-surface-variant leading-relaxed mt-2.5">
+                                      {cat.description || "Chưa có mô tả chi tiết thực rễ cụ thể."}
+                                    </p>
+                                  </div>
+                                  
+                                  <div className="pt-4 border-t border-[#f4f4f2] mt-4 flex justify-between items-center gap-2">
+                                    <span className="text-[9px] text-[#735c00] font-sans font-semibold tracking-wider">HỒ SƠ BẢO TRỢ</span>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleOpenEditCategory(cat.id)}
+                                        className="p-1.5 text-outline hover:text-botanical-green hover:bg-surface-container rounded transition-colors"
+                                        title="Chỉnh sửa danh mục"
+                                        aria-label={`Chỉnh sửa ${cat.name}`}
+                                      >
+                                        <Edit className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleDeleteCategory(cat)}
+                                        className="p-1.5 text-outline hover:text-error hover:bg-error-container/20 rounded transition-colors"
+                                        title="Xóa danh mục"
+                                        aria-label={`Xóa ${cat.name}`}
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setSelectedCategoryFilter(cat.name);
+                                          setActiveTab('orchids');
+                                          addToast(`Đang lọc hiển thị đến loài thuộc ${cat.name}`, 'info');
+                                        }}
+                                        className="text-[10px] text-secondary font-bold font-sans hover:underline cursor-pointer ml-1"
+                                      >
+                                        Xem →
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                              {childCats.length === 0 && (
+                                <div className="col-span-full py-8 text-center bg-white/50 rounded-xl border border-dashed border-outline-variant/50">
+                                  <p className="text-sm text-outline font-sans">Chưa có danh mục chi nhánh nào thuộc nhóm này.</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                       
-                      <div className="pt-4 border-t border-[#f4f4f2] mt-4 flex justify-between items-center gap-2">
-                        <span className="text-[9px] text-[#735c00] font-sans font-semibold tracking-wider">HỒ SƠ BẢO TRỢ</span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => void handleOpenEditCategory(cat.id)}
-                            className="p-1.5 text-outline hover:text-botanical-green hover:bg-surface-container rounded transition-colors"
-                            title="Chỉnh sửa danh mục"
-                            aria-label={`Chỉnh sửa ${cat.name}`}
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void handleDeleteCategory(cat)}
-                            className="p-1.5 text-outline hover:text-error hover:bg-error-container/20 rounded transition-colors"
-                            title="Xóa danh mục"
-                            aria-label={`Xóa ${cat.name}`}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedCategoryFilter(cat.name);
-                              setActiveTab('orchids');
-                              addToast(`Đang lọc hiển thị đơn loài thuộc ${cat.name}`, 'info');
-                            }}
-                            className="text-[10px] text-secondary font-bold font-sans hover:underline cursor-pointer ml-1"
-                          >
-                            Xem →
-                          </button>
+                      {filteredCategories.filter(c => c.parentId && !rootCats.some(r => r.id === c.parentId)).length > 0 && (
+                        <div className="mt-8 border-t border-outline-variant/30 pt-8">
+                          <h3 className="font-serif text-xl font-bold text-charcoal-text mb-4 text-outline">Danh mục khác</h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            {filteredCategories.filter(c => c.parentId && !rootCats.some(r => r.id === c.parentId)).map(cat => (
+                                <div key={cat.id} className="bg-white p-5 border border-outline-variant/40 rounded-xl relative overflow-hidden group hover:border-[#56642b]/50 transition-all flex flex-col justify-between">
+                                  <div>
+                                    <div className="flex justify-between items-start">
+                                      <span className="text-[10px] tracking-widest font-mono text-outline uppercase">DANH MỤC CHI</span>
+                                      <span className="text-xs font-bold font-mono text-[#5a682f] bg-[#d6e7a0]/30 px-2 py-0.5 rounded">
+                                        {orchids.filter(o => o.categoryIds.includes(cat.id)).length} mầm lan
+                                      </span>
+                                    </div>
+                                    <h4 className="font-serif text-lg font-bold text-charcoal-text mt-3">{cat.name}</h4>
+                                    {cat.scientificName && (
+                                      <p className="text-xs text-outline italic mt-0.5">{cat.scientificName}</p>
+                                    )}
+                                    <p className="text-xs text-on-surface-variant leading-relaxed mt-2.5">
+                                      {cat.description || "Chưa có mô tả chi tiết thực rễ cụ thể."}
+                                    </p>
+                                  </div>
+                                  
+                                  <div className="pt-4 border-t border-[#f4f4f2] mt-4 flex justify-between items-center gap-2">
+                                    <span className="text-[9px] text-[#735c00] font-sans font-semibold tracking-wider">HỒ SƠ BẢO TRỢ</span>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleOpenEditCategory(cat.id)}
+                                        className="p-1.5 text-outline hover:text-botanical-green hover:bg-surface-container rounded transition-colors"
+                                        title="Chỉnh sửa danh mục"
+                                        aria-label={`Chỉnh sửa ${cat.name}`}
+                                      >
+                                        <Edit className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleDeleteCategory(cat)}
+                                        className="p-1.5 text-outline hover:text-error hover:bg-error-container/20 rounded transition-colors"
+                                        title="Xóa danh mục"
+                                        aria-label={`Xóa ${cat.name}`}
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setSelectedCategoryFilter(cat.name);
+                                          setActiveTab('orchids');
+                                          addToast(`Đang lọc hiển thị đến loài thuộc ${cat.name}`, 'info');
+                                        }}
+                                        className="text-[10px] text-secondary font-bold font-sans hover:underline cursor-pointer ml-1"
+                                      >
+                                        Xem →
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                            ))}
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
-                  ))}
-                </div>
+                  );
+                })()}
               </div>
             </div>
           )}
