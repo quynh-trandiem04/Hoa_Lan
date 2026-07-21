@@ -2896,36 +2896,35 @@ export default function App() {
                   </div>
 
                   <form onSubmit={handleSaveCareArticle} className="space-y-4">
-                    <div>
-                      <div className="space-y-1">
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tiêu đề hướng dẫn *</label>
-                        <input
-                          type="text"
-                          value={careArticleForm.title}
-                          onChange={(e) => setCareArticleForm({ ...careArticleForm, title: e.target.value })}
-                          placeholder="Ví dụ: Kỹ thuật thay chậu cho lan Hồ Điệp..."
-                          className="w-full bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green font-semibold"
-                          required
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Danh mục</label>
-                        <select
-                          value={careArticleForm.categoryId ?? ''}
-                          onChange={(e) => setCareArticleForm({ ...careArticleForm, categoryId: e.target.value })}
-                          className="w-full bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green text-charcoal-text"
-                        >
-                          <option value="">-- Chọn danh mục --</option>
-                          {(() => {
-                            const rootCat = categories.find(c => c.name.toLowerCase() === 'cách trồng và chăm sóc' && !c.parentId);
-                            if (!rootCat) return null;
-                            const options = categories.filter(c => c.parentId === rootCat.id);
-                            return options.map(c => (
-                              <option key={c.id} value={c.id}>{c.name}</option>
-                            ));
-                          })()}
-                        </select>
-                      </div>
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tiêu đề hướng dẫn *</label>
+                      <input
+                        type="text"
+                        value={careArticleForm.title}
+                        onChange={(e) => setCareArticleForm({ ...careArticleForm, title: e.target.value })}
+                        placeholder="Ví dụ: Kỹ thuật thay chậu cho lan Hồ Điệp..."
+                        className="w-full bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green font-semibold"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Danh mục</label>
+                      <select
+                        value={careArticleForm.categoryId ?? ''}
+                        onChange={(e) => setCareArticleForm({ ...careArticleForm, categoryId: e.target.value })}
+                        className="w-full bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green text-charcoal-text"
+                      >
+                        <option value="">-- Chọn danh mục --</option>
+                        {(() => {
+                          const rootCat = categories.find(c => c.name.toLowerCase() === 'trồng và chăm sóc' && !c.parentId);
+                          if (!rootCat) return null;
+                          const options = categories.filter(c => c.parentId === rootCat.id);
+                          return options.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ));
+                        })()}
+                      </select>
                     </div>
 
                     <div className="space-y-1">
