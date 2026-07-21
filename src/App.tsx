@@ -609,7 +609,7 @@ export default function App() {
     }
   };
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'categories' | 'orchids' | 'articles' | 'users' | 'community' | 'care'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'categories' | 'orchids' | 'articles' | 'users' | 'community' | 'care' | 'cultivation_cats' | 'application_cats'>('overview');
   const [dashboardDiscussions, setDashboardDiscussions] = useState<DiscussionPostDto[]>([]);
   const [loadingDashboardDiscussions, setLoadingDashboardDiscussions] = useState(false);
 
@@ -1904,6 +1904,30 @@ export default function App() {
           </button>
 
           <button
+            onClick={() => { setActiveTab('cultivation_cats'); setSearchQuery(''); }}
+            className={`flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
+              activeTab === 'cultivation_cats'
+                ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
+                : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
+            }`}
+          >
+            <Layers className="w-5 h-5 shrink-0" />
+            <span className="text-xs uppercase tracking-wider font-semibold font-sans">DM Trồng & Chăm Sóc</span>
+          </button>
+
+          <button
+            onClick={() => { setActiveTab('application_cats'); setSearchQuery(''); }}
+            className={`flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
+              activeTab === 'application_cats'
+                ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
+                : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
+            }`}
+          >
+            <Sparkles className="w-5 h-5 shrink-0" />
+            <span className="text-xs uppercase tracking-wider font-semibold font-sans">DM Ứng Dụng</span>
+          </button>
+
+          <button
             onClick={() => { setActiveTab('users'); setSearchQuery(''); }}
             className={`flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
               activeTab === 'users'
@@ -2844,6 +2868,44 @@ export default function App() {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* ======================= TAB: CULTIVATION CATEGORIES ======================= */}
+          {activeTab === 'cultivation_cats' && (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
+                <div>
+                  <h2 className="font-serif text-3xl font-semibold text-on-surface">Danh Mục Cách Trồng & Chăm Sóc</h2>
+                  <p className="text-sm text-on-surface-variant mt-1">
+                    Quản lý danh mục từ API <code className="text-xs bg-surface-container px-1 rounded">/api/cultivation-categories</code>
+                  </p>
+                </div>
+              </div>
+              <div className="bg-white rounded-xl border border-outline-variant/30 p-8 text-center text-sm text-outline">
+                <Layers className="w-12 h-12 mx-auto mb-3 text-botanical-green/30" />
+                <p className="font-semibold text-on-surface mb-1">Quản lý danh mục Cách Trồng & Chăm Sóc</p>
+                <p>Dữ liệu lấy từ <code className="text-xs bg-surface-container px-1 rounded">/api/cultivation-categories</code>. Tính năng CRUD sẽ được tích hợp sớm.</p>
+              </div>
+            </div>
+          )}
+
+          {/* ======================= TAB: APPLICATION CATEGORIES ======================= */}
+          {activeTab === 'application_cats' && (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
+                <div>
+                  <h2 className="font-serif text-3xl font-semibold text-on-surface">Danh Mục Ứng Dụng</h2>
+                  <p className="text-sm text-on-surface-variant mt-1">
+                    Quản lý danh mục từ API <code className="text-xs bg-surface-container px-1 rounded">/api/application-categories</code>
+                  </p>
+                </div>
+              </div>
+              <div className="bg-white rounded-xl border border-outline-variant/30 p-8 text-center text-sm text-outline">
+                <Sparkles className="w-12 h-12 mx-auto mb-3 text-botanical-green/30" />
+                <p className="font-semibold text-on-surface mb-1">Quản lý danh mục Ứng Dụng</p>
+                <p>Dữ liệu lấy từ <code className="text-xs bg-surface-container px-1 rounded">/api/application-categories</code>. Tính năng CRUD sẽ được tích hợp sớm.</p>
               </div>
             </div>
           )}
