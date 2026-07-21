@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, ImagePlus, LoaderCircle, LockKeyhole, MessageSquare, RefreshCw, Search, Send, Trash2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ImagePlus, LoaderCircle, LockKeyhole, MessageSquare, MoreHorizontal, RefreshCw, Search, Send, Trash2, X } from 'lucide-react';
 import {
   createDiscussion,
   createDiscussionComment,
@@ -253,6 +253,7 @@ export default function Discussion() {
   const [submitting, setSubmitting] = useState(false);
   const [commentingId, setCommentingId] = useState<string | null>(null);
   const [viewerState, setViewerState] = useState<{ postId: string; startIndex: number } | null>(null);
+  const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
   const { toasts, addToast, removeToast } = useToasts();
 
   const loadPosts = useCallback(async (term = '') => {
@@ -506,13 +507,32 @@ export default function Discussion() {
                       <time className="text-xs text-[#747878]">{formatDate(post.createdAt)}</time>
                     </div>
                   </div>
-                  <button
-                    onClick={() => void handleDeletePost(post.id)}
-                    className="rounded p-1.5 text-red-600 transition-colors hover:bg-red-50"
-                    title="Xóa bài thảo luận"
-                  >
-                    <Trash2 size={18} />
-                  </button>
+                  <div className="relative">
+                    <button
+                      onClick={() => setActiveDropdownId(activeDropdownId === post.id ? null : post.id)}
+                      className="rounded-full p-2 text-[#747878] transition-colors hover:bg-[#f0f1ec]"
+                      title="Tùy chọn"
+                    >
+                      <MoreHorizontal size={20} />
+                    </button>
+                    {activeDropdownId === post.id && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setActiveDropdownId(null)}></div>
+                        <div className="absolute right-0 top-full z-20 mt-1 w-48 rounded-lg border border-[#e0e1dc] bg-white py-1 shadow-lg">
+                          <button
+                            onClick={() => {
+                              setActiveDropdownId(null);
+                              void handleDeletePost(post.id);
+                            }}
+                            className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-red-600 hover:bg-[#f9f9f9]"
+                          >
+                            <Trash2 size={16} />
+                            <span>Xóa bài viết</span>
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
                 <h2 className="font-serif text-xl font-bold">{post.title}</h2>
                 <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#434748]">{postBody.text}</p>
