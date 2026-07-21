@@ -136,10 +136,14 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
                   <li key={category.id}>
                     <a
                       href={`/list-orchids?cat=${encodeURIComponent(category.id)}`}
-                      className="block w-full py-2.5 pr-5 text-left font-serif text-sm text-[#1a1c1b] transition-colors hover:bg-[#56642b]/5 hover:text-botanical-green"
-                      style={{ paddingLeft: `${20 + depth * 18}px` }}
+                      className={`block w-full pr-5 text-left font-serif transition-colors hover:bg-[#56642b]/5 hover:text-botanical-green ${
+                        depth === 0 
+                          ? 'py-3 text-[15px] text-[#1a1c1b] mt-2 first:mt-0' 
+                          : 'py-2 text-[14.5px] text-[#434748]'
+                      }`}
+                      style={{ paddingLeft: `${24 + depth * 24}px` }}
                     >
-                      {depth > 0 && <span className="mr-2 text-[#899073]">—</span>}
+                      {depth > 0 && <span className="mr-3 text-[#899073] font-sans font-light">—</span>}
                       {category.name}
                     </a>
                   </li>
