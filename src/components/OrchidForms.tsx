@@ -5,38 +5,13 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Editor } from '@tinymce/tinymce-react';
-import { X, FolderPlus, PlusCircle, Upload, Trash2, Search, Leaf, Star, Check, Flower2, Sun, Snowflake, RefreshCw } from 'lucide-react';
+import { X, FolderPlus, PlusCircle, Upload, Trash2, Search, Leaf, Star, Check, Flower2, Sun, Snowflake, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
 import { Orchid, Category, Region, BloomSeason, FlowerColor } from '../types';
 import { motion } from 'motion/react';
 import { deleteUploadedImage, uploadImage, type UploadedImage } from '../services/api';
 import { getOrchidImageUrls } from '../utils/orchidImages';
 import { toRichTextHtml } from '../utils/richText';
 import CategoryTreeSelect from './CategoryTreeSelect';
-
-const flattenCategoryTree = (categories: Category[]) => {
-  const childrenByParent = new Map<string | null, Category[]>();
-
-  categories.forEach((category) => {
-    const parentKey = category.parentId ?? null;
-    const siblings = childrenByParent.get(parentKey) ?? [];
-    siblings.push(category);
-    childrenByParent.set(parentKey, siblings);
-  });
-
-  const flattened: Array<{ category: Category; depth: number }> = [];
-  const visited = new Set<string>();
-  const appendBranch = (category: Category, depth: number) => {
-    if (visited.has(category.id)) return;
-    visited.add(category.id);
-    flattened.push({ category, depth });
-    (childrenByParent.get(category.id) ?? []).forEach((child) => appendBranch(child, depth + 1));
-  };
-
-  (childrenByParent.get(null) ?? []).forEach((category) => appendBranch(category, 0));
-  categories.forEach((category) => appendBranch(category, category.parentId ? 1 : 0));
-
-  return flattened;
-};
 
 const flowerColorLabels: Record<string, string> = {
   RED: 'Đỏ',
@@ -92,6 +67,7 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
   const [colors, setColors] = useState<string[]>([]);
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
   const [categorySearch, setCategorySearch] = useState('');
+  const [expandedCategoryIds, setExpandedCategoryIds] = useState<Set<string>>(new Set());
 
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -132,14 +108,79 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
       setUploadedImages([]);
     }
     setCategorySearch('');
+    setExpandedCategoryIds(new Set(categories
+      .filter((category) => categories.some((child) => child.parentId === category.id))
+      .map((category) => category.id)));
   }, [editOrchidData, isOpen, categories]);
 
-  const categoryOptions = useMemo(() => flattenCategoryTree(categories), [categories]);
-  const visibleCategoryOptions = useMemo(() => {
-    const query = categorySearch.trim().toLocaleLowerCase('vi');
-    if (!query) return categoryOptions;
-    return categoryOptions.filter(({ category }) => category.name.toLocaleLowerCase('vi').includes(query));
-  }, [categoryOptions, categorySearch]);
+  const categoryTree = useMemo(() => {
+    const childrenByParent = new Map<string | null, Category[]>();
+    categories.forEach((category) => {
+      const parentKey = category.parentId ?? null;
+      childrenByParent.set(parentKey, [...(childrenByParent.get(parentKey) ?? []), category]);
+    });
+    const catalogRoot = categories.find((category) => !category.parentId && category.name.toLocaleLowerCase('vi') === 'danh mục lan');
+    return {
+      childrenByParent,
+      roots: catalogRoot ? childrenByParent.get(catalogRoot.id) ?? [] : childrenByParent.get(null) ?? [],
+    };
+  }, [categories]);
+
+  const normalizedCategorySearch = categorySearch.trim().toLocaleLowerCase('vi');
+  const categoryMatchesSearch = (category: Category): boolean => {
+    if (!normalizedCategorySearch) return true;
+    if (category.name.toLocaleLowerCase('vi').includes(normalizedCategorySearch)) return true;
+    return (categoryTree.childrenByParent.get(category.id) ?? []).some(categoryMatchesSearch);
+  };
+
+  const renderCategoryNode = (category: Category, depth = 0): React.ReactNode => {
+    if (!categoryMatchesSearch(category)) return null;
+    const children = categoryTree.childrenByParent.get(category.id) ?? [];
+    const hasChildren = children.length > 0;
+    const expanded = normalizedCategorySearch.length > 0 || expandedCategoryIds.has(category.id);
+    const selected = categoryIds.includes(category.id);
+
+    if (hasChildren) {
+      return (
+        <div key={category.id}>
+          <button
+            type="button"
+            onClick={() => setExpandedCategoryIds((current) => {
+              const next = new Set(current);
+              if (next.has(category.id)) next.delete(category.id);
+              else next.add(category.id);
+              return next;
+            })}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-2.5 text-left text-sm font-semibold text-charcoal-text transition-colors hover:bg-surface-container-low"
+            style={{ paddingLeft: `${8 + depth * 16}px` }}
+            aria-expanded={expanded}
+          >
+            {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            <span>{category.name}</span>
+          </button>
+          {expanded && children.map((child) => renderCategoryNode(child, depth + 1))}
+        </div>
+      );
+    }
+
+    return (
+      <button
+        key={category.id}
+        type="button"
+        onClick={() => setCategoryIds((current) => selected
+          ? current.filter((id) => id !== category.id)
+          : [...current, category.id])}
+        className={`mb-1 flex w-full items-center gap-3 rounded-md border px-3 py-2.5 text-left text-sm transition-colors ${selected ? 'border-[#87905f]/50 bg-[#f2f4e9] text-[#56642b]' : 'border-outline-variant/70 text-charcoal-text hover:border-[#87905f]/40 hover:bg-[#fafbf7]'}`}
+        style={{ marginLeft: `${Math.min(depth, 3) * 16}px`, width: `calc(100% - ${Math.min(depth, 3) * 16}px)` }}
+        aria-pressed={selected}
+      >
+        <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${selected ? 'border-[#667234] bg-[#667234] text-white' : 'border-outline'}`}>
+          {selected && <Check className="h-3 w-3" strokeWidth={3} />}
+        </span>
+        <span>{category.name}</span>
+      </button>
+    );
+  };
 
   if (!isOpen) return null;
 
@@ -243,9 +284,9 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="w-full max-w-7xl max-h-[94vh] overflow-y-auto rounded-2xl border border-outline-variant bg-white shadow-2xl"
+        className="flex max-h-[94vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-outline-variant bg-white shadow-2xl"
       >
-        <div className="px-6 md:px-8 py-5 border-b border-outline-variant flex items-center justify-between sticky top-0 bg-white z-20">
+        <div className="z-20 flex shrink-0 items-center justify-between border-b border-outline-variant bg-white px-6 py-5 md:px-8">
           <div className="flex items-center gap-2 text-[#56642b]">
             <PlusCircle className="w-5 h-5" />
             <h3 className="font-serif text-xl md:text-2xl font-bold text-on-surface">
@@ -260,7 +301,8 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 md:p-7 space-y-7">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-7 overflow-y-auto p-5 md:p-7">
           {errorMsg && (
             <div className="p-3 bg-error-container/20 border border-error/20 text-error text-xs rounded-lg">
               {errorMsg}
@@ -281,28 +323,9 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
                     className="h-12 w-full bg-white pl-11 pr-4 text-sm outline-none placeholder:text-outline focus:bg-[#fafbf7]"
                   />
                 </div>
-                <div className="max-h-64 space-y-1 overflow-y-auto p-3">
-                  {visibleCategoryOptions.map(({ category: cat, depth }) => {
-                    const selected = categoryIds.includes(cat.id);
-                    return (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        onClick={() => setCategoryIds((current) => selected
-                          ? current.filter((id) => id !== cat.id)
-                          : [...current, cat.id])}
-                        className={`flex w-full items-center gap-3 rounded-md border px-3 py-2.5 text-left text-sm transition-colors ${selected ? 'border-[#87905f]/50 bg-[#f2f4e9] text-[#56642b]' : depth === 0 ? 'border-transparent font-semibold text-charcoal-text hover:bg-surface-container-low' : 'border-outline-variant/70 text-charcoal-text hover:border-[#87905f]/40 hover:bg-[#fafbf7]'}`}
-                        style={{ marginLeft: `${Math.min(depth, 2) * 16}px`, width: `calc(100% - ${Math.min(depth, 2) * 16}px)` }}
-                        aria-pressed={selected}
-                      >
-                        <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${selected ? 'border-[#667234] bg-[#667234] text-white' : 'border-outline'}`}>
-                          {selected && <Check className="h-3 w-3" strokeWidth={3} />}
-                        </span>
-                        <span>{cat.name}</span>
-                      </button>
-                    );
-                  })}
-                  {visibleCategoryOptions.length === 0 && (
+                <div className="h-64 overflow-y-auto p-3">
+                  {categoryTree.roots.map((category) => renderCategoryNode(category))}
+                  {!categoryTree.roots.some(categoryMatchesSearch) && (
                     <p className="px-3 py-8 text-center text-xs text-outline">
                       {categories.length === 0 ? 'Chưa có danh mục. Hãy tạo danh mục trước.' : 'Không tìm thấy danh mục phù hợp.'}
                     </p>
@@ -535,7 +558,9 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
             )}
           </div>
 
-          <div className="sticky bottom-0 z-10 -mx-5 -mb-5 mt-6 flex justify-end gap-3 border-t border-outline-variant bg-white/95 p-4 backdrop-blur md:-mx-7 md:-mb-7 md:px-7">
+          </div>
+
+          <div className="z-20 flex shrink-0 justify-end gap-3 border-t border-outline-variant bg-white px-5 py-4 md:px-7">
             <button
               type="button"
               onClick={onClose}

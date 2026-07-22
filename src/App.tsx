@@ -42,7 +42,10 @@ import {
   Upload,
   SlidersHorizontal,
   RotateCcw,
-  ChevronDown
+  ChevronDown,
+  Flower2,
+  Grid2X2,
+  List
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -586,6 +589,8 @@ export default function App() {
   const [userTotalCount, setUserTotalCount] = useState(0);
   const [users, setUsers] = useState<UserListItem[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [userSortOrder, setUserSortOrder] = useState('az');
+  const [userViewMode, setUserViewMode] = useState<'grid' | 'list'>('grid');
   const [loadingDocuments, setLoadingDocuments] = useState(false);
   const [docPage, setDocPage] = useState(1);
   const [showDocumentForm, setShowDocumentForm] = useState(false);
@@ -998,6 +1003,7 @@ export default function App() {
   const [selectedSeasonFilters, setSelectedSeasonFilters] = useState<string[]>([]);
   const [selectedColorFilters, setSelectedColorFilters] = useState<string[]>([]);
   const [orchidSortOrder, setOrchidSortOrder] = useState('az');
+  const [orchidAdminViewMode, setOrchidAdminViewMode] = useState<'grid' | 'list'>('grid');
   const [showOrchidAdvancedFilters, setShowOrchidAdvancedFilters] = useState(false);
   const orchidFilterCategories = useMemo(() => {
     const catalogRoot = categories.find((category) => !category.parentId && category.name.toLocaleLowerCase('vi') === 'danh mục lan');
@@ -1397,11 +1403,26 @@ export default function App() {
   };
 
   // --- Filtering & Sorting ---
+  const matchingAdminCategoryIds = new Set<string>();
+  if (selectedCategoryFilter) {
+    matchingAdminCategoryIds.add(selectedCategoryFilter);
+    let foundDescendant = true;
+    while (foundDescendant) {
+      foundDescendant = false;
+      categories.forEach((category) => {
+        if (category.parentId && matchingAdminCategoryIds.has(category.parentId) && !matchingAdminCategoryIds.has(category.id)) {
+          matchingAdminCategoryIds.add(category.id);
+          foundDescendant = true;
+        }
+      });
+    }
+  }
+
   const filteredOrchids = orchids.filter(orc => {
     const orchidSearchTerm = searchQuery.trim().toLocaleLowerCase('vi');
     const matchesSearch = !orchidSearchTerm || orc.name.toLocaleLowerCase('vi').includes(orchidSearchTerm) ||
                           orc.englishName.toLocaleLowerCase('vi').includes(orchidSearchTerm);
-    const matchesCat = !selectedCategoryFilter || orc.categoryIds.includes(selectedCategoryFilter);
+    const matchesCat = !selectedCategoryFilter || orc.categoryIds.some((id) => matchingAdminCategoryIds.has(id));
     const matchesFeature = selectedFeatureFilters.every((feature) =>
       (feature === 'Popular' && orc.isPopular) || (feature === 'Fragrant' && orc.hasFragrance));
     const matchesRegion = selectedRegionFilters.length === 0 || selectedRegionFilters.some((region) => orc.regions?.includes(region as keyof typeof Region));
@@ -1438,6 +1459,9 @@ export default function App() {
   const filteredUsers = users.filter((user) => {
     return user.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
            user.email.toLowerCase().includes(searchQuery.toLowerCase());
+  }).sort((first, second) => {
+    const comparison = first.fullName.localeCompare(second.fullName, 'vi', { sensitivity: 'base' });
+    return userSortOrder === 'az' ? comparison : -comparison;
   });
 
   const currentUserProfile = users.find((user) =>
@@ -2593,19 +2617,24 @@ export default function App() {
           {/* ======================= TAB: ORCHIDS / KHO LAN ======================= */}
           {activeTab === 'orchids' && (
             <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
-                <div>
-                  <h2 className="font-serif text-3xl font-semibold text-on-surface">Quản Lý Hoa Lan</h2>
-                  <p className="text-sm text-on-surface-variant mt-1">
-                    Cơ sở dữ liệu chi tiết các loài lan, quản lý tình trạng bảo tồn và đặc tính.
-                  </p>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-4">
+                  <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#f1f3e7] text-[#667234]">
+                    <Flower2 className="h-7 w-7" />
+                  </span>
+                  <div>
+                    <h2 className="font-serif text-3xl font-semibold text-on-surface">Quản lý loài lan</h2>
+                    <p className="mt-1 text-sm text-on-surface-variant">
+                      Thêm, chỉnh sửa và quản lý danh mục loài lan
+                    </p>
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => { setEditingOrchid(null); setOpenAddOrchid(true); }}
-                    className="px-4 py-2 bg-botanical-green text-white font-sans text-xs font-semibold uppercase tracking-wider rounded-lg hover:shadow transition-all shrink-0 cursor-pointer"
+                    className="flex shrink-0 cursor-pointer items-center gap-2 rounded-lg bg-botanical-green px-5 py-3 font-sans text-sm font-semibold text-white transition-all hover:shadow"
                   >
-                    Thêm loài lan mới
+                    <Plus className="h-5 w-5" /> Thêm loài lan mới
                   </button>
                 </div>
               </div>
@@ -2739,10 +2768,32 @@ export default function App() {
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-outline">Sắp xếp:</span>
                     <CategoryTreeSelect categories={ORCHID_SORT_OPTIONS} value={orchidSortOrder} onChange={setOrchidSortOrder} className="w-36" placeholder="Tên A–Z" />
+                    <div className="flex items-center gap-1" role="group" aria-label="Kiểu hiển thị danh sách hoa lan">
+                      <button
+                        type="button"
+                        onClick={() => setOrchidAdminViewMode('grid')}
+                        className={`flex h-10 w-10 items-center justify-center rounded-md border transition-colors ${orchidAdminViewMode === 'grid' ? 'border-[#87905f]/50 bg-[#eef1e2] text-[#56642b]' : 'border-outline-variant bg-white text-outline hover:border-[#87905f]'}`}
+                        aria-label="Hiển thị dạng lưới"
+                        aria-pressed={orchidAdminViewMode === 'grid'}
+                        title="Dạng lưới"
+                      >
+                        <Grid2X2 className="h-4.5 w-4.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOrchidAdminViewMode('list')}
+                        className={`flex h-10 w-10 items-center justify-center rounded-md border transition-colors ${orchidAdminViewMode === 'list' ? 'border-[#87905f]/50 bg-[#eef1e2] text-[#56642b]' : 'border-outline-variant bg-white text-outline hover:border-[#87905f]'}`}
+                        aria-label="Hiển thị dạng danh sách"
+                        aria-pressed={orchidAdminViewMode === 'list'}
+                        title="Dạng danh sách"
+                      >
+                        <List className="h-5 w-5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className={`grid grid-cols-1 gap-6 ${orchidAdminViewMode === 'grid' ? 'md:grid-cols-2' : ''}`}>
                   {filteredOrchids.map((orc) => (
                     <div key={orc.id} className="bg-white p-4 rounded-xl border border-outline-variant/40 hover:border-botanical-green/40 duration-300 transition-all flex gap-4 group relative">
                       <div className="w-24 h-24 rounded-lg overflow-hidden shrink-0 border border-outline-variant/30 bg-surface-container">
@@ -3054,68 +3105,108 @@ export default function App() {
 
               {/* Administrators Table */}
               <div className="bg-white rounded-xl border border-outline-variant/40 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 bg-[#f4f4f2]/50 border-b border-outline-variant">
-                  <h3 className="font-serif text-lg font-bold text-on-surface">Danh sách người dùng ({userTotalCount})</h3>
+                <div className="flex flex-col gap-3 border-b border-outline-variant bg-[#f4f4f2]/50 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <h3 className="font-serif text-lg font-bold text-on-surface">
+                    Danh sách người dùng
+                    <span className="ml-2 inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-[#eef1e2] px-2 text-sm text-[#56642b]">{filteredUsers.length}</span>
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-outline">Sắp xếp:</span>
+                    <CategoryTreeSelect
+                      categories={ORCHID_SORT_OPTIONS}
+                      value={userSortOrder}
+                      onChange={setUserSortOrder}
+                      className="w-36"
+                      placeholder="Tên A–Z"
+                    />
+                    <div className="flex items-center gap-1" role="group" aria-label="Kiểu hiển thị người dùng">
+                      <button
+                        type="button"
+                        onClick={() => setUserViewMode('grid')}
+                        className={`flex h-10 w-10 items-center justify-center rounded-md border transition-colors ${userViewMode === 'grid' ? 'border-[#87905f]/50 bg-[#eef1e2] text-[#56642b]' : 'border-outline-variant bg-white text-outline hover:border-[#87905f]'}`}
+                        aria-label="Hiển thị người dùng dạng lưới"
+                        aria-pressed={userViewMode === 'grid'}
+                        title="Dạng lưới"
+                      >
+                        <Grid2X2 className="h-4.5 w-4.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setUserViewMode('list')}
+                        className={`flex h-10 w-10 items-center justify-center rounded-md border transition-colors ${userViewMode === 'list' ? 'border-[#87905f]/50 bg-[#eef1e2] text-[#56642b]' : 'border-outline-variant bg-white text-outline hover:border-[#87905f]'}`}
+                        aria-label="Hiển thị người dùng dạng danh sách ngang"
+                        aria-pressed={userViewMode === 'list'}
+                        title="Dạng danh sách ngang"
+                      >
+                        <List className="h-5 w-5" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-[#f4f4f2] text-on-surface-variant font-bold uppercase text-[10px] tracking-wider border-b border-outline-variant">
-                      <tr>
-                        <th className="px-6 py-2.5">Người dùng</th>
-                        <th className="px-6 py-2.5">Email</th>
-                        <th className="px-6 py-2.5 text-right">Điều khiển</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-outline-variant/30">
-                      {filteredUsers.map((user) => (
-                        <tr key={user.id} className="transition-colors hover:bg-gray-50/70">
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              {user.avatarUrl ? (
-                                <img src={user.avatarUrl} alt={user.fullName} className="w-8 h-8 rounded-full object-cover border border-outline-variant" referrerPolicy="no-referrer" />
-                              ) : (
-                                <div className="w-8 h-8 rounded-full bg-soft-olive flex items-center justify-center font-bold text-[#56642b]">
-                                  {user.fullName.charAt(0).toUpperCase()}
-                                </div>
-                              )}
-                              <div>
-                                <p className="font-bold text-charcoal-text text-xs leading-none">{user.fullName}</p>
-                                {user.email === currentUser && <span className="text-[9px] text-botanical-green font-bold block mt-1">ĐANG ĐĂNG NHẬP</span>}
+                {loadingUsers ? (
+                  <div className="px-6 py-12 text-center text-sm text-outline">Đang tải người dùng...</div>
+                ) : filteredUsers.length === 0 ? (
+                  <div className="px-6 py-12 text-center text-sm text-outline">Không có người dùng phù hợp.</div>
+                ) : userViewMode === 'grid' ? (
+                  <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+                    {filteredUsers.map((user) => (
+                      <div key={user.id} className="group flex min-w-0 items-center gap-4 rounded-xl border border-outline-variant/60 bg-white p-4 transition-all hover:border-[#87905f]/50 hover:shadow-sm">
+                        {user.avatarUrl ? (
+                          <img src={user.avatarUrl} alt={user.fullName} className="h-14 w-14 shrink-0 rounded-xl border border-outline-variant object-cover" referrerPolicy="no-referrer" />
+                        ) : (
+                          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-soft-olive text-lg font-bold text-[#56642b]">
+                            {user.fullName.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-bold text-charcoal-text">{user.fullName}</p>
+                              <p className="mt-1 truncate text-xs text-[#434748]">{user.email}</p>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-1">
+                              <button onClick={() => { setEditingUser(user); setOpenInviteAdmin(true); }} className="cursor-pointer rounded-md p-2 text-outline transition-all hover:bg-soft-olive/20 hover:text-botanical-green" title="Sửa người dùng"><Edit className="h-4 w-4" /></button>
+                              <button onClick={() => void handleDeleteUser(user)} disabled={user.email === currentUser} className="cursor-pointer rounded-md p-2 text-outline transition-all hover:bg-error-container/20 hover:text-error disabled:cursor-not-allowed disabled:opacity-35" title={user.email === currentUser ? 'Không thể xóa tài khoản đang đăng nhập' : 'Xóa người dùng'}><Trash2 className="h-4 w-4" /></button>
+                            </div>
+                          </div>
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            {user.roleName && <span className="rounded bg-[#f1f3e7] px-2 py-1 text-[10px] font-semibold text-[#56642b]">{user.roleName}</span>}
+                            {user.email === currentUser && <span className="rounded bg-[#56642b] px-2 py-1 text-[9px] font-bold text-white">ĐANG ĐĂNG NHẬP</span>}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="border-b border-outline-variant bg-[#f4f4f2] text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                        <tr><th className="px-6 py-2.5">Người dùng</th><th className="px-6 py-2.5">Email</th><th className="px-6 py-2.5">Vai trò</th><th className="px-6 py-2.5 text-right">Điều khiển</th></tr>
+                      </thead>
+                      <tbody className="divide-y divide-outline-variant/30">
+                        {filteredUsers.map((user) => (
+                          <tr key={user.id} className="transition-colors hover:bg-gray-50/70">
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-3">
+                                {user.avatarUrl ? <img src={user.avatarUrl} alt={user.fullName} className="h-9 w-9 rounded-full border border-outline-variant object-cover" referrerPolicy="no-referrer" /> : <div className="flex h-9 w-9 items-center justify-center rounded-full bg-soft-olive font-bold text-[#56642b]">{user.fullName.charAt(0).toUpperCase()}</div>}
+                                <div><p className="text-xs font-bold leading-none text-charcoal-text">{user.fullName}</p>{user.email === currentUser && <span className="mt-1 block text-[9px] font-bold text-botanical-green">ĐANG ĐĂNG NHẬP</span>}</div>
                               </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 font-mono text-[#434748]">{user.email}</td>
-                          <td className="px-6 py-4 text-right">
-                            <div className="inline-flex items-center gap-1">
-                              <button
-                                onClick={() => { setEditingUser(user); setOpenInviteAdmin(true); }}
-                                className="p-1.5 rounded text-outline hover:text-botanical-green hover:bg-soft-olive/20 transition-all cursor-pointer"
-                                title="Sửa người dùng"
-                              >
-                                <Edit className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => void handleDeleteUser(user)}
-                                disabled={user.email === currentUser}
-                                className="p-1 rounded text-outline hover:text-error hover:bg-error-container/20 transition-all cursor-pointer"
-                                title={user.email === currentUser ? 'Không thể xóa tài khoản đang đăng nhập' : 'Xóa người dùng'}
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                      {!loadingUsers && filteredUsers.length === 0 && (
-                        <tr><td colSpan={3} className="px-6 py-10 text-center text-outline">Không có người dùng phù hợp.</td></tr>
-                      )}
-                      {loadingUsers && (
-                        <tr><td colSpan={3} className="px-6 py-10 text-center text-outline">Đang tải người dùng...</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                            </td>
+                            <td className="px-6 py-4 text-[#434748]">{user.email}</td>
+                            <td className="px-6 py-4 text-[#434748]">{user.roleName || '—'}</td>
+                            <td className="px-6 py-4 text-right">
+                              <div className="inline-flex items-center gap-1">
+                                <button onClick={() => { setEditingUser(user); setOpenInviteAdmin(true); }} className="cursor-pointer rounded p-1.5 text-outline transition-all hover:bg-soft-olive/20 hover:text-botanical-green" title="Sửa người dùng"><Edit className="h-3.5 w-3.5" /></button>
+                                <button onClick={() => void handleDeleteUser(user)} disabled={user.email === currentUser} className="cursor-pointer rounded p-1 text-outline transition-all hover:bg-error-container/20 hover:text-error disabled:cursor-not-allowed disabled:opacity-35" title={user.email === currentUser ? 'Không thể xóa tài khoản đang đăng nhập' : 'Xóa người dùng'}><Trash2 className="h-3.5 w-3.5" /></button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           )}
