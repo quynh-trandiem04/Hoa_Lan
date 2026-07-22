@@ -2634,16 +2634,16 @@ export default function App() {
               </div>
 
               {/* Classification Filters block */}
-              <div className="space-y-4 rounded-xl border border-outline-variant/40 bg-white p-4 shadow-sm">
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(280px,1fr)_260px_200px_auto_auto] xl:items-center">
+              <div className="space-y-3 rounded-lg border border-outline-variant/40 bg-white p-3 shadow-sm">
+                <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-[minmax(220px,360px)_210px_170px_auto_auto] xl:items-center xl:justify-between">
                   <div className="relative">
-                    <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-outline" />
+                    <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-outline" />
                     <input
                       type="search"
                       value={searchQuery}
                       onChange={(event) => setSearchQuery(event.target.value)}
                       placeholder="Tìm theo tên loài hoặc tên khoa học..."
-                      className="h-10 w-full rounded-lg border border-outline-variant bg-white pl-10 pr-3 text-xs text-charcoal-text outline-none transition-colors placeholder:text-outline focus:border-[#56642b] focus:ring-2 focus:ring-[#56642b]/10"
+                      className="h-9 w-full rounded-md border border-outline-variant bg-white pl-9 pr-3 text-[11px] text-charcoal-text outline-none transition-colors placeholder:text-outline focus:border-[#56642b] focus:ring-2 focus:ring-[#56642b]/10"
                     />
                   </div>
 
@@ -2653,31 +2653,31 @@ export default function App() {
                     onChange={setSelectedCategoryFilter}
                     allLabel="Tất cả danh mục"
                     className="w-full"
-                    triggerClassName="h-10 rounded-lg"
+                    triggerClassName="!h-9 !min-h-9 rounded-md text-[11px]"
                   />
 
                   <button
                     type="button"
                     onClick={() => setShowOrchidAdvancedFilters((current) => !current)}
-                    className={`flex h-10 items-center justify-between gap-2 rounded-lg border px-3 text-xs transition-colors ${showOrchidAdvancedFilters ? 'border-[#56642b] bg-[#f7f8f1] text-[#56642b]' : 'border-outline-variant bg-white text-charcoal-text hover:border-[#87905f]'}`}
+                    className={`flex h-9 items-center justify-between gap-2 rounded-md border px-2.5 text-[11px] transition-colors ${showOrchidAdvancedFilters ? 'border-[#56642b] bg-[#f7f8f1] text-[#56642b]' : 'border-outline-variant bg-white text-charcoal-text hover:border-[#87905f]'}`}
                     aria-expanded={showOrchidAdvancedFilters}
                   >
-                    <span className="flex items-center gap-2"><SlidersHorizontal className="h-4 w-4" />Bộ lọc nâng cao</span>
+                    <span className="flex items-center gap-1.5"><SlidersHorizontal className="h-3.5 w-3.5" />Bộ lọc nâng cao</span>
                     <span className="flex items-center gap-2">
                       {orchidAdvancedFilterCount > 0 && <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-[#667234] px-1.5 text-xs font-bold text-white">{orchidAdvancedFilterCount}</span>}
                       <ChevronDown className={`h-4 w-4 transition-transform ${showOrchidAdvancedFilters ? 'rotate-180' : ''}`} />
                     </span>
                   </button>
 
-                  <div className="whitespace-nowrap text-sm text-outline xl:text-center">
-                    Tìm thấy <strong className="text-lg text-[#56642b]">{filteredOrchids.length}</strong> loài lan
+                  <div className="whitespace-nowrap text-xs text-outline xl:text-center">
+                    Tìm thấy <strong className="text-base text-[#56642b]">{filteredOrchids.length}</strong> loài lan
                   </div>
 
                   <button
                     type="button"
                     onClick={clearOrchidFilters}
                     disabled={!hasOrchidFilters}
-                    className="flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-2 text-xs font-medium text-[#56642b] transition-colors hover:bg-[#56642b]/5 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 text-[11px] font-medium text-[#56642b] transition-colors hover:bg-[#56642b]/5 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <RotateCcw className="h-4 w-4" /> Xóa bộ lọc
                   </button>
