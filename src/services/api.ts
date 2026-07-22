@@ -327,6 +327,11 @@ export interface UpdateUserPayload {
   avatarUrl: string;
 }
 
+export interface UpdateMyProfilePayload {
+  fullName: string;
+  avatarUrl: string;
+}
+
 export const getUsers = async (
   pageNumber = 1,
   pageSize = 10,
@@ -383,6 +388,26 @@ export const getUserById = async (id: string): Promise<UserListItem> => {
     : body;
   return data as UserListItem;
 };
+
+export const getMyProfile = async (): Promise<UserListItem> => {
+  const body = await userApiRequest(
+    '/api/Profile',
+    { method: 'GET' },
+    'Không thể tải hồ sơ cá nhân.',
+  );
+  const data = body !== null && typeof body === 'object' && 'data' in body
+    ? (body as { data: unknown }).data
+    : body;
+  return data as UserListItem;
+};
+
+export const updateMyProfile = (
+  payload: UpdateMyProfilePayload,
+): Promise<unknown> => userApiRequest(
+  '/api/Profile',
+  { method: 'PUT', body: JSON.stringify(payload) },
+  'Không thể cập nhật hồ sơ cá nhân.',
+);
 
 export const createUser = (payload: CreateUserPayload): Promise<unknown> => userApiRequest(
   '/api/Users',
@@ -1304,6 +1329,7 @@ export interface DiscussionCommentDto {
   content: string;
   authorId: string;
   authorName: string;
+  authorAvatarUrl?: string;
   createdAt: string;
 }
 
@@ -1313,6 +1339,7 @@ export interface DiscussionPostDto {
   content: string;
   authorId: string;
   authorName: string;
+  authorAvatarUrl?: string;
   createdAt: string;
   commentCount: number;
   comments: DiscussionCommentDto[];

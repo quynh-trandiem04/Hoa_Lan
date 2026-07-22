@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Heart, UserCheck, Search, User, ChevronRight } from 'lucide-react';
+import { Heart, UserCheck, Search, User, ChevronRight } from 'lucide-react';
 import { Category, Orchid, Region, BloomSeason, FlowerColor } from '../types';
 import SearchModal from '../components/SearchModal';
 import { getOrchidImageUrls } from '../utils/orchidImages';
@@ -113,8 +113,8 @@ export default function OrchidDetail({ id, categories, onNavigate }: OrchidDetai
           </div>
         )}
 
-        {/* Breadcrumbs / Back button */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+        {/* Breadcrumbs */}
+        <div className="mb-8">
           <div className="flex items-center space-x-2 font-sans text-xs font-medium tracking-wider text-[#747878]">
             <button 
               onClick={() => onNavigate('home')} 
@@ -122,24 +122,25 @@ export default function OrchidDetail({ id, categories, onNavigate }: OrchidDetai
             >
               Trang chủ
             </button>
-            <span>/</span>
+            <span>&gt;</span>
             <button 
               onClick={() => onNavigate('list_orchids')} 
-              className="uppercase transition-colors hover:text-botanical-green"
+              className="transition-colors hover:text-botanical-green"
             >
-              Danh Mục Lan
+              Danh mục lan
             </button>
-            <span>/</span>
+            <span>&gt;</span>
             <span className="text-[#1a1c1b] truncate max-w-[200px]">{orchid.name}</span>
           </div>
+        </div>
 
-          <button
-            onClick={() => onNavigate('list_orchids')}
-            className="flex items-center space-x-2 text-xs uppercase tracking-widest text-[#747878] hover:text-botanical-green font-semibold transition-colors"
-          >
-            <ArrowLeft size={16} />
-            <span>Quay lại danh mục</span>
-          </button>
+        <div className="mb-12 max-w-3xl">
+          <h1 className="font-serif text-3xl font-medium tracking-tight text-charcoal-text md:text-4xl">
+            Từ Điển Hoa Lan
+          </h1>
+          <p className="mt-3 font-sans text-xs leading-relaxed text-[#747878] md:text-sm">
+            Khám phá vẻ đẹp kỳ diệu và sự đa dạng sinh học của thế giới hoa lan thông qua kho lưu trữ thực vật học cao cấp của chúng tôi.
+          </p>
         </div>
 
         {/* Primary detail grid */}

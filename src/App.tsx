@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Editor } from '@tinymce/tinymce-react';
 import CustomerHome from './pages/CustomerHome';
 import Discussion from './pages/Discussion';
@@ -33,19 +33,21 @@ import {
   Send,
   Eye,
   EyeOff,
-  Filter,
   Layers,
   HelpCircle,
   FileText,
   ThumbsUp,
   MessageSquare,
   Image as ImageIcon,
-  Upload
+  Upload,
+  SlidersHorizontal,
+  RotateCcw,
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Domain Imports
-import { Orchid, Question, Category, CommunityPost, CareArticle, PaginatedDocuments, DocumentItem, type ArticleCategory } from './types';
+import { Orchid, Question, Category, CommunityPost, CareArticle, PaginatedDocuments, DocumentItem, Region, BloomSeason, FlowerColor, type ArticleCategory } from './types';
 import { login, register, loginWithGoogle, refreshAuthToken, getCategories, createCategory, getCategoryById, updateCategory, deleteCategory, getArticleById, getSectionArticles, createSectionArticle, updateSectionArticle, deleteSectionArticle, getArticleCategories, getOrchids, getOrchidById, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, deleteDocument, uploadImage, getUploadedImageUrl, getUsers, createUser, updateUser, deleteUser, resetUserPassword, getDiscussions, type ArticleSection, type DiscussionPostDto, type LoginResponse, type UserListItem } from './services/api';
 import { getOrchidImageUrls } from './utils/orchidImages';
 import {
@@ -67,8 +69,23 @@ import ListOrchids from './pages/ListOrchids';
 import OrchidDetail from './pages/OrchidDetail';
 import CustomerProfile from './pages/CustomerProfile';
 import GoogleLoginButton from './components/GoogleLoginButton';
-import CaptchaChallenge, { type CaptchaChallengeHandle } from './components/CaptchaChallenge';
 import ArticleCategoryManager from './components/ArticleCategoryManager';
+import CategoryTreeSelect from './components/CategoryTreeSelect';
+
+const ORCHID_FEATURE_FILTERS = [
+  { id: 'Popular', name: 'Lan phổ biến', parentId: null },
+  { id: 'Fragrant', name: 'Có hương thơm', parentId: null },
+];
+
+const ORCHID_SORT_OPTIONS = [
+  { id: 'az', name: 'Tên A–Z', parentId: null },
+  { id: 'za', name: 'Tên Z–A', parentId: null },
+];
+
+const ORCHID_COLOR_LABELS: Record<string, string> = {
+  RED: 'Đỏ', ORANGE: 'Cam', YELLOW: 'Vàng', WHITE: 'Trắng', PINK: 'Hồng', PURPLE: 'Tím',
+  GREEN: 'Xanh lá', LIGHT_GREEN: 'Xanh nhạt', BLUE: 'Xanh dương', CREAM: 'Kem', BROWN: 'Nâu', BLACK: 'Đen',
+};
 
 const decodeJwtPayload = (token: string): Record<string, unknown> | null => {
   try {
@@ -354,8 +371,6 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
-  const loginCaptchaRef = useRef<CaptchaChallengeHandle>(null);
-  const signupCaptchaRef = useRef<CaptchaChallengeHandle>(null);
 
   useEffect(() => {
     const storedUser = localStorage.getItem("orchidee_admin_user")
@@ -400,11 +415,6 @@ export default function App() {
       addToast("Mật khẩu xác nhận không khớp.", "error");
       return;
     }
-    if (!signupCaptchaRef.current?.validate()) {
-      addToast('Vui lòng hoàn thành CAPTCHA chính xác.', 'error');
-      return;
-    }
-
     setIsRegistering(true);
     try {
       const normalizedEmail = email.trim();
@@ -422,7 +432,6 @@ export default function App() {
       setScreen('login');
       addToast('Đăng ký tài khoản thành công. Vui lòng đăng nhập.', 'success');
     } catch (error) {
-      signupCaptchaRef.current?.reset();
       addToast(error instanceof Error ? error.message : 'Không thể tạo tài khoản mới.', 'error');
     } finally {
       setIsRegistering(false);
@@ -435,11 +444,7 @@ export default function App() {
       addToast("Hãy nhập đầy đủ Email và Mật khẩu của bạn.", "error");
       return;
     }
-    if (!loginCaptchaRef.current?.validate()) {
-      addToast('Vui lòng hoàn thành CAPTCHA chính xác.', 'error');
-      return;
-    }
-    
+
     setIsLoggingIn(true);
     try {
       const normalizedEmail = email.trim();
@@ -473,7 +478,6 @@ export default function App() {
       setScreen(returnUrl === '/discussion' ? 'discussion' : returnUrl === '/profile' ? 'profile' : (isAdminAccount(normalizedEmail) ? 'dashboard' : 'home'));
       addToast("Đăng nhập thành công!", "success");
     } catch (error) {
-      loginCaptchaRef.current?.reset();
       addToast(
         error instanceof Error ? error.message : "Không thể kết nối đến máy chủ đăng nhập.",
         "error"
@@ -622,8 +626,17 @@ export default function App() {
     applications: false,
     cultivation: false,
   });
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const toggleAdminMenu = (menu: keyof typeof expandedAdminMenus) => {
     setExpandedAdminMenus((current) => ({ ...current, [menu]: !current[menu] }));
+  };
+  const handleAdminMenuClick = (menu: keyof typeof expandedAdminMenus) => {
+    if (!isSidebarOpen) {
+      setIsSidebarOpen(true);
+      setExpandedAdminMenus((current) => ({ ...current, [menu]: true }));
+      return;
+    }
+    toggleAdminMenu(menu);
   };
   const [dashboardDiscussions, setDashboardDiscussions] = useState<DiscussionPostDto[]>([]);
   const [loadingDashboardDiscussions, setLoadingDashboardDiscussions] = useState(false);
@@ -646,8 +659,6 @@ export default function App() {
       void loadDashboardDiscussions();
     }
   }, [screen, activeTab, loadDashboardDiscussions]);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-
   useEffect(() => {
     if (activeTab === 'articles') {
       loadDocuments(docPage);
@@ -981,8 +992,17 @@ export default function App() {
 
   // --- Toast notifications mechanism ---
   // --- Orchid Tab Search & Filter States ---
-  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('All');
-  const [selectedFeatureFilter, setSelectedFeatureFilter] = useState('All');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('');
+  const [selectedFeatureFilters, setSelectedFeatureFilters] = useState<string[]>([]);
+  const [selectedRegionFilters, setSelectedRegionFilters] = useState<string[]>([]);
+  const [selectedSeasonFilters, setSelectedSeasonFilters] = useState<string[]>([]);
+  const [selectedColorFilters, setSelectedColorFilters] = useState<string[]>([]);
+  const [orchidSortOrder, setOrchidSortOrder] = useState('az');
+  const [showOrchidAdvancedFilters, setShowOrchidAdvancedFilters] = useState(false);
+  const orchidFilterCategories = useMemo(() => {
+    const catalogRoot = categories.find((category) => !category.parentId && category.name.toLocaleLowerCase('vi') === 'danh mục lan');
+    return catalogRoot ? categories.filter((category) => category.id !== catalogRoot.id) : categories;
+  }, [categories]);
 
   const handleCreatePost = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1378,15 +1398,35 @@ export default function App() {
 
   // --- Filtering & Sorting ---
   const filteredOrchids = orchids.filter(orc => {
-    const matchesSearch = orc.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          orc.englishName.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCat = selectedCategoryFilter === 'All' || 
-                       orc.categoryIds.some(id => categories.find(c => c.id === id)?.name === selectedCategoryFilter);
-    const matchesFeature = selectedFeatureFilter === 'All' || 
-                           (selectedFeatureFilter === 'Popular' && orc.isPopular) || 
-                           (selectedFeatureFilter === 'Fragrant' && orc.hasFragrance);
-    return matchesSearch && matchesCat && matchesFeature;
+    const orchidSearchTerm = searchQuery.trim().toLocaleLowerCase('vi');
+    const matchesSearch = !orchidSearchTerm || orc.name.toLocaleLowerCase('vi').includes(orchidSearchTerm) ||
+                          orc.englishName.toLocaleLowerCase('vi').includes(orchidSearchTerm);
+    const matchesCat = !selectedCategoryFilter || orc.categoryIds.includes(selectedCategoryFilter);
+    const matchesFeature = selectedFeatureFilters.every((feature) =>
+      (feature === 'Popular' && orc.isPopular) || (feature === 'Fragrant' && orc.hasFragrance));
+    const matchesRegion = selectedRegionFilters.length === 0 || selectedRegionFilters.some((region) => orc.regions?.includes(region as keyof typeof Region));
+    const matchesSeason = selectedSeasonFilters.length === 0 || selectedSeasonFilters.some((season) => orc.bloomSeasons?.includes(season as keyof typeof BloomSeason));
+    const matchesColor = selectedColorFilters.length === 0 || selectedColorFilters.some((color) => orc.colors?.includes(color as keyof typeof FlowerColor));
+    return matchesSearch && matchesCat && matchesFeature && matchesRegion && matchesSeason && matchesColor;
+  }).sort((first, second) => {
+    const comparison = first.name.localeCompare(second.name, 'vi', { sensitivity: 'base' });
+    return orchidSortOrder === 'az' ? comparison : -comparison;
   });
+
+  const orchidAdvancedFilterCount = selectedFeatureFilters.length
+    + selectedRegionFilters.length
+    + selectedSeasonFilters.length
+    + selectedColorFilters.length;
+  const hasOrchidFilters = Boolean(searchQuery || selectedCategoryFilter || orchidAdvancedFilterCount);
+
+  const clearOrchidFilters = () => {
+    setSearchQuery('');
+    setSelectedCategoryFilter('');
+    setSelectedFeatureFilters([]);
+    setSelectedRegionFilters([]);
+    setSelectedSeasonFilters([]);
+    setSelectedColorFilters([]);
+  };
 
   // filteredArticles removed
 
@@ -1547,14 +1587,9 @@ export default function App() {
                     className="mt-1 w-4 font-sans h-4 rounded-[1px] border-[#e2e3e1] text-[#56642b] focus:ring-[#56642b]"
                   />
                   <label htmlFor="checkbox_agree" className="text-[11px] text-[#5a5c5b] leading-5 cursor-pointer">
-                    Tôi đã đọc và đồng ý với{" "}
-                    <a href="#" className="underline font-medium hover:text-[#56642b]">Điều khoản dịch vụ</a>
-                    {" "}&{" "}
-                    <a href="#" className="underline font-medium hover:text-[#56642b]">Chính sách bảo mật</a>.
+                    Tôi xác nhận thông tin đăng ký là chính xác.
                   </label>
                 </div>
-
-                <CaptchaChallenge ref={signupCaptchaRef} />
 
                 {/* Submit button */}
                 <button
@@ -1617,7 +1652,7 @@ export default function App() {
 
             {/* "Orchids" White brand-text at absolute top left */}
             <div className="absolute top-12 left-12 z-20">
-              <button onClick={() => setScreen("home")} className="font-serif text-[32px] tracking-wide font-normal text-white cursor-pointer hover:opacity-90 transition-opacity">Orchids</button>
+              <button onClick={() => setScreen("home")} className="orchids-logo text-[32px] text-white cursor-pointer hover:opacity-90 transition-opacity">Orchids</button>
             </div>
 
             {/* Poetic quote block at absolute bottom-right corner */}
@@ -1653,7 +1688,7 @@ export default function App() {
 
             {/* "Orchids" White logo top left */}
             <div className="absolute top-12 left-12 z-20">
-              <button onClick={() => setScreen("home")} className="font-serif text-[32px] tracking-wide font-normal text-white cursor-pointer hover:opacity-90 transition-opacity">Orchids</button>
+              <button onClick={() => setScreen("home")} className="orchids-logo text-[32px] text-white cursor-pointer hover:opacity-90 transition-opacity">Orchids</button>
             </div>
 
             {/* Caption on the left-hand bottom-left as requested in prompt screenshot */}
@@ -1739,8 +1774,6 @@ export default function App() {
                   <button type="button" onClick={() => setScreen("forgot_password")} className="text-[11px] text-[#56642b] hover:underline font-medium">Quên mật khẩu?</button>
                 </div>
 
-                <CaptchaChallenge ref={loginCaptchaRef} />
-
                 {/* Button login */}
                 <button
                   id="btn_submit_login"
@@ -1810,7 +1843,7 @@ export default function App() {
 
             {/* "Orchids" White logo top left */}
             <div className="absolute top-12 left-12 z-20">
-              <button onClick={() => setScreen("home")} className="font-serif text-[32px] tracking-wide font-normal text-white cursor-pointer hover:opacity-90 transition-opacity">Orchids</button>
+              <button onClick={() => setScreen("home")} className="orchids-logo text-[32px] text-white cursor-pointer hover:opacity-90 transition-opacity">Orchids</button>
             </div>
 
             {/* Caption on the left-hand bottom-left as requested in prompt screenshot */}
@@ -1895,73 +1928,77 @@ export default function App() {
       <div className="min-h-screen bg-[#f9f9f7] font-sans text-[#1a1c1b] flex">
       
       {/* Side Navigation Bar */}
-      <aside className={`w-64 border-r border-[#c4c7c7] fixed h-screen left-0 top-0 bg-[#f9f9f7] flex flex-col z-40 transition-transform duration-300 ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <div className="px-6 py-8">
-          <h1 className="font-serif text-2xl font-bold tracking-tight text-[#56642b] flex items-center gap-2">
+      <aside className={`border-r border-[#c4c7c7] fixed h-screen left-0 top-0 bg-[#f9f9f7] flex flex-col z-40 transition-[width] duration-300 ${isSidebarOpen ? "w-64" : "w-20"}`}>
+        <div className={`${isSidebarOpen ? 'px-6' : 'px-1'} overflow-hidden py-8`}>
+          <h1 className={`orchids-logo whitespace-nowrap text-[#56642b] transition-all duration-300 ${isSidebarOpen ? 'text-left text-2xl' : 'text-center text-[15px]'}`}>
             Orchids
           </h1>
-          <p className="text-[10px] text-outline tracking-widest mt-0.5 font-mono uppercase">
+          <p className={`${isSidebarOpen ? 'block' : 'hidden'} text-[10px] text-outline tracking-widest mt-0.5 font-mono uppercase`}>
             HỆ THỐNG QUẢN TRỊ
           </p>
         </div>
 
-        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-4">
+        <nav className={`flex flex-1 flex-col gap-1 overflow-y-auto ${isSidebarOpen ? 'px-4' : 'px-3'}`}>
           {/* 1. Tổng Quan */}
           <button
             onClick={() => { setActiveTab('overview'); setSearchQuery(''); }}
-            className={`order-0 flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
+            title={!isSidebarOpen ? 'Tổng quan' : undefined}
+            className={`order-0 flex items-center px-4 py-3 w-full transition-all duration-300 rounded text-left ${isSidebarOpen ? 'gap-3' : 'justify-center'} ${
               activeTab === 'overview'
                 ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
             }`}
           >
             <LayoutDashboard className="w-5 h-5 shrink-0" />
-            <span className="text-xs uppercase tracking-wider font-semibold font-sans">Tổng quan</span>
+            <span className={`${isSidebarOpen ? 'block' : 'hidden'} text-xs uppercase tracking-wider font-semibold font-sans`}>Tổng quan</span>
           </button>
 
           <button
-            onClick={() => toggleAdminMenu('orchids')}
-            className={`order-10 flex w-full items-center gap-3 rounded px-4 py-3 text-left transition-all duration-300 ${
+            onClick={() => handleAdminMenuClick('orchids')}
+            title={!isSidebarOpen ? 'Quản lý hoa lan' : undefined}
+            className={`order-10 flex w-full items-center rounded px-4 py-3 text-left transition-all duration-300 ${isSidebarOpen ? 'gap-3' : 'justify-center'} ${
               ['categories', 'orchids'].includes(activeTab)
                 ? 'bg-[#d6e7a1]/20 font-bold text-[#56642b]'
                 : 'text-[#434748] hover:bg-[#d6e7a1]/20 hover:text-[#56642b]'
             }`}
           >
             <Layers className="h-5 w-5 shrink-0" />
-            <span className="text-xs font-semibold uppercase tracking-wider">Quản lý hoa lan</span>
-            <ChevronRight className={`ml-auto h-4 w-4 transition-transform ${expandedAdminMenus.orchids ? 'rotate-90' : ''}`} />
+            <span className={`${isSidebarOpen ? 'block' : 'hidden'} text-xs font-semibold uppercase tracking-wider`}>Quản lý hoa lan</span>
+            <ChevronRight className={`${isSidebarOpen ? 'block' : 'hidden'} ml-auto h-4 w-4 transition-transform ${expandedAdminMenus.orchids ? 'rotate-90' : ''}`} />
           </button>
 
           <button
-            onClick={() => toggleAdminMenu('applications')}
-            className={`order-20 flex w-full items-center gap-3 rounded px-4 py-3 text-left transition-all duration-300 ${
+            onClick={() => handleAdminMenuClick('applications')}
+            title={!isSidebarOpen ? 'Ứng dụng' : undefined}
+            className={`order-20 flex w-full items-center rounded px-4 py-3 text-left transition-all duration-300 ${isSidebarOpen ? 'gap-3' : 'justify-center'} ${
               ['applications', 'application_cats'].includes(activeTab)
                 ? 'bg-[#d6e7a1]/20 font-bold text-[#56642b]'
                 : 'text-[#434748] hover:bg-[#d6e7a1]/20 hover:text-[#56642b]'
             }`}
           >
             <Sparkles className="h-5 w-5 shrink-0" />
-            <span className="text-xs font-semibold uppercase tracking-wider">Ứng dụng</span>
-            <ChevronRight className={`ml-auto h-4 w-4 transition-transform ${expandedAdminMenus.applications ? 'rotate-90' : ''}`} />
+            <span className={`${isSidebarOpen ? 'block' : 'hidden'} text-xs font-semibold uppercase tracking-wider`}>Ứng dụng</span>
+            <ChevronRight className={`${isSidebarOpen ? 'block' : 'hidden'} ml-auto h-4 w-4 transition-transform ${expandedAdminMenus.applications ? 'rotate-90' : ''}`} />
           </button>
 
           <button
-            onClick={() => toggleAdminMenu('cultivation')}
-            className={`order-30 flex w-full items-center gap-3 rounded px-4 py-3 text-left transition-all duration-300 ${
+            onClick={() => handleAdminMenuClick('cultivation')}
+            title={!isSidebarOpen ? 'Cách trồng và chăm sóc' : undefined}
+            className={`order-30 flex w-full items-center rounded px-4 py-3 text-left transition-all duration-300 ${isSidebarOpen ? 'gap-3' : 'justify-center'} ${
               ['care', 'cultivation_cats'].includes(activeTab)
                 ? 'bg-[#d6e7a1]/20 font-bold text-[#56642b]'
                 : 'text-[#434748] hover:bg-[#d6e7a1]/20 hover:text-[#56642b]'
             }`}
           >
             <FileText className="h-5 w-5 shrink-0" />
-            <span className="text-xs font-semibold uppercase tracking-wider">Cách trồng và chăm sóc</span>
-            <ChevronRight className={`ml-auto h-4 w-4 transition-transform ${expandedAdminMenus.cultivation ? 'rotate-90' : ''}`} />
+            <span className={`${isSidebarOpen ? 'block' : 'hidden'} text-xs font-semibold uppercase tracking-wider`}>Cách trồng và chăm sóc</span>
+            <ChevronRight className={`${isSidebarOpen ? 'block' : 'hidden'} ml-auto h-4 w-4 transition-transform ${expandedAdminMenus.cultivation ? 'rotate-90' : ''}`} />
           </button>
 
           {/* 2. Chi Danh Mục */}
           <button
             onClick={() => { setActiveTab('categories'); setSearchQuery(''); }}
-            className={`${expandedAdminMenus.orchids ? 'flex' : 'hidden'} order-[11] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
+            className={`${isSidebarOpen && expandedAdminMenus.orchids ? 'flex' : 'hidden'} order-[11] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
               activeTab === 'categories'
                 ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
@@ -1977,7 +2014,7 @@ export default function App() {
           {/* 3. Danh mục Cách trồng và chăm sóc */}
           <button
             onClick={() => { setActiveTab('cultivation_cats'); setSearchQuery(''); }}
-            className={`${expandedAdminMenus.cultivation ? 'flex' : 'hidden'} order-[31] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
+            className={`${isSidebarOpen && expandedAdminMenus.cultivation ? 'flex' : 'hidden'} order-[31] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
               activeTab === 'cultivation_cats'
                 ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
@@ -1993,7 +2030,7 @@ export default function App() {
           {/* 4. Danh mục Ứng dụng */}
           <button
             onClick={() => { setActiveTab('application_cats'); setSearchQuery(''); }}
-            className={`${expandedAdminMenus.applications ? 'flex' : 'hidden'} order-[21] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
+            className={`${isSidebarOpen && expandedAdminMenus.applications ? 'flex' : 'hidden'} order-[21] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
               activeTab === 'application_cats'
                 ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
@@ -2009,7 +2046,7 @@ export default function App() {
           {/* 5. Quản lý Hoa Lan */}
           <button
             onClick={() => { setActiveTab('orchids'); setSearchQuery(''); }}
-            className={`${expandedAdminMenus.orchids ? 'flex' : 'hidden'} order-[12] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
+            className={`${isSidebarOpen && expandedAdminMenus.orchids ? 'flex' : 'hidden'} order-[12] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
               activeTab === 'orchids'
                 ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
@@ -2025,7 +2062,7 @@ export default function App() {
           {/* 6. Cách trồng và chăm sóc */}
           <button
             onClick={() => { setActiveTab('care'); setSearchQuery(''); }}
-            className={`${expandedAdminMenus.cultivation ? 'flex' : 'hidden'} order-[32] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
+            className={`${isSidebarOpen && expandedAdminMenus.cultivation ? 'flex' : 'hidden'} order-[32] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
               activeTab === 'care'
                 ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
@@ -2041,7 +2078,7 @@ export default function App() {
           {/* 7. Ứng dụng */}
           <button
             onClick={() => { setActiveTab('applications'); setSearchQuery(''); }}
-            className={`${expandedAdminMenus.applications ? 'flex' : 'hidden'} order-[22] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
+            className={`${isSidebarOpen && expandedAdminMenus.applications ? 'flex' : 'hidden'} order-[22] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
               activeTab === 'applications'
                 ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
@@ -2057,15 +2094,16 @@ export default function App() {
           {/* 8. Quản lý Tài liệu về Lan */}
           <button
             onClick={() => { setActiveTab('articles'); setSearchQuery(''); }}
-            className={`order-40 flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
+            title={!isSidebarOpen ? 'Tài liệu' : undefined}
+            className={`order-40 flex items-center px-4 py-3 w-full transition-all duration-300 rounded text-left ${isSidebarOpen ? 'gap-3' : 'justify-center'} ${
               activeTab === 'articles'
                 ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
             }`}
           >
             <BookOpen className="w-5 h-5 shrink-0" />
-            <span className="text-xs uppercase tracking-wider font-semibold font-sans">Tài liệu</span>
-            <span className="ml-auto text-[10px] font-mono bg-[#56642b]/10 text-[#5a682f] px-2 py-0.5 rounded font-bold">
+            <span className={`${isSidebarOpen ? 'block' : 'hidden'} text-xs uppercase tracking-wider font-semibold font-sans`}>Tài liệu</span>
+            <span className={`${isSidebarOpen ? 'block' : 'hidden'} ml-auto text-[10px] font-mono bg-[#56642b]/10 text-[#5a682f] px-2 py-0.5 rounded font-bold`}>
               {documentsData?.totalCount || 0}
             </span>
           </button>
@@ -2073,15 +2111,16 @@ export default function App() {
           {/* 9. Người dùng */}
           <button
             onClick={() => { setActiveTab('users'); setSearchQuery(''); }}
-            className={`order-50 flex items-center gap-3 px-4 py-3 w-full transition-all duration-300 rounded text-left ${
+            title={!isSidebarOpen ? 'Người dùng' : undefined}
+            className={`order-50 flex items-center px-4 py-3 w-full transition-all duration-300 rounded text-left ${isSidebarOpen ? 'gap-3' : 'justify-center'} ${
               activeTab === 'users'
                 ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
             }`}
           >
             <Users className="w-5 h-5 shrink-0" />
-            <span className="text-xs uppercase tracking-wider font-semibold font-sans">Người dùng</span>
-            <span className="ml-auto text-[10px] font-mono bg-surface-container-high px-2 py-0.5 rounded text-outline font-bold">
+            <span className={`${isSidebarOpen ? 'block' : 'hidden'} text-xs uppercase tracking-wider font-semibold font-sans`}>Người dùng</span>
+            <span className={`${isSidebarOpen ? 'block' : 'hidden'} ml-auto text-[10px] font-mono bg-surface-container-high px-2 py-0.5 rounded text-outline font-bold`}>
               {userTotalCount}
             </span>
           </button>
@@ -2089,18 +2128,19 @@ export default function App() {
         </nav>
 
         {/* Footer-styled administrator profile context */}
-        <div className="p-4 mt-auto border-t border-[#c4c7c7]">
+        <div className={`${isSidebarOpen ? 'p-4' : 'px-3 py-4'} mt-auto border-t border-[#c4c7c7]`}>
           <div className="relative">
             <button 
               onClick={() => setShowProfileCard(!showProfileCard)}
-              className="flex items-center gap-3 w-full text-left p-1.5 hover:bg-surface-container rounded-lg transition-all"
+              title={!isSidebarOpen ? currentDisplayName : undefined}
+              className={`flex items-center w-full text-left p-1.5 hover:bg-surface-container rounded-lg transition-all ${isSidebarOpen ? 'gap-3' : 'justify-center'}`}
             >
               {currentAvatarUrl ? (
                 <img src={currentAvatarUrl} className="w-8 h-8 rounded-full border border-antique-gold/20 object-cover" alt={currentDisplayName} referrerPolicy="no-referrer" />
               ) : (
                 <span className="w-8 h-8 rounded-full bg-soft-olive flex items-center justify-center font-bold text-[#56642b]">{currentUserInitial}</span>
               )}
-              <div className="min-w-0">
+              <div className={`${isSidebarOpen ? 'block' : 'hidden'} min-w-0`}>
                 <p className="text-xs font-bold text-on-surface truncate leading-tight">{currentDisplayName}</p>
                 <p className="text-[9px] text-[#56642b] font-semibold tracking-wider font-mono">
                   {isAdminAccount(currentUser) ? 'SUPER ADMIN' : 'CUSTOMER'}
@@ -2114,7 +2154,7 @@ export default function App() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 10 }}
-                  className="absolute bottom-12 left-0 right-0 bg-white p-4 rounded-xl shadow-xl border border-outline-variant z-50 text-xs space-y-2"
+                  className={`absolute bg-white p-4 rounded-xl shadow-xl border border-outline-variant z-50 text-xs space-y-2 ${isSidebarOpen ? 'bottom-12 left-0 right-0' : 'bottom-0 left-14 w-64'}`}
                 >
                   <p className="font-bold text-on-surface">Vùng làm việc: VIỆT NAM</p>
                   <p className="text-outline">Cơ sở dữ liệu: Orchids Registry Hub</p>
@@ -2139,16 +2179,17 @@ export default function App() {
           <button
             type="button"
             onClick={handleLogOut}
-            className="flex w-full items-center gap-3 px-4 py-2 mt-3 text-error hover:bg-error/10 transition-all duration-300 rounded text-left"
+            title={!isSidebarOpen ? 'Đăng xuất' : undefined}
+            className={`flex w-full items-center px-4 py-2 mt-3 text-error hover:bg-error/10 transition-all duration-300 rounded text-left ${isSidebarOpen ? 'gap-3' : 'justify-center'}`}
           >
             <LogOut className="w-5 h-5" />
-            <span className="text-xs uppercase tracking-wider font-semibold font-sans">Đăng xuất</span>
+            <span className={`${isSidebarOpen ? 'block' : 'hidden'} text-xs uppercase tracking-wider font-semibold font-sans`}>Đăng xuất</span>
           </button>
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <main className={`flex-1 min-h-screen flex flex-col transition-all duration-300 ${isSidebarOpen ? "ml-64" : "ml-0"}`}>
+      <main className={`flex-1 min-h-screen flex flex-col transition-[margin] duration-300 ${isSidebarOpen ? "ml-64" : "ml-20"}`}>
         
         {/* Top Bar Navigation */}
         <header className="sticky top-0 z-30 bg-[#f9f9f7]/90 backdrop-blur-md border-b border-[#c4c7c7] h-16 flex items-center justify-between px-8">
@@ -2233,8 +2274,8 @@ export default function App() {
           {/* ======================= TAB: 1. OVERVIEW ======================= */}
           {activeTab === 'overview' && (
             <div className="space-y-10">
-              {/* Top Title Bar & Call to Action Buttons */}
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+              {/* Top Title Bar */}
+              <div>
                 <div>
                   <h2 className="font-serif text-3xl font-semibold tracking-tight text-on-surface">
                     Tổng quan Hệ thống
@@ -2242,20 +2283,6 @@ export default function App() {
                   <p className="text-sm text-on-surface-variant mt-1">
                     Chào mừng trở lại, {currentDisplayName}. Đây là dữ liệu mới nhất từ hệ thống.
                   </p>
-                </div>
-                <div className="flex flex-wrap gap-2.5">
-                  <button
-                    onClick={() => { setEditingCategory(null); setOpenAddCategory(true); }}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-[#56642b] text-white rounded-lg font-sans text-xs font-semibold uppercase tracking-wider hover:shadow-md transition-all shrink-0 cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" /> THÊM DANH MỤC
-                  </button>
-                  <button
-                    onClick={() => { setActiveTab('articles'); setShowDocumentForm(true); }}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-white border border-antique-gold text-antique-gold rounded-lg font-sans text-xs font-semibold uppercase tracking-wider hover:bg-surface-container transition-all shrink-0 cursor-pointer"
-                  >
-                    <FilePlus className="w-4 h-4" /> QUẢN LÝ TÀI LIỆU VỀ LAN
-                  </button>
                 </div>
               </div>
 
@@ -2475,8 +2502,7 @@ export default function App() {
                                   </p>
                                 </div>
                                 
-                                <div className="pt-4 border-t border-[#f4f4f2] mt-4 flex justify-between items-center gap-2">
-                                  <span className="text-[9px] text-[#735c00] font-sans font-semibold tracking-wider">HỒ SƠ BẢO TRỢ</span>
+                                <div className="pt-4 border-t border-[#f4f4f2] mt-4 flex justify-end items-center gap-2">
                                   <div className="flex items-center gap-1">
                                     <button
                                       type="button"
@@ -2504,7 +2530,7 @@ export default function App() {
                                       }}
                                       className="text-[10px] text-secondary font-bold font-sans hover:underline cursor-pointer ml-1"
                                     >
-                                      Xem →
+                                      Xem lan →
                                     </button>
                                   </div>
                                 </div>
@@ -2585,54 +2611,135 @@ export default function App() {
               </div>
 
               {/* Classification Filters block */}
-              <div className="bg-white p-4 rounded-xl border border-outline-variant/40 flex flex-wrap gap-4 items-center justify-between">
-                <div className="flex flex-wrap gap-3 items-center">
-                  <div className="flex items-center gap-1.5 text-xs text-outline">
-                    <Filter className="w-4 h-4" />
-                    <span className="font-sans font-medium">Lọc theo:</span>
+              <div className="space-y-5 rounded-xl border border-outline-variant/40 bg-white p-5 shadow-sm">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(280px,1fr)_260px_200px_auto_auto] xl:items-center">
+                  <div className="relative">
+                    <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-outline" />
+                    <input
+                      type="search"
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      placeholder="Tìm theo tên loài hoặc tên khoa học..."
+                      className="h-12 w-full rounded-lg border border-outline-variant bg-white pl-12 pr-4 text-sm text-charcoal-text outline-none transition-colors placeholder:text-outline focus:border-[#56642b] focus:ring-2 focus:ring-[#56642b]/10"
+                    />
                   </div>
-                  
-                  {/* Category choices */}
-                  <select
+
+                  <CategoryTreeSelect
+                    categories={orchidFilterCategories}
                     value={selectedCategoryFilter}
-                    onChange={(e) => setSelectedCategoryFilter(e.target.value)}
-                    className="bg-[#f4f4f2] text-xs text-charcoal-text border border-outline-variant rounded px-2.2 py-1 focus:outline-none"
+                    onChange={setSelectedCategoryFilter}
+                    allLabel="Tất cả danh mục"
+                    className="w-full"
+                    triggerClassName="h-12 rounded-lg"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setShowOrchidAdvancedFilters((current) => !current)}
+                    className={`flex h-12 items-center justify-between gap-3 rounded-lg border px-4 text-sm transition-colors ${showOrchidAdvancedFilters ? 'border-[#56642b] bg-[#f7f8f1] text-[#56642b]' : 'border-outline-variant bg-white text-charcoal-text hover:border-[#87905f]'}`}
+                    aria-expanded={showOrchidAdvancedFilters}
                   >
-                    <option value="All">Tất cả danh mục chi</option>
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.name}>{cat.name}</option>
+                    <span className="flex items-center gap-2"><SlidersHorizontal className="h-5 w-5" />Bộ lọc nâng cao</span>
+                    <span className="flex items-center gap-2">
+                      {orchidAdvancedFilterCount > 0 && <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-[#667234] px-1.5 text-xs font-bold text-white">{orchidAdvancedFilterCount}</span>}
+                      <ChevronDown className={`h-4 w-4 transition-transform ${showOrchidAdvancedFilters ? 'rotate-180' : ''}`} />
+                    </span>
+                  </button>
+
+                  <div className="whitespace-nowrap text-sm text-outline xl:text-center">
+                    Tìm thấy <strong className="text-lg text-[#56642b]">{filteredOrchids.length}</strong> loài lan
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={clearOrchidFilters}
+                    disabled={!hasOrchidFilters}
+                    className="flex h-12 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3 text-sm font-medium text-[#56642b] transition-colors hover:bg-[#56642b]/5 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <RotateCcw className="h-4 w-4" /> Xóa bộ lọc
+                  </button>
+                </div>
+
+                {showOrchidAdvancedFilters && (
+                  <div className="grid gap-6 rounded-xl border border-outline-variant/60 bg-[#fafbf8] p-5 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#434748]">Đặc tính</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {ORCHID_FEATURE_FILTERS.map((feature) => {
+                          const selected = selectedFeatureFilters.includes(feature.id);
+                          return (
+                            <button key={feature.id} type="button" onClick={() => setSelectedFeatureFilters((current) => selected ? current.filter((item) => item !== feature.id) : [...current, feature.id])} className={`rounded-md border px-3 py-2 text-xs transition-colors ${selected ? 'border-[#667234] bg-[#eef1e2] font-semibold text-[#56642b]' : 'border-outline-variant bg-white text-charcoal-text hover:border-[#87905f]'}`}>
+                              {feature.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#434748]">Khu vực phân bố</h4>
+                      <div className="flex max-h-32 flex-wrap gap-2 overflow-y-auto">
+                        {Object.entries(Region).map(([key, label]) => {
+                          const selected = selectedRegionFilters.includes(key);
+                          return <button key={key} type="button" onClick={() => setSelectedRegionFilters((current) => selected ? current.filter((item) => item !== key) : [...current, key])} className={`rounded-md border px-3 py-2 text-xs transition-colors ${selected ? 'border-[#667234] bg-[#eef1e2] font-semibold text-[#56642b]' : 'border-outline-variant bg-white text-charcoal-text hover:border-[#87905f]'}`}>{label}</button>;
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#434748]">Mùa hoa nở</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(BloomSeason).map(([key, label]) => {
+                          const selected = selectedSeasonFilters.includes(key);
+                          return <button key={key} type="button" onClick={() => setSelectedSeasonFilters((current) => selected ? current.filter((item) => item !== key) : [...current, key])} className={`rounded-md border px-3 py-2 text-xs transition-colors ${selected ? 'border-[#667234] bg-[#eef1e2] font-semibold text-[#56642b]' : 'border-outline-variant bg-white text-charcoal-text hover:border-[#87905f]'}`}>{label}</button>;
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#434748]">Màu sắc hoa</h4>
+                      <div className="flex max-h-32 flex-wrap gap-2 overflow-y-auto">
+                        {Object.entries(FlowerColor).map(([key, color]) => {
+                          const selected = selectedColorFilters.includes(key);
+                          return (
+                            <button key={key} type="button" onClick={() => setSelectedColorFilters((current) => selected ? current.filter((item) => item !== key) : [...current, key])} className={`flex items-center gap-2 rounded-md border px-3 py-2 text-xs transition-colors ${selected ? 'border-[#667234] bg-[#eef1e2] font-semibold text-[#56642b]' : 'border-outline-variant bg-white text-charcoal-text hover:border-[#87905f]'}`}>
+                              <span className="h-3.5 w-3.5 rounded-full border border-black/15" style={{ backgroundColor: color }} />{ORCHID_COLOR_LABELS[key] ?? key}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {(selectedCategoryFilter || orchidAdvancedFilterCount > 0) && (
+                  <div className="flex flex-wrap items-center gap-2 border-t border-outline-variant/50 pt-4">
+                    <span className="mr-1 text-sm text-outline">Đang lọc:</span>
+                    {selectedCategoryFilter && (
+                      <button type="button" onClick={() => setSelectedCategoryFilter('')} className="flex items-center gap-2 rounded-md border border-[#87905f]/40 bg-[#f7f8f1] px-3 py-2 text-xs font-medium text-[#56642b]">
+                        {categories.find((category) => category.id === selectedCategoryFilter)?.name ?? 'Danh mục'} <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    {selectedFeatureFilters.map((featureId) => (
+                      <button key={featureId} type="button" onClick={() => setSelectedFeatureFilters((current) => current.filter((item) => item !== featureId))} className="flex items-center gap-2 rounded-md border border-[#87905f]/40 bg-[#f7f8f1] px-3 py-2 text-xs font-medium text-[#56642b]">
+                        {ORCHID_FEATURE_FILTERS.find((feature) => feature.id === featureId)?.name} <X className="h-3.5 w-3.5" />
+                      </button>
                     ))}
-                  </select>
-
-                  {/* Feature choices */}
-                  <select
-                    value={selectedFeatureFilter}
-                    onChange={(e) => setSelectedFeatureFilter(e.target.value)}
-                    className="bg-[#f4f4f2] text-xs text-charcoal-text border border-outline-variant rounded px-2.2 py-1 focus:outline-none"
-                  >
-                    <option value="All">Tất cả đặc tính</option>
-                    <option value="Popular">Lan Phổ Biến</option>
-                    <option value="Fragrant">Có Hương Thơm</option>
-                  </select>
-                </div>
-
-                <div className="text-xs text-outline font-sans">
-                  Tìm thấy <strong>{filteredOrchids.length}</strong> cá thể lan
-                </div>
+                    {selectedRegionFilters.map((key) => <button key={key} type="button" onClick={() => setSelectedRegionFilters((current) => current.filter((item) => item !== key))} className="flex items-center gap-2 rounded-md border border-[#87905f]/40 bg-[#f7f8f1] px-3 py-2 text-xs font-medium text-[#56642b]">{Region[key as keyof typeof Region]} <X className="h-3.5 w-3.5" /></button>)}
+                    {selectedSeasonFilters.map((key) => <button key={key} type="button" onClick={() => setSelectedSeasonFilters((current) => current.filter((item) => item !== key))} className="flex items-center gap-2 rounded-md border border-[#87905f]/40 bg-[#f7f8f1] px-3 py-2 text-xs font-medium text-[#56642b]">{BloomSeason[key as keyof typeof BloomSeason]} <X className="h-3.5 w-3.5" /></button>)}
+                    {selectedColorFilters.map((key) => <button key={key} type="button" onClick={() => setSelectedColorFilters((current) => current.filter((item) => item !== key))} className="flex items-center gap-2 rounded-md border border-[#87905f]/40 bg-[#f7f8f1] px-3 py-2 text-xs font-medium text-[#56642b]"><span className="h-3 w-3 rounded-full border border-black/15" style={{ backgroundColor: FlowerColor[key as keyof typeof FlowerColor] }} />{ORCHID_COLOR_LABELS[key] ?? key} <X className="h-3.5 w-3.5" /></button>)}
+                  </div>
+                )}
               </div>
 
               {/* List of Specimen Section */}
               <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="font-serif text-xl font-bold text-on-surface">Toàn bộ danh tính mầm lan mẫu ({filteredOrchids.length})</h3>
-                  {selectedCategoryFilter !== 'All' && (
-                    <button 
-                      onClick={() => setSelectedCategoryFilter('All')}
-                      className="text-xs text-[#56642b] font-medium underline"
-                    >
-                      Bỏ lọc phân mục
-                    </button>
-                  )}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <h3 className="font-serif text-xl font-bold text-on-surface">Danh sách loài lan <span className="ml-2 inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-[#eef1e2] px-2 text-sm text-[#56642b]">{filteredOrchids.length}</span></h3>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-outline">Sắp xếp:</span>
+                    <CategoryTreeSelect categories={ORCHID_SORT_OPTIONS} value={orchidSortOrder} onChange={setOrchidSortOrder} className="w-36" placeholder="Tên A–Z" />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -2665,8 +2772,7 @@ export default function App() {
                           </p>
                         </div>
                         
-                        <div className="flex items-center justify-between text-[10px] mt-2 pt-2 border-t border-[#f4f4f2] text-outline">
-                          <span>Thứ tự: {orc.displayOrder}</span>
+                        <div className="flex items-center text-[10px] mt-2 pt-2 border-t border-[#f4f4f2] text-outline">
                           <span className={`px-2 py-0.5 rounded font-bold ${
                             orc.isPopular ? 'bg-[#d6e7a0]/30 text-[#56642b]' : 'bg-surface-container text-outline'
                           }`}>
@@ -2958,7 +3064,6 @@ export default function App() {
                       <tr>
                         <th className="px-6 py-2.5">Người dùng</th>
                         <th className="px-6 py-2.5">Email</th>
-                        <th className="px-6 py-2.5">Mã người dùng</th>
                         <th className="px-6 py-2.5 text-right">Điều khiển</th>
                       </tr>
                     </thead>
@@ -2981,7 +3086,6 @@ export default function App() {
                             </div>
                           </td>
                           <td className="px-6 py-4 font-mono text-[#434748]">{user.email}</td>
-                          <td className="px-6 py-4 font-mono text-[10px] text-outline">{user.id}</td>
                           <td className="px-6 py-4 text-right">
                             <div className="inline-flex items-center gap-1">
                               <button
@@ -3004,10 +3108,10 @@ export default function App() {
                         </tr>
                       ))}
                       {!loadingUsers && filteredUsers.length === 0 && (
-                        <tr><td colSpan={4} className="px-6 py-10 text-center text-outline">Không có người dùng phù hợp.</td></tr>
+                        <tr><td colSpan={3} className="px-6 py-10 text-center text-outline">Không có người dùng phù hợp.</td></tr>
                       )}
                       {loadingUsers && (
-                        <tr><td colSpan={4} className="px-6 py-10 text-center text-outline">Đang tải người dùng...</td></tr>
+                        <tr><td colSpan={3} className="px-6 py-10 text-center text-outline">Đang tải người dùng...</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -3298,7 +3402,7 @@ export default function App() {
                             'bold italic forecolor | alignleft aligncenter ' +
                             'alignright alignjustify | bullist numlist outdent indent | ' +
                             'image | removeformat | help',
-                          content_style: 'body { font-family:Inter,Helvetica,Arial,sans-serif; font-size:14px }',
+                          content_style: 'body { font-family:"Be Vietnam Pro","Segoe UI",Arial,sans-serif; font-size:14px }',
                         }}
                       />
                     </div>
@@ -3383,18 +3487,24 @@ export default function App() {
                               {art.summary || art.content}
                             </p>
                             
-                            <div className="pt-4 border-t border-[#f4f4f2] mt-4 flex items-center justify-end gap-2">
+                            <div className="pt-4 border-t border-[#f4f4f2] mt-4 flex items-center justify-end gap-1 shrink-0">
                               <button
+                                type="button"
                                 onClick={() => art.id && void handleOpenEditCareArticle(art.id)}
-                                className="p-1.5 px-3 bg-soft-olive text-[#5a682f] border border-secondary/15 rounded hover:bg-secondary hover:text-white transition-all font-bold text-[10px] uppercase font-sans cursor-pointer"
+                                className="p-1.5 text-outline hover:text-botanical-green hover:bg-surface-container rounded transition-colors"
+                                title="Chỉnh sửa bài viết"
+                                aria-label={`Chỉnh sửa ${art.title}`}
                               >
-                                Sửa
+                                <Edit className="w-3.5 h-3.5" />
                               </button>
                               <button
+                                type="button"
                                 onClick={() => art.id && handleDeleteCareArticle(art.id)}
-                                className="p-1.5 px-3 rounded bg-[#ffdad6] text-error hover:bg-error hover:text-white transition-all font-bold text-[10px] uppercase cursor-pointer"
+                                className="p-1.5 text-outline hover:text-error hover:bg-error-container/20 rounded transition-colors"
+                                title="Xóa bài viết"
+                                aria-label={`Xóa ${art.title}`}
                               >
-                                Xóa
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
                           </div>
@@ -3412,14 +3522,9 @@ export default function App() {
         </div>
 
         {/* Global Footer Section */}
-        <footer className="mt-auto py-6 px-8 border-t border-[#c4c7c7] flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-on-surface-variant bg-white select-none">
+        <footer className="mt-auto py-6 px-8 border-t border-[#c4c7c7] flex items-center text-xs text-on-surface-variant bg-white select-none">
           <div>
-            © 2026 <strong>Orchids</strong>. Hệ thống Quản trị Bảo tồn Thực vật cao cấp.
-          </div>
-          <div className="flex gap-5">
-            <a href="#" onClick={(e) => { e.preventDefault(); addToast('Đang chuyển hướng tới chính sách bảo mật...', 'info'); }} className="hover:text-[#56642b] transition-colors">Chính sách Bảo mật</a>
-            <a href="#" onClick={(e) => { e.preventDefault(); addToast('Đang tải điều khoản sử dụng...', 'info'); }} className="hover:text-[#56642b] transition-colors">Điều khoản Sử dụng</a>
-            <a href="#" onClick={(e) => { e.preventDefault(); addToast('Đóng gói logs gửi bộ phận kỹ thuật...', 'success'); }} className="hover:text-[#56642b] transition-colors">Liên hệ Kỹ thuật</a>
+            © 2026 <strong>Orchids</strong>.
           </div>
         </footer>
 

@@ -4,6 +4,7 @@ import type { DocumentItem } from '../types';
 import { getDocuments } from '../services/api';
 import PublicHeader from '../components/PublicHeader';
 import PublicFooter from '../components/PublicFooter';
+import PageIntro from '../components/PageIntro';
 
 const formatFileSize = (bytes: number) => {
   if (!bytes) return 'Không rõ';
@@ -104,16 +105,15 @@ export default function DocumentPage() {
       <main className="mx-auto max-w-7xl px-5 pb-24 pt-8 md:px-16">
         <div className="mb-8 flex items-center gap-2 text-xs font-medium tracking-wider text-[#747878]">
           <a href="/" className="hover:text-[#56642b]">Trang chủ</a>
-          <span>›</span>
-          <span className="font-semibold uppercase text-[#1a1c1b]">Tài nguyên</span>
+          <span>&gt;</span>
+          <span className="font-semibold text-[#1a1c1b]">Tài nguyên</span>
         </div>
 
-        <section className="mb-12 max-w-3xl">
-          <h1 className="font-serif text-3xl font-bold leading-tight md:text-4xl">Thư Viện Tài Liệu Hoa Lan</h1>
-          <p className="mt-4 text-base leading-7 text-[#434748]">
-            Nơi lưu trữ các nghiên cứu khoa học, sách chuyên khảo và tài liệu kỹ thuật về các loài lan, cung cấp nền tảng kiến thức chuyên sâu cho giới học thuật và người yêu lan.
-          </p>
-        </section>
+        <PageIntro
+          eyebrow="Kho tư liệu chuyên sâu về hoa lan"
+          title="Thư Viện Tài Liệu Hoa Lan"
+          description="Nơi lưu trữ các nghiên cứu khoa học, sách chuyên khảo và tài liệu kỹ thuật về các loài lan, cung cấp nền tảng kiến thức chuyên sâu cho giới học thuật và người yêu lan."
+        />
 
         <form onSubmit={handleSearch} className="mb-8 flex w-full overflow-hidden rounded border border-[#cfd2cb] bg-white shadow-sm focus-within:border-[#56642b]">
           <div className="relative min-w-0 flex-1">

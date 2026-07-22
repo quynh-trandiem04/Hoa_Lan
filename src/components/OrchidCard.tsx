@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, Heart } from 'lucide-react';
+import { Heart } from 'lucide-react';
 import { Orchid } from '../types';
 import { getOrchidImageUrls } from '../utils/orchidImages';
 
@@ -8,21 +8,25 @@ interface OrchidCardProps {
   onSelect: (id: string) => void;
   isBookmarked: boolean;
   onToggleBookmark: (id: string, e?: React.MouseEvent) => void;
+  variant?: 'grid' | 'list';
 }
 
 const OrchidCard: React.FC<OrchidCardProps> = ({
   orchid,
   onSelect,
   isBookmarked,
-  onToggleBookmark
+  onToggleBookmark,
+  variant = 'grid'
 }) => {
+  const isList = variant === 'list';
+
   return (
     <div 
       onClick={() => orchid.id && onSelect(orchid.id)}
-      className="group bg-white border border-[#747878]/10 hover:border-[#56642b]/30 rounded-md overflow-hidden flex flex-col transition-all duration-500 cursor-pointer hover:shadow-xl hover:-translate-y-1"
+      className={`group bg-white border border-[#747878]/10 hover:border-[#56642b]/30 rounded-md overflow-hidden flex transition-all duration-500 cursor-pointer hover:shadow-xl hover:-translate-y-1 ${isList ? 'min-h-52 flex-row' : 'flex-col'}`}
     >
       {/* Image container */}
-      <div className="relative aspect-[4/3] bg-surface-container overflow-hidden border-b border-[#747878]/10">
+      <div className={`relative shrink-0 bg-surface-container overflow-hidden ${isList ? 'w-[38%] min-w-32 border-r border-[#747878]/10' : 'aspect-[4/3] border-b border-[#747878]/10'}`}>
         <img
           src={getOrchidImageUrls(orchid)[0] || 'https://images.unsplash.com/photo-1525310072745-f49212b5ac6d?auto=format&fit=crop&w=800&q=80'}
           alt={orchid.name}
@@ -63,10 +67,10 @@ const OrchidCard: React.FC<OrchidCardProps> = ({
       </div>
 
       {/* Content description */}
-      <div className="p-5 flex flex-col flex-grow">
+      <div className={`flex flex-col flex-grow ${isList ? 'min-w-0 p-4 sm:p-5' : 'p-5'}`}>
         {/* Title and genus */}
         <div className="mb-3">
-          <h3 className="font-serif text-lg text-charcoal-text font-medium leading-snug group-hover:text-botanical-green transition-colors">
+          <h3 className={`font-serif text-charcoal-text font-medium leading-snug group-hover:text-botanical-green transition-colors ${isList ? 'text-base sm:text-lg' : 'text-lg'}`}>
             {orchid.name}
           </h3>
           <p className="font-serif italic text-xs text-[#747878] mt-1 uppercase tracking-wider font-light">
@@ -75,13 +79,13 @@ const OrchidCard: React.FC<OrchidCardProps> = ({
         </div>
 
         {/* Description Snippet */}
-        <div className="text-[11px] text-[#747878] font-sans mt-auto mb-5 line-clamp-2">
+        <div className={`text-[11px] text-[#747878] font-sans mt-auto line-clamp-3 ${isList ? 'mb-3' : 'mb-5'}`}>
           {orchid.shortDescription}
         </div>
 
         {/* Button link */}
         <button
-          className="w-full text-center border border-[#747878]/30 hover:border-botanical-green bg-transparent group-hover:bg-[#1a1c1b] group-hover:text-white transition-all duration-300 rounded-[2px] py-2 text-[10px] uppercase tracking-widest font-semibold font-sans"
+          className={`text-center border border-[#747878]/30 hover:border-botanical-green bg-transparent group-hover:bg-[#1a1c1b] group-hover:text-white transition-all duration-300 rounded-[2px] py-2 text-[10px] uppercase tracking-widest font-semibold font-sans ${isList ? 'w-fit px-4' : 'w-full'}`}
         >
           XEM CHI TIẾT →
         </button>

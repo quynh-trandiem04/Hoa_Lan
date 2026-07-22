@@ -6,20 +6,34 @@ import {
   deleteDiscussion,
   getDiscussionById,
   getDiscussions,
+  getUserById,
   uploadImage,
   type DiscussionPostDto,
   type UploadedImage,
+  type UserListItem,
 } from '../services/api';
 import PublicFooter from '../components/PublicFooter';
 import PublicHeader from '../components/PublicHeader';
 import { Toasts, useToasts } from '../components/Toasts';
 
 const LOGIN_URL = `/login?returnUrl=${encodeURIComponent('/discussion')}`;
+const RECENT_COMMENT_LIMIT = 3;
 
 const hasAuthToken = () => Boolean(
   localStorage.getItem('orchidee_auth_token')
   || sessionStorage.getItem('orchidee_auth_token'),
 );
+
+const readStoredUserProfile = (): UserListItem | null => {
+  const raw = localStorage.getItem('orchidee_user') || sessionStorage.getItem('orchidee_user');
+  if (!raw) return null;
+  try {
+    const profile = JSON.parse(raw) as UserListItem;
+    return profile && (profile.id || profile.email) ? profile : null;
+  } catch {
+    return null;
+  }
+};
 
 const initials = (name: string) => name
   .split(/\s+/)
@@ -27,6 +41,23 @@ const initials = (name: string) => name
   .slice(-2)
   .map((part) => part[0]?.toUpperCase())
   .join('') || '?';
+
+function AuthorAvatar({ name, avatarUrl, className }: { name: string; avatarUrl?: string; className: string }) {
+  return (
+    <div className={`shrink-0 overflow-hidden rounded-full bg-[#e8edda] font-bold text-[#56642b] ${className}`}>
+      {avatarUrl ? (
+        <img
+          src={avatarUrl}
+          alt={`Ảnh đại diện của ${name || 'thành viên'}`}
+          className="h-full w-full object-cover"
+          referrerPolicy="no-referrer"
+        />
+      ) : (
+        <span className="flex h-full w-full items-center justify-center">{initials(name)}</span>
+      )}
+    </div>
+  );
+}
 
 const formatDate = (value: string) => {
   const date = new Date(value);
@@ -39,6 +70,12 @@ const formatDate = (value: string) => {
     minute: '2-digit',
   }).format(date);
 };
+
+const sortCommentsNewestFirst = (comments: DiscussionPostDto['comments'] = []) => [...comments].sort((left, right) => {
+  const rightTime = new Date(right.createdAt).getTime();
+  const leftTime = new Date(left.createdAt).getTime();
+  return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime);
+});
 
 const getDiscussionBody = (value: string) => {
   const imageUrls = Array.from(value.matchAll(/!\[Ảnh đính kèm\]\((https?:\/\/[^\s)]+)\)/gi)).map(m => m[1]);
@@ -116,7 +153,8 @@ function PhotoViewerModal({
   setCommentInputs,
   handleComment,
   commentingId,
-  requireLogin
+  requireLogin,
+  authorProfiles,
 }: {
   post: DiscussionPostDto;
   initialIndex: number;
@@ -126,8 +164,12 @@ function PhotoViewerModal({
   handleComment: (postId: string) => Promise<void>;
   commentingId: string | null;
   requireLogin: () => boolean;
+  authorProfiles: Record<string, UserListItem>;
 }) {
   const postBody = getDiscussionBody(post.content);
+  const [showAllComments, setShowAllComments] = useState(false);
+  const sortedComments = sortCommentsNewestFirst(post.comments);
+  const visibleComments = showAllComments ? sortedComments : sortedComments.slice(0, RECENT_COMMENT_LIMIT);
   const images = postBody.imageUrls;
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
 
@@ -174,9 +216,11 @@ function PhotoViewerModal({
       <div className="w-full md:w-[360px] lg:w-[400px] bg-white h-[50vh] md:h-screen flex flex-col shrink-0 rounded-t-2xl md:rounded-none overflow-hidden shadow-2xl">
         <div className="flex-1 overflow-y-auto p-5">
           <div className="flex items-center gap-3 mb-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#e8edda] text-xs font-bold text-[#56642b]">
-              {initials(post.authorName)}
-            </div>
+            <AuthorAvatar
+              name={post.authorName}
+              avatarUrl={post.authorAvatarUrl || authorProfiles[post.authorId]?.avatarUrl}
+              className="h-10 w-10 text-xs"
+            />
             <div>
               <p className="text-sm font-bold">{post.authorName || 'Thành viên'}</p>
               <time className="text-xs text-[#747878]">{formatDate(post.createdAt)}</time>
@@ -192,11 +236,13 @@ function PhotoViewerModal({
           </div>
 
           <div className="space-y-4 pb-4">
-            {(post.comments ?? []).map((comment) => (
+            {visibleComments.map((comment) => (
               <div key={comment.id} className="flex gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f0f1ec] text-[10px] font-bold text-[#56642b]">
-                  {initials(comment.authorName)}
-                </div>
+                <AuthorAvatar
+                  name={comment.authorName}
+                  avatarUrl={comment.authorAvatarUrl || authorProfiles[comment.authorId]?.avatarUrl}
+                  className="h-8 w-8 bg-[#f0f1ec] text-[10px]"
+                />
                 <div className="min-w-0 flex-1 rounded-2xl bg-[#f0f2f5] px-3.5 py-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <strong className="text-xs">{comment.authorName || 'Thành viên'}</strong>
@@ -206,6 +252,15 @@ function PhotoViewerModal({
                 </div>
               </div>
             ))}
+            {sortedComments.length > RECENT_COMMENT_LIMIT && (
+              <button
+                type="button"
+                onClick={() => setShowAllComments((current) => !current)}
+                className="w-full py-2 text-center text-xs font-semibold text-[#56642b] hover:underline"
+              >
+                {showAllComments ? 'Thu gọn bình luận' : `Hiển thị toàn bộ ${sortedComments.length} bình luận`}
+              </button>
+            )}
           </div>
         </div>
 
@@ -254,9 +309,56 @@ export default function Discussion() {
   const [commentingId, setCommentingId] = useState<string | null>(null);
   const [viewerState, setViewerState] = useState<{ postId: string; startIndex: number } | null>(null);
   const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
+  const [expandedCommentPostIds, setExpandedCommentPostIds] = useState<Set<string>>(new Set());
   const [targetPostId, setTargetPostId] = useState(() => new URLSearchParams(window.location.search).get('postId') ?? '');
   const [targetCommentId, setTargetCommentId] = useState(() => new URLSearchParams(window.location.search).get('commentId') ?? '');
+  const [authorProfiles, setAuthorProfiles] = useState<Record<string, UserListItem>>({});
   const { toasts, addToast, removeToast } = useToasts();
+
+  const loadAuthorProfiles = useCallback(async (discussionPosts: DiscussionPostDto[]) => {
+    if (!hasAuthToken()) return;
+    const sessionProfile = readStoredUserProfile();
+    if (sessionProfile) {
+      setAuthorProfiles((current) => {
+        const next = { ...current };
+        discussionPosts.forEach((post) => {
+          const postMatchesSession = post.authorId === sessionProfile.id
+            || post.authorName.trim().toLocaleLowerCase('vi') === sessionProfile.fullName.trim().toLocaleLowerCase('vi');
+          if (postMatchesSession) next[post.authorId] = sessionProfile;
+          (post.comments ?? []).forEach((comment) => {
+            const commentMatchesSession = comment.authorId === sessionProfile.id
+              || comment.authorName.trim().toLocaleLowerCase('vi') === sessionProfile.fullName.trim().toLocaleLowerCase('vi');
+            if (commentMatchesSession) next[comment.authorId] = sessionProfile;
+          });
+        });
+        return next;
+      });
+    }
+    const authorIds = Array.from(new Set(
+      discussionPosts.flatMap((post) => [
+        post.authorId,
+        ...(Array.isArray(post.comments) ? post.comments.map((comment) => comment.authorId) : []),
+      ]).filter(Boolean),
+    ));
+    if (authorIds.length === 0) return;
+
+    const results = await Promise.all(authorIds
+      .filter((authorId) => authorId !== sessionProfile?.id)
+      .map(async (authorId) => {
+      try {
+        return await getUserById(authorId);
+      } catch {
+        return null;
+      }
+    }));
+    setAuthorProfiles((current) => {
+      const next = { ...current };
+      results.forEach((profile) => {
+        if (profile?.id) next[profile.id] = profile;
+      });
+      return next;
+    });
+  }, []);
 
   const loadPosts = useCallback(async (term = '', linkedPostId = targetPostId) => {
     setLoading(true);
@@ -291,12 +393,13 @@ export default function Discussion() {
         }
       }
       setPosts(hydratedItems);
+      void loadAuthorProfiles(hydratedItems);
     } catch (loadError) {
       addToast(loadError instanceof Error ? loadError.message : 'Không thể tải danh sách thảo luận.', 'error');
     } finally {
       setLoading(false);
     }
-  }, [addToast, targetPostId]);
+  }, [addToast, loadAuthorProfiles, targetPostId]);
 
   const handleDeletePost = async (id: string) => {
     if (!requireLogin()) return;
@@ -317,6 +420,12 @@ export default function Discussion() {
     );
     return () => window.clearTimeout(loadTimer);
   }, [loadPosts]);
+
+  useEffect(() => {
+    const refreshAvatars = () => void loadAuthorProfiles(posts);
+    window.addEventListener('orchidee-profile-updated', refreshAvatars);
+    return () => window.removeEventListener('orchidee-profile-updated', refreshAvatars);
+  }, [loadAuthorProfiles, posts]);
 
   useEffect(() => {
     if (loading || !targetPostId) return;
@@ -351,6 +460,7 @@ export default function Discussion() {
       const id = await createDiscussion({ title: title.trim(), content: discussionContent });
       const created = await getDiscussionById(id);
       setPosts((current) => [created, ...current.filter((post) => post.id !== id)]);
+      void loadAuthorProfiles([created]);
       setTitle('');
       setContent('');
       setAttachedImages([]);
@@ -400,6 +510,7 @@ export default function Discussion() {
       await createDiscussionComment(postId, comment);
       const refreshed = await getDiscussionById(postId);
       setPosts((current) => current.map((post) => post.id === postId ? refreshed : post));
+      void loadAuthorProfiles([refreshed]);
       setCommentInputs((current) => ({ ...current, [postId]: '' }));
       addToast('Đã gửi bình luận.', 'success');
     } catch (commentError) {
@@ -427,8 +538,8 @@ export default function Discussion() {
       <main className="mx-auto max-w-7xl px-5 py-8 md:px-16">
         <div className="mb-8 flex items-center gap-2 text-xs font-medium tracking-wider text-[#747878]">
           <a href="/" className="hover:text-[#56642b]">Trang chủ</a>
-          <span>›</span>
-          <span className="font-semibold uppercase text-[#1a1c1b]">Thảo luận</span>
+          <span>&gt;</span>
+          <span className="font-semibold text-[#1a1c1b]">Thảo luận</span>
         </div>
 
         <div className="mb-12 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -527,6 +638,12 @@ export default function Discussion() {
               </div>
             ) : posts.map((post) => {
               const postBody = getDiscussionBody(post.content);
+              const sortedComments = sortCommentsNewestFirst(post.comments);
+              const showAllComments = expandedCommentPostIds.has(post.id)
+                || (targetPostId === post.id && Boolean(targetCommentId));
+              const visibleComments = showAllComments
+                ? sortedComments
+                : sortedComments.slice(0, RECENT_COMMENT_LIMIT);
               return (
               <article
                 key={post.id}
@@ -535,7 +652,11 @@ export default function Discussion() {
               >
                 <div className="mb-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#e8edda] text-xs font-bold text-[#56642b]">{initials(post.authorName)}</div>
+                    <AuthorAvatar
+                      name={post.authorName}
+                      avatarUrl={post.authorAvatarUrl || authorProfiles[post.authorId]?.avatarUrl}
+                      className="h-10 w-10 text-xs"
+                    />
                     <div>
                       <p className="text-sm font-bold">{post.authorName || 'Thành viên'}</p>
                       <time className="text-xs text-[#747878]">{formatDate(post.createdAt)}</time>
@@ -582,13 +703,17 @@ export default function Discussion() {
                 </div>
 
                 <div className="space-y-3">
-                  {(post.comments ?? []).map((comment) => (
+                  {visibleComments.map((comment) => (
                     <div
                       key={comment.id}
                       id={`discussion-comment-${comment.id}`}
                       className={`flex gap-3 rounded-lg transition-colors ${targetCommentId === comment.id ? 'bg-[#eef2e3] p-2' : ''}`}
                     >
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f0f1ec] text-[10px] font-bold text-[#56642b]">{initials(comment.authorName)}</div>
+                      <AuthorAvatar
+                        name={comment.authorName}
+                        avatarUrl={comment.authorAvatarUrl || authorProfiles[comment.authorId]?.avatarUrl}
+                        className="h-8 w-8 bg-[#f0f1ec] text-[10px]"
+                      />
                       <div className="min-w-0 flex-1 rounded-lg bg-[#f7f7f3] px-3 py-2.5">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <strong className="text-xs">{comment.authorName || 'Thành viên'}</strong>
@@ -598,6 +723,20 @@ export default function Discussion() {
                       </div>
                     </div>
                   ))}
+                  {sortedComments.length > RECENT_COMMENT_LIMIT && (
+                    <button
+                      type="button"
+                      onClick={() => setExpandedCommentPostIds((current) => {
+                        const next = new Set(current);
+                        if (next.has(post.id)) next.delete(post.id);
+                        else next.add(post.id);
+                        return next;
+                      })}
+                      className="w-full py-2 text-center text-xs font-semibold text-[#56642b] hover:underline"
+                    >
+                      {showAllComments ? 'Thu gọn bình luận' : `Hiển thị toàn bộ ${sortedComments.length} bình luận`}
+                    </button>
+                  )}
                 </div>
 
                 <div className="mt-4 flex items-center gap-2 rounded-lg border border-[#dfe1dc] bg-[#fafaf7] px-3 py-1.5">
@@ -704,6 +843,7 @@ export default function Discussion() {
             handleComment={handleComment}
             commentingId={commentingId}
             requireLogin={requireLogin}
+            authorProfiles={authorProfiles}
           />
         );
       })()}

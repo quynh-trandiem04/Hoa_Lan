@@ -20,7 +20,7 @@ interface ToastsProps {
 
 export const Toasts: React.FC<ToastsProps> = ({ toasts, removeToast }) => {
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 max-w-sm w-full">
+    <div className="fixed bottom-6 right-6 z-[300] flex w-[calc(100%-3rem)] max-w-sm flex-col gap-2 sm:w-full">
       <AnimatePresence>
         {toasts.map((toast) => {
           return (

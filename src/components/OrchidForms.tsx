@@ -5,12 +5,13 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Editor } from '@tinymce/tinymce-react';
-import { X, FolderPlus, PlusCircle, Upload, Trash2 } from 'lucide-react';
+import { X, FolderPlus, PlusCircle, Upload, Trash2, Search, Leaf, Star, Check, Flower2, Sun, Snowflake, RefreshCw } from 'lucide-react';
 import { Orchid, Category, Region, BloomSeason, FlowerColor } from '../types';
 import { motion } from 'motion/react';
 import { deleteUploadedImage, uploadImage, type UploadedImage } from '../services/api';
 import { getOrchidImageUrls } from '../utils/orchidImages';
 import { toRichTextHtml } from '../utils/richText';
+import CategoryTreeSelect from './CategoryTreeSelect';
 
 const flattenCategoryTree = (categories: Category[]) => {
   const childrenByParent = new Map<string | null, Category[]>();
@@ -35,6 +36,29 @@ const flattenCategoryTree = (categories: Category[]) => {
   categories.forEach((category) => appendBranch(category, category.parentId ? 1 : 0));
 
   return flattened;
+};
+
+const flowerColorLabels: Record<string, string> = {
+  RED: 'Đỏ',
+  ORANGE: 'Cam',
+  YELLOW: 'Vàng',
+  WHITE: 'Trắng',
+  PINK: 'Hồng',
+  PURPLE: 'Tím',
+  GREEN: 'Xanh lá',
+  LIGHT_GREEN: 'Xanh nhạt',
+  BLUE: 'Xanh dương',
+  CREAM: 'Kem',
+  BROWN: 'Nâu',
+  BLACK: 'Đen',
+};
+
+const bloomSeasonIcons: Record<string, React.ComponentType<{ className?: string }>> = {
+  SPRING: Flower2,
+  SUMMER: Sun,
+  AUTUMN: Leaf,
+  WINTER: Snowflake,
+  ALL_YEAR: RefreshCw,
 };
 
 interface AddOrchidModalProps {
@@ -67,6 +91,7 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
   const [bloomSeasons, setBloomSeasons] = useState<string[]>([]);
   const [colors, setColors] = useState<string[]>([]);
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
+  const [categorySearch, setCategorySearch] = useState('');
 
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -106,9 +131,15 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
       setColors([]);
       setUploadedImages([]);
     }
+    setCategorySearch('');
   }, [editOrchidData, isOpen, categories]);
 
   const categoryOptions = useMemo(() => flattenCategoryTree(categories), [categories]);
+  const visibleCategoryOptions = useMemo(() => {
+    const query = categorySearch.trim().toLocaleLowerCase('vi');
+    if (!query) return categoryOptions;
+    return categoryOptions.filter(({ category }) => category.name.toLocaleLowerCase('vi').includes(query));
+  }, [categoryOptions, categorySearch]);
 
   if (!isOpen) return null;
 
@@ -212,12 +243,12 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-xl border border-outline-variant bg-white shadow-2xl"
+        className="w-full max-w-7xl max-h-[94vh] overflow-y-auto rounded-2xl border border-outline-variant bg-white shadow-2xl"
       >
-        <div className="px-6 py-4 border-b border-outline-variant flex items-center justify-between sticky top-0 bg-white z-10">
+        <div className="px-6 md:px-8 py-5 border-b border-outline-variant flex items-center justify-between sticky top-0 bg-white z-20">
           <div className="flex items-center gap-2 text-[#56642b]">
             <PlusCircle className="w-5 h-5" />
-            <h3 className="font-serif text-lg font-bold text-on-surface">
+            <h3 className="font-serif text-xl md:text-2xl font-bold text-on-surface">
               {isEditing ? 'Cập Nhật Loài Lan' : 'Thêm Loài Lan Mới'}
             </h3>
           </div>
@@ -229,123 +260,191 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="p-5 md:p-7 space-y-7">
           {errorMsg && (
             <div className="p-3 bg-error-container/20 border border-error/20 text-error text-xs rounded-lg">
               {errorMsg}
             </div>
           )}
 
-          <div className="space-y-5">
-            <div className="space-y-1">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tên thường gọi *</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Ví dụ: Hoàng Thảo Kèn"
-                className="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-[#56642b]"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tên tiếng Anh / Danh pháp khoa học *</label>
-              <input
-                type="text"
-                value={englishName}
-                onChange={(e) => setEnglishName(e.target.value)}
-                placeholder="Dendrobium nobile Lindl."
-                className="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm italic focus:outline-none focus:border-[#56642b]"
-              />
-            </div>
-          </div>
-
-          <div className="w-full">
-            <div className="space-y-1 w-full">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Thuộc danh mục *</label>
-              <div className="max-h-32 overflow-y-auto bg-surface-container-low border border-outline-variant rounded px-3 py-2 space-y-2">
-                {categories.length === 0 && (
-                  <p className="text-xs text-outline">Chưa có danh mục. Hãy tạo danh mục trước.</p>
-                )}
-                {categoryOptions.map(({ category: cat, depth }) => (
-                  <label
-                    key={cat.id}
-                    className="flex items-center gap-2 text-sm text-charcoal-text cursor-pointer"
-                    style={{ paddingLeft: `${depth * 20}px` }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={categoryIds.includes(cat.id)}
-                      onChange={(e) => setCategoryIds((current) => e.target.checked
-                        ? [...current, cat.id]
-                        : current.filter((id) => id !== cat.id))}
-                      className="w-4 h-4 text-[#56642b] rounded border-outline focus:ring-[#56642b]"
-                    />
-                    <span>{cat.name}</span>
-                  </label>
-                ))}
+          <section className="grid gap-7 lg:grid-cols-[1.05fr_1.2fr]">
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-[#3f433f]">Danh mục loài lan *</h4>
+              <div className="overflow-hidden rounded-lg border border-outline-variant bg-white">
+                <div className="relative border-b border-outline-variant">
+                  <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-outline" />
+                  <input
+                    type="search"
+                    value={categorySearch}
+                    onChange={(event) => setCategorySearch(event.target.value)}
+                    placeholder="Tìm kiếm danh mục..."
+                    className="h-12 w-full bg-white pl-11 pr-4 text-sm outline-none placeholder:text-outline focus:bg-[#fafbf7]"
+                  />
+                </div>
+                <div className="max-h-64 space-y-1 overflow-y-auto p-3">
+                  {visibleCategoryOptions.map(({ category: cat, depth }) => {
+                    const selected = categoryIds.includes(cat.id);
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setCategoryIds((current) => selected
+                          ? current.filter((id) => id !== cat.id)
+                          : [...current, cat.id])}
+                        className={`flex w-full items-center gap-3 rounded-md border px-3 py-2.5 text-left text-sm transition-colors ${selected ? 'border-[#87905f]/50 bg-[#f2f4e9] text-[#56642b]' : depth === 0 ? 'border-transparent font-semibold text-charcoal-text hover:bg-surface-container-low' : 'border-outline-variant/70 text-charcoal-text hover:border-[#87905f]/40 hover:bg-[#fafbf7]'}`}
+                        style={{ marginLeft: `${Math.min(depth, 2) * 16}px`, width: `calc(100% - ${Math.min(depth, 2) * 16}px)` }}
+                        aria-pressed={selected}
+                      >
+                        <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${selected ? 'border-[#667234] bg-[#667234] text-white' : 'border-outline'}`}>
+                          {selected && <Check className="h-3 w-3" strokeWidth={3} />}
+                        </span>
+                        <span>{cat.name}</span>
+                      </button>
+                    );
+                  })}
+                  {visibleCategoryOptions.length === 0 && (
+                    <p className="px-3 py-8 text-center text-xs text-outline">
+                      {categories.length === 0 ? 'Chưa có danh mục. Hãy tạo danh mục trước.' : 'Không tìm thấy danh mục phù hợp.'}
+                    </p>
+                  )}
+                </div>
               </div>
-              <p className="text-[10px] text-outline">Có thể chọn nhiều danh mục.</p>
+              <div className="flex items-center justify-between text-xs text-outline">
+                <span>Đã chọn ({categoryIds.length})</span>
+                {categoryIds.length > 0 && (
+                  <button type="button" onClick={() => setCategoryIds([])} className="font-medium text-charcoal-text hover:text-[#56642b]">Xóa tất cả</button>
+                )}
+              </div>
+              {categoryIds.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {categoryIds.map((id) => {
+                    const category = categories.find((item) => item.id === id);
+                    if (!category) return null;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => setCategoryIds((current) => current.filter((item) => item !== id))}
+                        className="flex items-center gap-2 rounded-md border border-[#87905f]/50 bg-[#f2f4e9] px-3 py-2 text-xs text-[#56642b]"
+                        title="Bỏ chọn"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                        <span>{category.name}</span>
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          </div>
 
-          <div className="flex items-center gap-6">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={hasFragrance}
-                  onChange={(e) => setHasFragrance(e.target.checked)}
-                  className="w-4 h-4 text-[#56642b] rounded border-outline focus:ring-[#56642b]"
-                />
-                <span className="text-sm font-semibold text-charcoal-text">Có hương thơm</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isPopular}
-                  onChange={(e) => setIsPopular(e.target.checked)}
-                  className="w-4 h-4 text-[#56642b] rounded border-outline focus:ring-[#56642b]"
-                />
-                <span className="text-sm font-semibold text-charcoal-text">Phổ biến</span>
-              </label>
-          </div>
+            <div className="space-y-7">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setHasFragrance((value) => !value)}
+                  className={`flex min-h-24 items-center gap-4 rounded-lg border p-4 text-left transition-colors ${hasFragrance ? 'border-[#87905f]/50 bg-[#fafbf5]' : 'border-outline-variant bg-white hover:border-[#87905f]/40'}`}
+                  aria-pressed={hasFragrance}
+                >
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#f2f4e9] text-[#667234]"><Leaf className="h-6 w-6" /></span>
+                  <span className="min-w-0 flex-1"><strong className="block text-sm text-charcoal-text">Có hương thơm</strong><span className="mt-1 block text-xs text-outline">Loài lan có hương thơm đặc trưng</span></span>
+                  <span className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${hasFragrance ? 'bg-[#667234]' : 'bg-[#d7d9d2]'}`}><span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${hasFragrance ? 'translate-x-5' : 'translate-x-1'}`} /></span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsPopular((value) => !value)}
+                  className={`flex min-h-24 items-center gap-4 rounded-lg border p-4 text-left transition-colors ${isPopular ? 'border-[#87905f]/50 bg-[#fafbf5]' : 'border-outline-variant bg-white hover:border-[#87905f]/40'}`}
+                  aria-pressed={isPopular}
+                >
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#f2f4e9] text-[#667234]"><Star className="h-6 w-6" /></span>
+                  <span className="min-w-0 flex-1"><strong className="block text-sm text-charcoal-text">Phổ biến</strong><span className="mt-1 block text-xs text-outline">Loài lan được trồng phổ biến</span></span>
+                  <span className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${isPopular ? 'bg-[#667234]' : 'bg-[#d7d9d2]'}`}><span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${isPopular ? 'translate-x-5' : 'translate-x-1'}`} /></span>
+                </button>
+              </div>
 
-          <div className="space-y-2">
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Khu vực phân bố</label>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              {Object.entries(Region).map(([key, value]) => (
-                <label key={key} className="flex items-center gap-2 text-sm text-charcoal-text cursor-pointer">
-                  <input type="checkbox" checked={regions.includes(key)} onChange={(e) => setRegions(prev => e.target.checked ? [...prev, key] : prev.filter(k => k !== key))} className="w-4 h-4 text-[#56642b] rounded border-outline focus:ring-[#56642b]" />
-                  <span>{value}</span>
-                </label>
-              ))}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[#3f433f]">Khu vực phân bố</h4>
+                <div className="flex flex-wrap gap-2.5">
+                  {Object.entries(Region).map(([key, value]) => {
+                    const selected = regions.includes(key);
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setRegions((current) => selected ? current.filter((item) => item !== key) : [...current, key])}
+                        className={`flex min-h-11 items-center gap-2 rounded-md border px-4 py-2 text-sm transition-colors ${selected ? 'border-[#87905f]/60 bg-[#f2f4e9] text-[#56642b]' : 'border-outline-variant bg-white text-charcoal-text hover:border-[#87905f]/50'}`}
+                        aria-pressed={selected}
+                      >
+                        {selected && <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#667234] text-white"><Check className="h-3 w-3" strokeWidth={3} /></span>}
+                        {value}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
-          </div>
+          </section>
 
-          <div className="space-y-2">
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Mùa hoa nở</label>
-            <div className="flex flex-wrap gap-4">
-              {Object.entries(BloomSeason).map(([key, value]) => (
-                <label key={key} className="flex items-center gap-2 text-sm text-charcoal-text cursor-pointer">
-                  <input type="checkbox" checked={bloomSeasons.includes(key)} onChange={(e) => setBloomSeasons(prev => e.target.checked ? [...prev, key] : prev.filter(k => k !== key))} className="w-4 h-4 text-[#56642b] rounded border-outline focus:ring-[#56642b]" />
-                  <span>{value}</span>
-                </label>
-              ))}
+          <section className="space-y-6 border-t border-outline-variant pt-6">
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-[#3f433f]">Mùa hoa nở</h4>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+                {Object.entries(BloomSeason).map(([key, value]) => {
+                  const selected = bloomSeasons.includes(key);
+                  const SeasonIcon = bloomSeasonIcons[key] ?? Flower2;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setBloomSeasons((current) => selected ? current.filter((item) => item !== key) : [...current, key])}
+                      className={`relative flex min-h-12 items-center justify-center gap-3 rounded-md border px-3 text-sm transition-colors ${selected ? 'border-[#667234] bg-[#fafbf5] font-semibold text-[#56642b]' : 'border-outline-variant bg-white text-charcoal-text hover:border-[#87905f]/50'}`}
+                      aria-pressed={selected}
+                    >
+                      <SeasonIcon className="h-5 w-5 text-[#667234]" />
+                      <span>{value}</span>
+                      {selected && <span className="absolute right-3 flex h-5 w-5 items-center justify-center rounded-full bg-[#667234] text-white"><Check className="h-3 w-3" strokeWidth={3} /></span>}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Màu sắc hoa</label>
-            <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
-              {Object.entries(FlowerColor).map(([key, value]) => (
-                <label key={key} className="flex items-center gap-2 text-sm text-charcoal-text cursor-pointer">
-                  <input type="checkbox" checked={colors.includes(key)} onChange={(e) => setColors(prev => e.target.checked ? [...prev, key] : prev.filter(k => k !== key))} className="w-4 h-4 text-[#56642b] rounded border-outline focus:ring-[#56642b]" />
-                  <span className="w-4 h-4 rounded-full border border-outline-variant shadow-sm" style={{ backgroundColor: value }}></span>
-                  <span className="text-xs">{key}</span>
-                </label>
-              ))}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-[#3f433f]">Màu sắc hoa</h4>
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+                {Object.entries(FlowerColor).map(([key, value]) => {
+                  const selected = colors.includes(key);
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setColors((current) => selected ? current.filter((item) => item !== key) : [...current, key])}
+                      className={`relative flex min-h-11 items-center gap-3 rounded-md border px-4 text-sm transition-colors ${selected ? 'border-[#667234] bg-[#fafbf5] text-[#56642b]' : 'border-outline-variant bg-white text-charcoal-text hover:border-[#87905f]/50'}`}
+                      aria-pressed={selected}
+                    >
+                      <span className="h-5 w-5 shrink-0 rounded-full border border-black/15 shadow-sm" style={{ backgroundColor: value }} />
+                      <span>{flowerColorLabels[key] ?? key}</span>
+                      {selected && <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-[#667234] text-white"><Check className="h-3 w-3" strokeWidth={3} /></span>}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          </section>
+
+          <section className="space-y-5 border-t border-outline-variant pt-6">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[#3f433f]">Thông tin loài lan</h4>
+            <div className="grid gap-5 md:grid-cols-2">
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tên thường gọi *</label>
+                <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ví dụ: Hoàng Thảo Kèn" className="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2.5 text-sm focus:outline-none focus:border-[#56642b]" />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tên tiếng Anh / Danh pháp khoa học *</label>
+                <input type="text" value={englishName} onChange={(e) => setEnglishName(e.target.value)} placeholder="Dendrobium nobile Lindl." className="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2.5 text-sm italic focus:outline-none focus:border-[#56642b]" />
+              </div>
+            </div>
+          </section>
 
           <div className="space-y-1">
             <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Mô tả ngắn</label>
@@ -372,7 +471,7 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
                   'insertdatetime', 'media', 'table', 'help', 'wordcount',
                 ],
                 toolbar: 'undo redo | blocks | bold italic forecolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image table | removeformat | code preview fullscreen',
-                content_style: 'body { font-family: Inter, Helvetica, Arial, sans-serif; font-size: 14px; }',
+                content_style: 'body { font-family: "Be Vietnam Pro", "Segoe UI", Arial, sans-serif; font-size: 14px; }',
               }}
             />
           </div>
@@ -436,19 +535,19 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
             )}
           </div>
 
-          <div className="p-4 border-t border-outline-variant bg-surface-container-low flex justify-end gap-2 -mx-6 -mb-6 mt-6 md:sticky md:bottom-0">
+          <div className="sticky bottom-0 z-10 -mx-5 -mb-5 mt-6 flex justify-end gap-3 border-t border-outline-variant bg-white/95 p-4 backdrop-blur md:-mx-7 md:-mb-7 md:px-7">
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting || isUploadingImages}
-              className="px-4 py-2 text-sm font-semibold text-charcoal-text hover:bg-outline-variant/30 rounded transition-colors"
+              className="min-w-24 rounded-md px-5 py-3 text-sm font-semibold text-charcoal-text transition-colors hover:bg-outline-variant/30"
             >
               Hủy
             </button>
             <button
               type="submit"
               disabled={isSubmitting || isUploadingImages}
-              className="px-6 py-2 text-sm font-bold text-white bg-[#56642b] hover:bg-[#4a5624] rounded shadow-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              className="min-w-44 rounded-md bg-[#56642b] px-7 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#4a5624] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSubmitting ? 'ĐANG LƯU...' : (isEditing ? 'LƯU THAY ĐỔI' : 'THÊM MỚI')}
             </button>
@@ -482,7 +581,6 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
   const [parentId, setParentId] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-
   useEffect(() => {
     if (!isOpen) return;
     setName(editCategoryData?.name ?? '');
@@ -499,13 +597,17 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
       setErrorMsg('Vui lòng cung cấp danh tính chi Lan mới.');
       return;
     }
+    if (!parentId) {
+      setErrorMsg('Vui lòng chọn danh mục cha.');
+      return;
+    }
     setErrorMsg('');
     setIsSubmitting(true);
     try {
       const payload = {
         name,
         description,
-        parentId: parentId || null,
+        parentId,
         slug: editCategoryData?.slug,
       };
       if (editCategoryData && onEditCategory) {
@@ -530,7 +632,7 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-white rounded-xl shadow-2xl border border-outline-variant max-w-sm w-full overflow-hidden"
+        className="bg-white rounded-xl shadow-2xl border border-outline-variant max-w-sm w-full overflow-visible"
       >
         <div className="px-6 py-4 border-b border-outline-variant flex items-center justify-between">
           <div className="flex items-center gap-2 text-botanical-green">
@@ -567,16 +669,12 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
 
           <div className="space-y-1">
             <label className="block text-[10px] font-bold uppercase tracking-wider text-outline font-sans">Danh mục cha</label>
-            <select
+            <CategoryTreeSelect
+              categories={categories}
               value={parentId}
-              onChange={(e) => setParentId(e.target.value)}
-              className="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green"
-            >
-              <option value="">Không có — danh mục cấp gốc</option>
-              {categories.filter((category) => category.id !== editCategoryData?.id).map((category) => (
-                <option key={category.id} value={category.id}>{category.name}</option>
-              ))}
-            </select>
+              onChange={setParentId}
+              excludeId={editCategoryData?.id}
+            />
           </div>
 
           <div className="space-y-1">

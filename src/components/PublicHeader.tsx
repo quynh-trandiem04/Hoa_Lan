@@ -110,7 +110,7 @@ const CascadingMenuDropdown = ({ categories, rootNames, basePath }: { categories
   );
   
   return (
-    <div className="invisible absolute left-0 top-[calc(100%-7px)] z-50 min-w-[260px] rounded border border-[#747878]/10 bg-white shadow-xl opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100">
+    <div className="invisible absolute left-0 top-[calc(100%-7px)] z-50 min-w-[260px] rounded border border-[#747878]/10 bg-surface-cream/95 shadow-xl opacity-0 backdrop-blur-md transition-all duration-200 group-hover:visible group-hover:opacity-100">
       <ul className="flex flex-col py-2">
         {level1Cats.map(cat => {
           const children = categories.filter(c => c.parentId === cat.id);
@@ -123,7 +123,7 @@ const CascadingMenuDropdown = ({ categories, rootNames, basePath }: { categories
               </a>
               
               {hasChildren && (
-                <div className="invisible absolute left-[100%] top-0 z-50 min-w-[260px] rounded border border-[#747878]/10 bg-white shadow-xl opacity-0 transition-all duration-200 group-hover/item:visible group-hover/item:opacity-100">
+                <div className="invisible absolute left-[100%] top-0 z-50 min-w-[260px] rounded border border-[#747878]/10 bg-surface-cream/95 shadow-xl opacity-0 backdrop-blur-md transition-all duration-200 group-hover/item:visible group-hover/item:opacity-100">
                   <ul className="flex flex-col py-2">
                     {children.map(child => {
                       const grandChildren = categories.filter(c => c.parentId === child.id);
@@ -136,7 +136,7 @@ const CascadingMenuDropdown = ({ categories, rootNames, basePath }: { categories
                           </a>
                           
                           {hasGrandChildren && (
-                            <div className="invisible absolute left-[100%] top-0 z-50 min-w-[260px] rounded border border-[#747878]/10 bg-white shadow-xl opacity-0 transition-all duration-200 group-hover/subitem:visible group-hover/subitem:opacity-100">
+                            <div className="invisible absolute left-[100%] top-0 z-50 min-w-[260px] rounded border border-[#747878]/10 bg-surface-cream/95 shadow-xl opacity-0 backdrop-blur-md transition-all duration-200 group-hover/subitem:visible group-hover/subitem:opacity-100">
                               <ul className="flex flex-col py-2">
                                 {grandChildren.map(grandChild => (
                                   <li key={grandChild.id}>
@@ -356,7 +356,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
   return (
     <header className="sticky top-0 z-50 h-16 w-full border-b border-[#56642b]/10 bg-surface-cream/95 backdrop-blur-md">
       <div className="relative mx-auto flex h-full max-w-7xl items-center justify-between px-6 md:px-16">
-        <a href="/" className="select-none font-serif text-xl font-bold italic tracking-tight text-botanical-green md:text-2xl">Orchids</a>
+        <a href="/" className="orchids-logo select-none text-xl text-botanical-green md:text-2xl">Orchids</a>
 
         <nav className="hidden h-full items-center space-x-4 md:flex">
           <a href="/" className={`font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors ${path === '/' ? activeClass : normalClass}`}>Trang chủ</a>
@@ -414,7 +414,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
               </button>
 
               {notificationMenuOpen && (
-                <div className="absolute right-0 top-[calc(100%-7px)] z-50 w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-lg border border-[#747878]/10 bg-white shadow-xl" role="menu">
+                <div className="absolute right-0 top-[calc(100%-7px)] z-50 w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-lg border border-[#747878]/10 bg-surface-cream/95 shadow-xl backdrop-blur-md" role="menu">
                   <div className="flex items-center justify-between border-b border-[#eeeeea] px-5 py-3">
                     <div>
                       <p className="font-serif text-base font-bold text-[#1a1c1b]">Thông báo</p>
@@ -484,7 +484,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
             </button>
 
             {profileMenuOpen && (
-              <div className="absolute right-0 top-[calc(100%-7px)] z-50 w-64 overflow-hidden rounded-lg border border-[#747878]/10 bg-white py-2 shadow-xl" role="menu">
+              <div className="absolute right-0 top-[calc(100%-7px)] z-50 w-64 overflow-hidden rounded-lg border border-[#747878]/10 bg-surface-cream/95 py-2 shadow-xl backdrop-blur-md" role="menu">
                 {isAuthenticated ? (
                   <>
                     <div className="border-b border-[#eeeeea] px-5 py-3">
@@ -522,7 +522,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
         </div>
 
         {searchOpen && (
-          <form onSubmit={handleSearch} className="absolute right-6 top-[calc(100%+8px)] z-50 flex w-[calc(100%-3rem)] max-w-sm items-center rounded-lg border border-[#d5d7d3] bg-white p-2 shadow-xl md:right-16">
+          <form onSubmit={handleSearch} className="absolute right-6 top-[calc(100%+8px)] z-50 flex w-[calc(100%-3rem)] max-w-sm items-center rounded-lg border border-[#d5d7d3] bg-surface-cream/95 p-2 shadow-xl backdrop-blur-md md:right-16">
             <Search className="ml-1 h-4 w-4 shrink-0 text-[#747878]" />
             <input
               ref={searchInputRef}

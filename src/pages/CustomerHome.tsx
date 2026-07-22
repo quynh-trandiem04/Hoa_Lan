@@ -5,8 +5,6 @@ import {
   User, 
   ChevronLeft, 
   ChevronRight, 
-  Globe, 
-  Share2, 
   ArrowDown, 
   BookOpen, 
   GraduationCap, 
@@ -31,6 +29,7 @@ import BotAdvisor from "../components/BotAdvisor";
 
 import SearchModal from "../components/SearchModal";
 import PublicHeader from "../components/PublicHeader";
+import PublicFooter from "../components/PublicFooter";
 
 interface CustomerHomeProps {
   categories: Category[];
@@ -90,11 +89,6 @@ export default function CustomerHome({ categories, orchids, onNavigate }: Custom
   const handlePrevSlide = () => {
     if (totalCards === 0) return;
     setSliderIndex((prev) => (prev - 1 + totalCards) % totalCards);
-  };
-
-  const handleShare = () => {
-    navigator.clipboard.writeText(window.location.href);
-    triggerToast("✨ Sao chép liên kết thành công! Hãy chia sẻ cùng những người yêu Hoa lan.");
   };
 
   const handleToggleFavorite = (id: string) => {
@@ -203,7 +197,7 @@ export default function CustomerHome({ categories, orchids, onNavigate }: Custom
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="font-serif text-4xl md:text-6xl text-white mb-6 leading-[1.12] drop-shadow-md max-w-3xl mx-auto"
+            className="font-display-serif text-4xl md:text-6xl text-white mb-6 leading-[1.12] drop-shadow-md max-w-3xl mx-auto"
           >
             Hoa Lan – Kiệt Tác Của Thiên Nhiên Và Dấu Ấn Thời Gian
           </motion.h1>
@@ -440,84 +434,7 @@ export default function CustomerHome({ categories, orchids, onNavigate }: Custom
 
 
       {/* 6. Footer section */}
-      <footer className="bg-surface-cream w-full py-16 border-t border-botanical-green/10">
-        <div className="grid grid-cols-1 md:grid-cols-12 px-6 md:px-16 max-w-7xl mx-auto gap-12">
-          {/* Brand Col */}
-          <div className="md:col-span-4 space-y-4">
-            <div className="font-serif italic text-2xl text-botanical-green font-bold">Orchids</div>
-            <p className="font-sans text-xs text-on-surface-variant leading-relaxed max-w-sm">
-              Nền tảng nghiên cứu và quản lý hoa lan chuyên nghiệp, cam kết vì sự bền vững và vẻ đẹp của thiên nhiên thông qua các phương pháp bảo tồn khoa học.
-            </p>
-          </div>
-
-          {/* Links Col 1 */}
-          <div className="md:col-span-4 md:col-start-6">
-            <h4 className="font-sans text-xs uppercase tracking-widest font-bold text-botanical-green mb-5">Nghiên cứu</h4>
-            <ul className="space-y-3 font-sans text-xs">
-              <li>
-                <button onClick={() => setSelectedPillar(pillarDetails.encyclopedia)} className="text-on-surface-variant hover:text-botanical-green transition-colors cursor-pointer text-left">
-                  Cơ sở dữ liệu chi loài
-                </button>
-              </li>
-              <li>
-                <button onClick={() => setIsResearchOpen(true)} className="text-on-surface-variant hover:text-botanical-green transition-colors cursor-pointer text-left">
-                  Tài liệu bảo tồn lâm nghiệp
-                </button>
-              </li>
-              <li>
-                <button onClick={() => setSelectedPillar(pillarDetails.manual)} className="text-on-surface-variant hover:text-botanical-green transition-colors cursor-pointer text-left">
-                  Hệ sinh thái Orchidaceae
-                </button>
-              </li>
-            </ul>
-          </div>
-
-          {/* Links Col 2 */}
-          <div className="md:col-span-3">
-            <h4 className="font-sans text-xs uppercase tracking-widest font-bold text-botanical-green mb-5">Thông tin</h4>
-            <ul className="space-y-3 font-sans text-xs">
-              <li>
-                <button onClick={() => triggerToast("✨ Orchids được sáng lập bởi nhóm nghiên cứu thực vật năm 2024.")} className="text-on-surface-variant hover:text-botanical-green transition-colors cursor-pointer text-left">
-                  Về chúng tôi
-                </button>
-              </li>
-              <li>
-                <button onClick={() => triggerToast("📧 Email hỗ trợ khoa học: research@orchidee-luxe.vn")} className="text-on-surface-variant hover:text-botanical-green transition-colors cursor-pointer text-left font-sans">
-                  Liên hệ cố vấn
-                </button>
-              </li>
-              <li>
-                <button onClick={() => triggerToast("🔒 Dữ liệu nghiên cứu của hội viên được mã hóa an toàn.")} className="text-on-surface-variant hover:text-botanical-green transition-colors cursor-pointer text-left">
-                  Chính sách bảo mật
-                </button>
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        {/* Fine prints */}
-        <div className="px-6 md:px-16 max-w-7xl mx-auto mt-16 pt-8 border-t border-outline-variant/20 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="font-sans text-xs text-on-surface-variant/80">
-            © 2026 Orchids. L'art de vivre botanical research.
-          </p>
-          <div className="flex gap-6 text-[#747878]">
-            <button 
-              onClick={() => triggerToast("🌐 Phiên bản quốc tế đang được chuyển hóa ngôn ngữ.")} 
-              className="hover:text-botanical-green transition-colors cursor-pointer"
-              title="Chuyển đổi ngôn ngữ"
-            >
-              <Globe className="w-4.5 h-4.5" />
-            </button>
-            <button 
-              onClick={handleShare} 
-              className="hover:text-botanical-green transition-colors cursor-pointer"
-              title="Chia sẻ chia sẻ"
-            >
-              <Share2 className="w-4.5 h-4.5" />
-            </button>
-          </div>
-        </div>
-      </footer>
+      <PublicFooter />
 
       {/* Floating Action Help Chat Button */}
 

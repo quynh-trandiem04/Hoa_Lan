@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Search, ChevronLeft, ChevronRight, X, Heart, HelpCircle, ArrowLeft, User } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, X, Heart, HelpCircle, ArrowLeft, Grid2X2, List } from 'lucide-react';
 import OrchidCard from '../components/OrchidCard';
 import { Category, Orchid, Region, BloomSeason, FlowerColor } from '../types';
 import SearchModal from '../components/SearchModal';
 import PublicFooter from '../components/PublicFooter';
 import PublicHeader from '../components/PublicHeader';
 import { getOrchids } from '../services/api';
+import InlineTreeMultiSelect from '../components/InlineTreeMultiSelect';
+import PageIntro from '../components/PageIntro';
 
 interface ListOrchidsProps {
   categoryId?: string | null;
@@ -25,6 +27,12 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
   const [selectedSeasons, setSelectedSeasons] = useState<string[]>([]);
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
   const [showSavedOnly, setShowSavedOnly] = useState(false);
+  const [sortOrder, setSortOrder] = useState<'az' | 'za'>(() =>
+    localStorage.getItem('orchidee-orchid-sort') === 'za' ? 'za' : 'az'
+  );
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() =>
+    localStorage.getItem('orchidee-orchid-view') === 'list' ? 'list' : 'grid'
+  );
 
   // Bookmark state (saved in localStorage)
   const [savedOrchids, setSavedOrchids] = useState<string[]>([]);
@@ -34,17 +42,14 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
   const PAGE_SIZE = 6;
 
   useEffect(() => {
-    if (!searchQuery.trim()) setApiOrchids(orchids);
-  }, [orchids, searchQuery]);
-
-  useEffect(() => {
     const query = searchQuery.trim();
+    const hasAttributeFilters = selectedRegions.length > 0 || selectedSeasons.length > 0 || selectedColors.length > 0;
     const params = new URLSearchParams(window.location.search);
     if (query) params.set('q', query);
     else params.delete('q');
     window.history.replaceState({}, '', `${window.location.pathname}${params.size ? `?${params.toString()}` : ''}`);
 
-    if (!query) {
+    if (!query && !hasAttributeFilters) {
       setApiOrchids(orchids);
       setIsSearching(false);
       return;
@@ -56,7 +61,7 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
       void getOrchids({ 
         pageNumber: 1, 
         pageSize: 100, 
-        searchTerm: query,
+        searchTerm: query || undefined,
         regions: selectedRegions,
         bloomSeasons: selectedSeasons,
         colors: selectedColors
@@ -78,6 +83,14 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
     };
   }, [searchQuery, orchids, selectedRegions, selectedSeasons, selectedColors]);
 
+  useEffect(() => {
+    localStorage.setItem('orchidee-orchid-sort', sortOrder);
+  }, [sortOrder]);
+
+  useEffect(() => {
+    localStorage.setItem('orchidee-orchid-view', viewMode);
+  }, [viewMode]);
+
   const categoryOptions = (() => {
     const result: Array<{ category: Category; depth: number }> = [];
     const visited = new Set<string>();
@@ -97,6 +110,9 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
     });
     return result;
   })();
+  const selectedCategoryIds = Object.entries(selectedCategories)
+    .filter(([, selected]) => selected)
+    .map(([id]) => id);
 
   // Initialize selected categories dynamically from the Categories API.
   useEffect(() => {
@@ -146,14 +162,7 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
   // Reset pagination when filter parameters shift
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedCategories, showSavedOnly, selectedRegions, selectedSeasons, selectedColors]);
-
-  const handleCategoryChange = (key: string) => {
-    setSelectedCategories(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
-  };
+  }, [searchQuery, selectedCategories, showSavedOnly, selectedRegions, selectedSeasons, selectedColors, sortOrder]);
 
   const handleClearFilters = () => {
     setSearchQuery('');
@@ -170,9 +179,7 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
 
   // Logic to calculate filtered list
   const getFilteredOrchids = () => {
-    const selectedIds = Object.entries(selectedCategories)
-      .filter(([, selected]) => selected)
-      .map(([id]) => id);
+    const selectedIds = selectedCategoryIds;
     const matchingCategoryIds = new Set(selectedIds);
     let foundDescendant = true;
     while (foundDescendant) {
@@ -206,7 +213,10 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
     });
   };
 
-  const filteredOrchids = getFilteredOrchids();
+  const filteredOrchids = getFilteredOrchids().sort((first, second) => {
+    const comparison = first.name.localeCompare(second.name, 'vi', { sensitivity: 'base' });
+    return sortOrder === 'az' ? comparison : -comparison;
+  });
 
   // Compute sublist for current page
   const totalPages = Math.ceil(filteredOrchids.length / PAGE_SIZE) || 1;
@@ -234,18 +244,14 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
             <ArrowLeft size={14} /> Trang chủ
           </button>
           <span>&gt;</span>
-          <span className="font-semibold uppercase text-[#1a1c1b]">Danh mục lan</span>
+          <span className="font-semibold text-[#1a1c1b]">Danh mục lan</span>
         </div>
 
-        {/* Catalog title section */}
-        <div className="mb-12 max-w-3xl">
-          <h1 className="font-serif text-3xl md:text-4xl text-charcoal-text font-medium tracking-tight">
-            Từ Điển Hoa Lan
-          </h1>
-          <p className="font-sans text-xs md:text-sm text-[#747878] leading-relaxed mt-3">
-            Khám phá vẻ đẹp kỳ diệu và sự đa dạng sinh học của thế giới hoa lan thông qua kho lưu trữ thực vật học cao cấp của chúng tôi.
-          </p>
-        </div>
+        <PageIntro
+          eyebrow="Khám phá thế giới hoa lan"
+          title="Từ Điển Hoa Lan"
+          description="Khám phá vẻ đẹp kỳ diệu và sự đa dạng sinh học của thế giới hoa lan thông qua kho lưu trữ thực vật học cao cấp của chúng tôi."
+        />
 
         {/* Content Layout: Left Sidebar + Right Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
@@ -270,26 +276,17 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
               <h4 className="text-[11px] font-sans font-bold tracking-widest text-[#1a1c1b] uppercase border-b border-[#747878]/10 pb-2">
                 PHÂN LOẠI DÒNG LAN
               </h4>
-              <div className="space-y-2.5">
-                {categoryOptions.map(({ category: cat, depth }) => (
-                  <label
-                    key={cat.id}
-                    className="flex items-center space-x-3 text-xs text-[#1a1c1b]/80 font-sans cursor-pointer group select-none"
-                    style={{ paddingLeft: `${depth * 18}px` }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedCategories[cat.id] || false}
-                      onChange={() => handleCategoryChange(cat.id)}
-                      className="w-4 h-4 rounded-[2px] border-[#747878]/30 text-botanical-green focus:ring-botanical-green/20 accent-botanical-green transition-all"
-                    />
-                    <span className="group-hover:text-botanical-green transition-colors">{cat.name}</span>
-                  </label>
-                ))}
-                {categoryOptions.length === 0 && (
-                  <p className="text-xs text-[#747878]">Chưa có danh mục từ máy chủ.</p>
-                )}
-              </div>
+              <InlineTreeMultiSelect
+                options={categoryOptions.map(({ category, depth }) => ({ value: category.id, label: category.name, depth }))}
+                values={selectedCategoryIds}
+                onChange={(values) => {
+                  const next: Record<string, boolean> = {};
+                  categories.forEach((category) => { next[category.id] = values.includes(category.id); });
+                  setSelectedCategories(next);
+                }}
+                allLabel="Tất cả dòng lan"
+                emptyMessage="Chưa có danh mục từ máy chủ."
+              />
             </div>
 
             {/* Filter group: Region */}
@@ -297,24 +294,12 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
               <h4 className="text-[11px] font-sans font-bold tracking-widest text-[#1a1c1b] uppercase border-b border-[#747878]/10 pb-2">
                 KHU VỰC PHÂN BỐ
               </h4>
-              <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                {Object.entries(Region).map(([key, value]) => (
-                  <label key={key} className="flex items-center gap-3 cursor-pointer group">
-                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${selectedRegions.includes(key) ? 'bg-[#56642b] border-[#56642b]' : 'border-[#747878]/40 group-hover:border-[#56642b]'}`}>
-                      {selectedRegions.includes(key) && <Search className="w-3 h-3 text-white" />}
-                    </div>
-                    <input
-                      type="checkbox"
-                      className="hidden"
-                      checked={selectedRegions.includes(key)}
-                      onChange={(e) => setSelectedRegions(prev => e.target.checked ? [...prev, key] : prev.filter(k => k !== key))}
-                    />
-                    <span className={`text-sm font-sans transition-colors ${selectedRegions.includes(key) ? 'text-[#1a1c1b] font-medium' : 'text-[#747878] group-hover:text-[#1a1c1b]'}`}>
-                      {value}
-                    </span>
-                  </label>
-                ))}
-              </div>
+              <InlineTreeMultiSelect
+                options={Object.entries(Region).map(([value, label]) => ({ value, label }))}
+                values={selectedRegions}
+                onChange={setSelectedRegions}
+                allLabel="Tất cả khu vực"
+              />
             </div>
 
             {/* Filter group: BloomSeason */}
@@ -322,24 +307,12 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
               <h4 className="text-[11px] font-sans font-bold tracking-widest text-[#1a1c1b] uppercase border-b border-[#747878]/10 pb-2">
                 MÙA HOA NỞ
               </h4>
-              <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                {Object.entries(BloomSeason).map(([key, value]) => (
-                  <label key={key} className="flex items-center gap-3 cursor-pointer group">
-                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${selectedSeasons.includes(key) ? 'bg-[#56642b] border-[#56642b]' : 'border-[#747878]/40 group-hover:border-[#56642b]'}`}>
-                      {selectedSeasons.includes(key) && <Search className="w-3 h-3 text-white" />}
-                    </div>
-                    <input
-                      type="checkbox"
-                      className="hidden"
-                      checked={selectedSeasons.includes(key)}
-                      onChange={(e) => setSelectedSeasons(prev => e.target.checked ? [...prev, key] : prev.filter(k => k !== key))}
-                    />
-                    <span className={`text-sm font-sans transition-colors ${selectedSeasons.includes(key) ? 'text-[#1a1c1b] font-medium' : 'text-[#747878] group-hover:text-[#1a1c1b]'}`}>
-                      {value}
-                    </span>
-                  </label>
-                ))}
-              </div>
+              <InlineTreeMultiSelect
+                options={Object.entries(BloomSeason).map(([value, label]) => ({ value, label }))}
+                values={selectedSeasons}
+                onChange={setSelectedSeasons}
+                allLabel="Tất cả mùa hoa"
+              />
             </div>
 
             {/* Filter group: Color */}
@@ -401,7 +374,7 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
             </div>
 
             {/* Reset Filter Button */}
-            {(searchQuery || Object.values(selectedCategories).some(Boolean) || showSavedOnly) && (
+            {(searchQuery || Object.values(selectedCategories).some(Boolean) || selectedRegions.length > 0 || selectedSeasons.length > 0 || selectedColors.length > 0 || showSavedOnly) && (
               <button
                 onClick={handleClearFilters}
                 className="w-full text-center border border-dashed border-red-200 hover:border-red-500 hover:bg-red-50/50 text-red-600 rounded-md py-2.5 text-[10px] uppercase tracking-widest font-semibold font-sans transition-all duration-300"
@@ -416,13 +389,47 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
           <div className="lg:col-span-9 space-y-12">
             
             {/* Top result statistics bar */}
-            <div className="flex items-center justify-between text-xs text-[#747878] font-sans border-b border-[#747878]/10 pb-3">
+            <div className="flex flex-col gap-3 border-b border-[#747878]/10 pb-3 font-sans text-xs text-[#747878] sm:flex-row sm:items-center sm:justify-between">
               <span>{isSearching ? 'Đang tìm kiếm bằng API...' : `Đang hiển thị ${filteredOrchids.length} loài lan`}</span>
-              {showSavedOnly && (
-                <span className="bg-[#56642b]/10 text-botanical-green px-2 py-0.5 text-[10px] rounded-[2px] font-semibold">
-                  MỤC ĐÃ LƯU
-                </span>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                {showSavedOnly && (
+                  <span className="bg-[#56642b]/10 text-botanical-green px-2 py-0.5 text-[10px] rounded-[2px] font-semibold">
+                    MỤC ĐÃ LƯU
+                  </span>
+                )}
+                <label className="sr-only" htmlFor="orchid-sort">Sắp xếp danh sách hoa lan</label>
+                <select
+                  id="orchid-sort"
+                  value={sortOrder}
+                  onChange={(event) => setSortOrder(event.target.value as 'az' | 'za')}
+                  className="h-10 min-w-40 rounded-md border border-[#747878]/20 bg-white px-3 text-xs font-medium text-[#1a1c1b] outline-none transition-colors hover:border-[#56642b]/50 focus:border-botanical-green"
+                >
+                  <option value="az">Sắp xếp: Tên A–Z</option>
+                  <option value="za">Sắp xếp: Tên Z–A</option>
+                </select>
+                <div className="flex items-center gap-1" role="group" aria-label="Kiểu hiển thị">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('grid')}
+                    className={`flex h-10 w-10 items-center justify-center rounded-md border transition-colors ${viewMode === 'grid' ? 'border-[#56642b]/30 bg-[#56642b]/10 text-botanical-green' : 'border-[#747878]/20 bg-white text-[#747878] hover:border-[#56642b]/50 hover:text-botanical-green'}`}
+                    aria-label="Hiển thị dạng lưới"
+                    aria-pressed={viewMode === 'grid'}
+                    title="Dạng lưới"
+                  >
+                    <Grid2X2 size={17} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('list')}
+                    className={`flex h-10 w-10 items-center justify-center rounded-md border transition-colors ${viewMode === 'list' ? 'border-[#56642b]/30 bg-[#56642b]/10 text-botanical-green' : 'border-[#747878]/20 bg-white text-[#747878] hover:border-[#56642b]/50 hover:text-botanical-green'}`}
+                    aria-label="Hiển thị dạng danh sách ngang"
+                    aria-pressed={viewMode === 'list'}
+                    title="Dạng danh sách ngang"
+                  >
+                    <List size={18} />
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Sublist Card Grid */}
@@ -438,7 +445,10 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+              <div className={viewMode === 'grid'
+                ? 'grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 md:gap-8'
+                : 'grid grid-cols-1 gap-5 xl:grid-cols-2'
+              }>
                 {paginatedOrchids.map((orchid) => (
                   <OrchidCard
                     key={orchid.id}
@@ -446,6 +456,7 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
                     onSelect={(id) => onNavigate('orchid_detail', id)}
                     isBookmarked={!!orchid.id && savedOrchids.includes(orchid.id)}
                     onToggleBookmark={handleToggleBookmark}
+                    variant={viewMode}
                   />
                 ))}
               </div>

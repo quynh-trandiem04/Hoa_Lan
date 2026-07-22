@@ -1,16 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Heart, ImagePlus, LoaderCircle, LockKeyhole, Save, Trash2, X } from 'lucide-react';
+import { Heart, ImagePlus, LoaderCircle, Save, Trash2, X } from 'lucide-react';
 import {
   getOrchidById,
-  getUserById,
-  getUsers,
-  resetUserPassword,
-  updateUser,
+  getMyProfile,
+  updateMyProfile,
   uploadImage,
   type UserListItem,
 } from '../services/api';
 import type { Orchid } from '../types';
 import { getOrchidImageUrls } from '../utils/orchidImages';
+import { Toasts, useToasts } from './Toasts';
 
 interface CustomerProfileModalProps {
   open: boolean;
@@ -70,13 +69,10 @@ export default function CustomerProfileModal({ open, onClose, standalone = false
   const [avatarUrl, setAvatarUrl] = useState('');
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [favoriteOrchids, setFavoriteOrchids] = useState<Orchid[]>([]);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const { toasts, addToast, removeToast } = useToasts();
 
   const initials = useMemo(() => (fullName || profile?.email || '?').trim().charAt(0).toUpperCase(), [fullName, profile]);
 
@@ -88,21 +84,12 @@ export default function CustomerProfileModal({ open, onClose, standalone = false
     setFullName(sessionProfile?.fullName || '');
     setAvatarUrl(sessionProfile?.avatarUrl || '');
     setTab(initialTab);
-    setMessage('');
-    setError('');
-    setNewPassword('');
-    setConfirmPassword('');
     setLoading(true);
 
     void (async () => {
       let resolved = sessionProfile;
       try {
-        if (sessionProfile?.id) {
-          resolved = await getUserById(sessionProfile.id);
-        } else if (sessionProfile?.email) {
-          const result = await getUsers(1, 10, sessionProfile.email);
-          resolved = result.items.find((item) => item.email.toLowerCase() === sessionProfile.email.toLowerCase()) || sessionProfile;
-        }
+        resolved = await getMyProfile();
       } catch {
         // The saved JWT profile remains usable if Users API does not expose the current account.
       }
@@ -136,70 +123,43 @@ export default function CustomerProfileModal({ open, onClose, standalone = false
     event.target.value = '';
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      setError('Vui lòng chọn đúng tệp ảnh.');
+      addToast('Vui lòng chọn đúng tệp ảnh.', 'error');
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
-      setError('Ảnh đại diện không được lớn hơn 10 MB.');
+      addToast('Ảnh đại diện không được lớn hơn 10 MB.', 'error');
       return;
     }
     setUploading(true);
-    setError('');
     try {
       const uploaded = await uploadImage(file);
       setAvatarUrl(uploaded.url);
-      setMessage('Ảnh đã tải lên. Nhấn “Lưu thay đổi” để cập nhật hồ sơ.');
+      addToast('Ảnh đã tải lên. Nhấn “Lưu thay đổi” để cập nhật hồ sơ.', 'success');
     } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : 'Không thể tải ảnh đại diện.');
+      addToast(uploadError instanceof Error ? uploadError.message : 'Không thể tải ảnh đại diện.', 'error');
     } finally {
       setUploading(false);
     }
   };
 
   const handleSaveProfile = async () => {
-    if (!profile?.id || !profile.email) {
-      setError('Không xác định được ID hồ sơ từ phiên đăng nhập.');
+    if (!profile) {
+      addToast('Không xác định được hồ sơ từ phiên đăng nhập.', 'error');
       return;
     }
     if (!fullName.trim()) {
-      setError('Họ và tên không được để trống.');
+      addToast('Họ và tên không được để trống.', 'error');
       return;
     }
     setSaving(true);
-    setError('');
-    setMessage('');
     try {
-      await updateUser(profile.id, { email: profile.email, fullName: fullName.trim(), avatarUrl });
+      await updateMyProfile({ fullName: fullName.trim(), avatarUrl });
       const next = { ...profile, fullName: fullName.trim(), avatarUrl };
       setProfile(next);
       saveProfileToSession(next);
-      setMessage('Đã cập nhật thông tin tài khoản.');
+      addToast('Đã cập nhật thông tin tài khoản.', 'success');
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Không thể cập nhật hồ sơ.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleChangePassword = async () => {
-    if (!profile?.id) {
-      setError('Không xác định được ID hồ sơ từ phiên đăng nhập.');
-      return;
-    }
-    if (newPassword.length < 6 || newPassword !== confirmPassword) {
-      setError(newPassword.length < 6 ? 'Mật khẩu mới phải có ít nhất 6 ký tự.' : 'Mật khẩu xác nhận không khớp.');
-      return;
-    }
-    setSaving(true);
-    setError('');
-    setMessage('');
-    try {
-      await resetUserPassword(profile.id, newPassword, confirmPassword);
-      setNewPassword('');
-      setConfirmPassword('');
-      setMessage('Đã thay đổi mật khẩu.');
-    } catch (passwordError) {
-      setError(passwordError instanceof Error ? passwordError.message : 'Không thể đổi mật khẩu.');
+      addToast(saveError instanceof Error ? saveError.message : 'Không thể cập nhật hồ sơ.', 'error');
     } finally {
       setSaving(false);
     }
@@ -265,15 +225,6 @@ export default function CustomerProfileModal({ open, onClose, standalone = false
                 </label>
               </div>
               <button type="button" onClick={() => void handleSaveProfile()} disabled={saving || uploading} className="inline-flex items-center gap-2 rounded-lg bg-[#56642b] px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white disabled:opacity-50"><Save size={16} /> {saving ? 'Đang lưu...' : 'Lưu thay đổi'}</button>
-
-              <div className="border-t border-[#e2e3de] pt-5">
-                <h3 className="flex items-center gap-2 font-serif text-lg font-bold"><LockKeyhole size={18} /> Đổi mật khẩu</h3>
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} placeholder="Mật khẩu mới" className="rounded-lg border border-[#d5d7d3] bg-white px-3 py-2.5 text-sm outline-none focus:border-[#56642b]" />
-                  <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Xác nhận mật khẩu mới" className="rounded-lg border border-[#d5d7d3] bg-white px-3 py-2.5 text-sm outline-none focus:border-[#56642b]" />
-                </div>
-                <button type="button" onClick={() => void handleChangePassword()} disabled={saving} className="mt-4 rounded-lg border border-[#56642b] px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-[#56642b] disabled:opacity-50">Cập nhật mật khẩu</button>
-              </div>
             </div>
           ) : favoriteOrchids.length === 0 ? (
             <div className="flex min-h-64 flex-col items-center justify-center text-center">
@@ -304,9 +255,9 @@ export default function CustomerProfileModal({ open, onClose, standalone = false
             </div>
           )}
 
-          {(error || message) && <div className={`mt-5 rounded-lg border px-4 py-3 text-sm ${error ? 'border-red-200 bg-red-50 text-red-700' : 'border-green-200 bg-green-50 text-green-700'}`}>{error || message}</div>}
         </div>
       </section>
+      <Toasts toasts={toasts} removeToast={removeToast} />
     </div>
   );
 }

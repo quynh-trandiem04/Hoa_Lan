@@ -21,9 +21,9 @@ export default function CustomerProfile() {
     <div className="min-h-screen bg-[#f7f6f1] text-[#1a1c1b]">
       <PublicHeader />
       <main className="mx-auto w-full max-w-7xl px-5 py-8 md:px-16">
-        <div className="mb-8 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-[#747878]">
+        <div className="mb-8 flex items-center gap-2 text-xs font-medium tracking-wider text-[#747878]">
           <a href="/" className="hover:text-[#56642b]">Trang chủ</a>
-          <span>›</span>
+          <span>&gt;</span>
           <span className="text-[#1a1c1b]">Hồ sơ cá nhân</span>
         </div>
 

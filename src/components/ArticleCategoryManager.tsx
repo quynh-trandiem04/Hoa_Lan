@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Edit, FolderPlus, Layers, Plus, Trash2, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { ArticleCategory } from '../types';
@@ -9,6 +9,7 @@ import {
   updateArticleCategory,
   type ArticleSection,
 } from '../services/api';
+import CategoryTreeSelect from './CategoryTreeSelect';
 
 interface ArticleCategoryManagerProps {
   section: ArticleSection;
@@ -43,25 +44,6 @@ export default function ArticleCategoryManager({
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [parentId, setParentId] = useState('');
-
-  const orderedCategories = useMemo(() => {
-    const result: Array<ArticleCategory & { depth: number }> = [];
-    const visited = new Set<string>();
-    const append = (currentParentId: string | null, depth: number) => {
-      categories
-        .filter((category) => (category.parentId ?? null) === currentParentId)
-        .sort((a, b) => a.name.localeCompare(b.name, 'vi'))
-        .forEach((category) => {
-          if (visited.has(category.id)) return;
-          visited.add(category.id);
-          result.push({ ...category, depth });
-          append(category.id, depth + 1);
-        });
-    };
-    append(null, 0);
-    categories.filter((category) => !visited.has(category.id)).forEach((category) => result.push({ ...category, depth: 0 }));
-    return result;
-  }, [categories]);
 
   const closeForm = () => {
     setShowForm(false);
@@ -232,7 +214,7 @@ export default function ArticleCategoryManager({
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-text/40 backdrop-blur-sm">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-xl shadow-2xl border border-outline-variant max-w-sm w-full overflow-hidden">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-xl shadow-2xl border border-outline-variant max-w-sm w-full overflow-visible">
             <div className="px-6 py-4 border-b border-outline-variant flex items-center justify-between">
               <div className="flex items-center gap-2 text-botanical-green">
                 <FolderPlus className="w-5 h-5" />
@@ -247,12 +229,12 @@ export default function ArticleCategoryManager({
               </label>
               <label className="space-y-1 block">
                 <span className="block text-[10px] font-bold uppercase tracking-wider text-outline font-sans">Danh mục cha</span>
-                <select value={parentId} onChange={(event) => setParentId(event.target.value)} className="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green">
-                  <option value="">Không có — danh mục cấp gốc</option>
-                  {orderedCategories.filter((category) => category.id !== editing?.id).map((category) => (
-                    <option key={category.id} value={category.id}>{'— '.repeat(category.depth)}{category.name}</option>
-                  ))}
-                </select>
+                <CategoryTreeSelect
+                  categories={categories}
+                  value={parentId}
+                  onChange={setParentId}
+                  excludeId={editing?.id}
+                />
               </label>
               <label className="space-y-1 block">
                 <span className="block text-[10px] font-bold uppercase tracking-wider text-outline font-sans">Mô tả</span>

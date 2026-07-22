@@ -1,10 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,600;1,700&display=swap');
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
 @theme {
-  --font-serif: "Playfair Display", Georgia, serif;
-  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-serif: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+  --font-sans: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
 
   --color-secondary-container: #d6e7a0;
   --color-surface-container-high: #e8e8e6;
@@ -63,8 +63,19 @@
 body {
   background-color: #f9f9f7;
   color: #1a1c1b;
-  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-family: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
   overflow-x: hidden;
+}
+
+.font-display-serif {
+  font-family: "Playfair Display", Georgia, serif;
+}
+
+.orchids-logo {
+  font-family: "Playfair Display", Georgia, serif;
+  font-style: italic;
+  font-weight: 700;
+  letter-spacing: -0.03em;
 }
 
 .luxury-shadow {
