@@ -43,7 +43,6 @@ import {
   SlidersHorizontal,
   RotateCcw,
   ChevronDown,
-  Flower2,
   Grid2X2,
   List
 } from 'lucide-react';
@@ -2617,39 +2616,34 @@ export default function App() {
           {/* ======================= TAB: ORCHIDS / KHO LAN ======================= */}
           {activeTab === 'orchids' && (
             <div className="space-y-4">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-4">
-                  <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#f1f3e7] text-[#667234]">
-                    <Flower2 className="h-7 w-7" />
-                  </span>
-                  <div>
-                    <h2 className="font-serif text-3xl font-semibold text-on-surface">Quản lý loài lan</h2>
-                    <p className="mt-1 text-sm text-on-surface-variant">
-                      Thêm, chỉnh sửa và quản lý danh mục loài lan
-                    </p>
-                  </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="font-serif text-3xl font-semibold text-on-surface">Quản lý loài lan</h2>
+                  <p className="mt-1 text-sm text-on-surface-variant">
+                    Thêm, chỉnh sửa và quản lý danh mục loài lan
+                  </p>
                 </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => { setEditingOrchid(null); setOpenAddOrchid(true); }}
-                    className="flex shrink-0 cursor-pointer items-center gap-2 rounded-lg bg-botanical-green px-5 py-3 font-sans text-sm font-semibold text-white transition-all hover:shadow"
+                    className="flex shrink-0 cursor-pointer items-center gap-2 rounded-lg bg-botanical-green px-4 py-2.5 font-sans text-xs font-semibold text-white transition-all hover:shadow"
                   >
-                    <Plus className="h-5 w-5" /> Thêm loài lan mới
+                    <Plus className="h-4 w-4" /> Thêm loài lan mới
                   </button>
                 </div>
               </div>
 
               {/* Classification Filters block */}
-              <div className="space-y-5 rounded-xl border border-outline-variant/40 bg-white p-5 shadow-sm">
+              <div className="space-y-4 rounded-xl border border-outline-variant/40 bg-white p-4 shadow-sm">
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(280px,1fr)_260px_200px_auto_auto] xl:items-center">
                   <div className="relative">
-                    <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-outline" />
+                    <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-outline" />
                     <input
                       type="search"
                       value={searchQuery}
                       onChange={(event) => setSearchQuery(event.target.value)}
                       placeholder="Tìm theo tên loài hoặc tên khoa học..."
-                      className="h-12 w-full rounded-lg border border-outline-variant bg-white pl-12 pr-4 text-sm text-charcoal-text outline-none transition-colors placeholder:text-outline focus:border-[#56642b] focus:ring-2 focus:ring-[#56642b]/10"
+                      className="h-10 w-full rounded-lg border border-outline-variant bg-white pl-10 pr-3 text-xs text-charcoal-text outline-none transition-colors placeholder:text-outline focus:border-[#56642b] focus:ring-2 focus:ring-[#56642b]/10"
                     />
                   </div>
 
@@ -2659,16 +2653,16 @@ export default function App() {
                     onChange={setSelectedCategoryFilter}
                     allLabel="Tất cả danh mục"
                     className="w-full"
-                    triggerClassName="h-12 rounded-lg"
+                    triggerClassName="h-10 rounded-lg"
                   />
 
                   <button
                     type="button"
                     onClick={() => setShowOrchidAdvancedFilters((current) => !current)}
-                    className={`flex h-12 items-center justify-between gap-3 rounded-lg border px-4 text-sm transition-colors ${showOrchidAdvancedFilters ? 'border-[#56642b] bg-[#f7f8f1] text-[#56642b]' : 'border-outline-variant bg-white text-charcoal-text hover:border-[#87905f]'}`}
+                    className={`flex h-10 items-center justify-between gap-2 rounded-lg border px-3 text-xs transition-colors ${showOrchidAdvancedFilters ? 'border-[#56642b] bg-[#f7f8f1] text-[#56642b]' : 'border-outline-variant bg-white text-charcoal-text hover:border-[#87905f]'}`}
                     aria-expanded={showOrchidAdvancedFilters}
                   >
-                    <span className="flex items-center gap-2"><SlidersHorizontal className="h-5 w-5" />Bộ lọc nâng cao</span>
+                    <span className="flex items-center gap-2"><SlidersHorizontal className="h-4 w-4" />Bộ lọc nâng cao</span>
                     <span className="flex items-center gap-2">
                       {orchidAdvancedFilterCount > 0 && <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-[#667234] px-1.5 text-xs font-bold text-white">{orchidAdvancedFilterCount}</span>}
                       <ChevronDown className={`h-4 w-4 transition-transform ${showOrchidAdvancedFilters ? 'rotate-180' : ''}`} />
@@ -2683,7 +2677,7 @@ export default function App() {
                     type="button"
                     onClick={clearOrchidFilters}
                     disabled={!hasOrchidFilters}
-                    className="flex h-12 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3 text-sm font-medium text-[#56642b] transition-colors hover:bg-[#56642b]/5 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-2 text-xs font-medium text-[#56642b] transition-colors hover:bg-[#56642b]/5 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <RotateCcw className="h-4 w-4" /> Xóa bộ lọc
                   </button>
