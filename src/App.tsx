@@ -13,6 +13,7 @@ import GlobalSearch from './pages/GlobalSearch';
 import {
   LayoutDashboard,
   FolderKanban,
+  FolderPlus,
   BookOpen,
   Users,
   LogOut,
@@ -2699,22 +2700,21 @@ export default function App() {
 
           {/* ======================= TAB: 2. CATEGORIES / DANH MỤC ======================= */}
           {activeTab === 'categories' && (
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
+            <div className="space-y-5">
+              <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-end">
                 <div>
-                  <h2 className="font-serif text-3xl font-semibold text-on-surface">Quản Lý Danh Mục</h2>
-                  <p className="text-sm text-on-surface-variant mt-1">
-                    Danh sách tổng hợp các nhóm giống lan tơ cổ điển và lan đặc chủng rừng tự nhiên Việt Nam.
+                  <h2 className="font-serif text-3xl font-semibold text-on-surface">Quản lý danh mục hoa lan</h2>
+                  <p className="mt-1 text-sm text-on-surface-variant">
+                    Tổ chức kho hoa lan theo danh mục nhiều cấp.
                   </p>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => { setEditingCategory(null); setOpenAddCategory(true); }}
-                    className="px-4 py-2 bg-botanical-green text-white font-sans text-xs font-semibold uppercase tracking-wider rounded-lg hover:shadow transition-all shrink-0 cursor-pointer"
-                  >
-                    Tạo danh mục mới
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => { setEditingCategory(null); setOpenAddCategory(true); }}
+                  className="flex shrink-0 cursor-pointer items-center gap-2 rounded-lg bg-botanical-green px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-white transition-all hover:shadow"
+                >
+                  <FolderPlus className="h-4 w-4" /> Tạo danh mục mới
+                </button>
               </div>
 
               {/* Category Grid Section */}
@@ -2725,9 +2725,9 @@ export default function App() {
                   </p>
                 )}
                 {!loadingCategories && filteredCategories.length === 0 && (
-                  <p className="py-8 text-center text-sm text-on-surface-variant">
-                    Chưa có danh mục nào.
-                  </p>
+                  <div className="rounded-xl border border-dashed border-outline-variant bg-white py-14 text-center text-sm text-outline">
+                    Chưa có danh mục hoa lan nào.
+                  </div>
                 )}
                 {(() => {
                   const renderCategoryTree = (parentId: string | null, level: number = 0) => {
