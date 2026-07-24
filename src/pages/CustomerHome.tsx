@@ -304,10 +304,10 @@ export default function CustomerHome({ categories, orchids, onNavigate }: Custom
               />
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center p-6 text-center">
                 <a
-                  href="/document"
+                  href="/planting-and-care"
                   className="px-6 py-3 bg-white text-botanical-green hover:bg-botanical-green hover:text-white transition-all text-xs font-sans font-bold uppercase tracking-widest cursor-pointer rounded"
                 >
-                  Mở Tài Liệu
+                  Mở Cách Trồng Và Chăm Sóc
                 </a>
               </div>
             </div>
