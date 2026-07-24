@@ -43,8 +43,8 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 
 // Domain Imports
-import { Orchid, Question, Category, CommunityPost, CareArticle, PaginatedDocuments, DocumentItem, Region, BloomSeason, FlowerColor, type ArticleCategory } from './types';
-import { login, register, loginWithGoogle, refreshAuthToken, getCategories, createCategory, getCategoryById, updateCategory, deleteCategory, getArticleById, getSectionArticles, createSectionArticle, updateSectionArticle, deleteSectionArticle, getArticleCategories, getOrchids, getOrchidById, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, deleteDocument, uploadImage, getUploadedImageUrl, getUsers, createUser, updateUser, deleteUser, resetUserPassword, getDiscussions, type ArticleSection, type DiscussionPostDto, type LoginResponse, type UserListItem } from './services/api';
+import { Orchid, Question, Category, CommunityPost, CareArticle, PaginatedDocuments, DocumentItem, Region, BloomSeason, FlowerColor, type ArticleCategory, type DocumentCategory } from './types';
+import { login, register, loginWithGoogle, refreshAuthToken, getCategories, createCategory, getCategoryById, updateCategory, deleteCategory, getArticleById, getSectionArticles, createSectionArticle, updateSectionArticle, deleteSectionArticle, getArticleCategories, getOrchids, getOrchidById, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, deleteDocument, getDocumentCategories, createDocumentCategory, updateDocumentCategory, deleteDocumentCategory, uploadImage, getUploadedImageUrl, getUsers, createUser, updateUser, deleteUser, resetUserPassword, getDiscussions, type ArticleSection, type DiscussionPostDto, type LoginResponse, type UserListItem } from './services/api';
 import { getOrchidImageUrls } from './utils/orchidImages';
 import {
   INITIAL_QUESTIONS,
@@ -67,6 +67,7 @@ import ArticleCategoryManager from './components/ArticleCategoryManager';
 import CategoryTreeSelect from './components/CategoryTreeSelect';
 import AdminDashboardOverview from './components/AdminDashboardOverview';
 import LocalRichTextEditor from './components/LocalRichTextEditor';
+import DocumentCategoryManager, { type DocumentCategoryValues } from './components/DocumentCategoryManager';
 
 const ORCHID_FEATURE_FILTERS = [
   { id: 'Popular', name: 'Lan phổ biến', parentId: null },
@@ -590,8 +591,10 @@ export default function App() {
   const [showDocumentForm, setShowDocumentForm] = useState(false);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [uploadingDocument, setUploadingDocument] = useState(false);
+  const [documentCategories, setDocumentCategories] = useState<DocumentCategory[]>([]);
+  const [loadingDocumentCategories, setLoadingDocumentCategories] = useState(false);
   const [documentForm, setDocumentForm] = useState<Omit<DocumentItem, 'id' | 'createdAt'>>({
-    title: '', description: '', originalName: '', extension: '', sizeBytes: 0, url: ''
+    title: '', description: '', originalName: '', extension: '', sizeBytes: 0, url: '', categoryId: null
   });
 
   const loadDocuments = async (page: number) => {
@@ -603,6 +606,24 @@ export default function App() {
       console.error('Lỗi tải danh sách tài liệu:', error);
     } finally {
       setLoadingDocuments(false);
+    }
+  };
+
+  const loadDocumentCategories = async () => {
+    setLoadingDocumentCategories(true);
+    try {
+      const data = await getDocumentCategories({
+        pageNumber: 1,
+        pageSize: 100,
+        sortBy: 'name',
+        sortDescending: false,
+      });
+      setDocumentCategories(data.items);
+    } catch (error) {
+      console.error('Lỗi tải danh mục tài liệu:', error);
+      addToast(error instanceof Error ? error.message : 'Không thể tải danh mục tài liệu.', 'error');
+    } finally {
+      setLoadingDocumentCategories(false);
     }
   };
 
@@ -619,11 +640,12 @@ export default function App() {
     }
   };
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'categories' | 'orchids' | 'articles' | 'users' | 'community' | 'care' | 'cultivation_cats' | 'application_cats' | 'applications'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'categories' | 'orchids' | 'articles' | 'document_categories' | 'users' | 'community' | 'care' | 'cultivation_cats' | 'application_cats' | 'applications'>('overview');
   const [expandedAdminMenus, setExpandedAdminMenus] = useState({
     orchids: false,
     applications: false,
     cultivation: false,
+    documents: false,
   });
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const toggleAdminMenu = (menu: keyof typeof expandedAdminMenus) => {
@@ -666,6 +688,7 @@ export default function App() {
 
   useEffect(() => {
     void loadDocuments(1);
+    void loadDocumentCategories();
   }, []);
 
   useEffect(() => {
@@ -1457,11 +1480,12 @@ export default function App() {
         file: documentFile,
         title: documentForm.title,
         description: documentForm.description,
+        categoryId: documentForm.categoryId,
       });
       addToast('Tải lên tài liệu thành công', 'success');
       setShowDocumentForm(false);
       setDocumentFile(null);
-      setDocumentForm({ title: '', description: '', originalName: '', extension: '', sizeBytes: 0, url: '' });
+      setDocumentForm({ title: '', description: '', originalName: '', extension: '', sizeBytes: 0, url: '', categoryId: null });
       await loadDocuments(docPage);
     } catch (error) {
       addToast(error instanceof Error ? error.message : 'Có lỗi xảy ra khi tải lên tài liệu', 'error');
@@ -1525,6 +1549,66 @@ export default function App() {
     setSelectedRegionFilters([]);
     setSelectedSeasonFilters([]);
     setSelectedColorFilters([]);
+  };
+
+  const handleCreateDocumentCategory = async (values: DocumentCategoryValues) => {
+    const normalizedName = values.name.trim().toLocaleLowerCase('vi');
+    const slug = values.slug || createSlug(values.name);
+    const duplicate = documentCategories.find((category) =>
+      category.name.trim().toLocaleLowerCase('vi') === normalizedName || category.slug === slug
+    );
+    if (duplicate) throw new Error(`Danh mục “${duplicate.name}” đã tồn tại.`);
+
+    try {
+      await createDocumentCategory({
+        name: values.name.trim(),
+        description: values.description.trim(),
+        slug,
+        parentId: values.parentId,
+      });
+      await loadDocumentCategories();
+      addToast(`Đã tạo danh mục tài liệu: ${values.name}`, 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Không thể tạo danh mục tài liệu.';
+      addToast(message, 'error');
+      throw error;
+    }
+  };
+
+  const handleUpdateDocumentCategory = async (id: string, values: DocumentCategoryValues) => {
+    const normalizedName = values.name.trim().toLocaleLowerCase('vi');
+    const slug = values.slug || createSlug(values.name);
+    const duplicate = documentCategories.find((category) =>
+      category.id !== id
+      && (category.name.trim().toLocaleLowerCase('vi') === normalizedName || category.slug === slug)
+    );
+    if (duplicate) throw new Error(`Danh mục “${duplicate.name}” đã tồn tại.`);
+
+    try {
+      await updateDocumentCategory(id, {
+        name: values.name.trim(),
+        description: values.description.trim(),
+        slug,
+        parentId: values.parentId,
+      });
+      await loadDocumentCategories();
+      addToast(`Đã cập nhật danh mục tài liệu: ${values.name}`, 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Không thể cập nhật danh mục tài liệu.';
+      addToast(message, 'error');
+      throw error;
+    }
+  };
+
+  const handleDeleteDocumentCategory = async (category: DocumentCategory) => {
+    if (!window.confirm(`Bạn có chắc muốn xóa danh mục tài liệu “${category.name}”?`)) return;
+    try {
+      await deleteDocumentCategory(category.id);
+      await loadDocumentCategories();
+      addToast(`Đã xóa danh mục tài liệu: ${category.name}`, 'success');
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Không thể xóa danh mục tài liệu.', 'error');
+    }
   };
 
   // filteredArticles removed
@@ -2189,17 +2273,48 @@ export default function App() {
 
           {/* 8. Quản lý Tài liệu về Lan */}
           <button
-            onClick={() => { setActiveTab('articles'); setSearchQuery(''); }}
+            onClick={() => handleAdminMenuClick('documents')}
             title={!isSidebarOpen ? 'Tài liệu' : undefined}
             className={`order-40 flex items-center px-4 py-3 w-full transition-all duration-300 rounded text-left ${isSidebarOpen ? 'gap-3' : 'justify-center'} ${
-              activeTab === 'articles'
-                ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
+              ['articles', 'document_categories'].includes(activeTab)
+                ? 'text-[#56642b] font-bold bg-[#d6e7a1]/20'
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
             }`}
           >
             <BookOpen className="w-5 h-5 shrink-0" />
             <span className={`${isSidebarOpen ? 'block' : 'hidden'} text-xs uppercase tracking-wider font-semibold font-sans`}>Tài liệu</span>
             <span className={`${isSidebarOpen ? 'block' : 'hidden'} ml-auto text-[10px] font-mono bg-[#56642b]/10 text-[#5a682f] px-2 py-0.5 rounded font-bold`}>
+              {documentsData?.totalCount || 0}
+            </span>
+            <ChevronRight className={`${isSidebarOpen ? 'block' : 'hidden'} h-4 w-4 transition-transform ${expandedAdminMenus.documents ? 'rotate-90' : ''}`} />
+          </button>
+
+          <button
+            onClick={() => { setActiveTab('document_categories'); setSearchQuery(''); }}
+            className={`${isSidebarOpen && expandedAdminMenus.documents ? 'flex' : 'hidden'} order-[41] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
+              activeTab === 'document_categories'
+                ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
+                : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
+            }`}
+          >
+            <FolderKanban className="h-5 w-5 shrink-0" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Quản lý danh mục tài liệu</span>
+            <span className="ml-auto rounded bg-surface-container-high px-2 py-0.5 font-mono text-[10px] font-bold text-outline">
+              {documentCategories.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => { setActiveTab('articles'); setSearchQuery(''); }}
+            className={`${isSidebarOpen && expandedAdminMenus.documents ? 'flex' : 'hidden'} order-[42] w-full items-center gap-3 rounded py-2.5 pl-10 pr-4 text-left transition-all duration-300 ${
+              activeTab === 'articles'
+                ? 'text-[#56642b] border-r-2 border-[#56642b] font-bold bg-[#d6e7a1]/20'
+                : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
+            }`}
+          >
+            <FileText className="h-5 w-5 shrink-0" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Quản lý tài liệu</span>
+            <span className="ml-auto rounded bg-surface-container-high px-2 py-0.5 font-mono text-[10px] font-bold text-outline">
               {documentsData?.totalCount || 0}
             </span>
           </button>
@@ -2989,6 +3104,16 @@ export default function App() {
             </div>
           )}
 
+          {activeTab === 'document_categories' && (
+            <DocumentCategoryManager
+              categories={documentCategories}
+              loading={loadingDocumentCategories}
+              onCreate={handleCreateDocumentCategory}
+              onUpdate={handleUpdateDocumentCategory}
+              onDelete={handleDeleteDocumentCategory}
+            />
+          )}
+
           {/* ======================= TAB: 3. ARTICLES / QUẢN LÝ TÀI LIỆU ======================= */}
           {activeTab === 'articles' && (
             <div className="space-y-4">
@@ -3002,7 +3127,7 @@ export default function App() {
                 {!showDocumentForm && (
                   <button
                     onClick={() => {
-                      setDocumentForm({ title: '', description: '', originalName: '', extension: '', sizeBytes: 0, url: '' });
+                      setDocumentForm({ title: '', description: '', originalName: '', extension: '', sizeBytes: 0, url: '', categoryId: null });
                       setShowDocumentForm(true);
                     }}
                     className="px-5 py-2.5 bg-botanical-green text-white font-sans text-xs font-semibold uppercase tracking-wider rounded-lg hover:shadow cursor-pointer flex gap-1.5 items-center"
@@ -3041,6 +3166,16 @@ export default function App() {
                         value={documentForm.title}
                         onChange={(e) => setDocumentForm({ ...documentForm, title: e.target.value })}
                         className="w-full bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green font-semibold"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Danh mục tài liệu</label>
+                      <CategoryTreeSelect
+                        categories={documentCategories}
+                        value={documentForm.categoryId ?? ''}
+                        onChange={(categoryId) => setDocumentForm({ ...documentForm, categoryId: categoryId || null })}
+                        allLabel="Không phân loại"
+                        placeholder="Chọn danh mục tài liệu"
                       />
                     </div>
                     <div className="space-y-1">
@@ -3150,6 +3285,11 @@ export default function App() {
                               <h3 className="font-serif text-lg font-bold text-charcoal-text line-clamp-2 leading-tight group-hover:text-botanical-green transition-colors">
                                 {doc.title}
                               </h3>
+                              {doc.categoryName && (
+                                <p className="mt-1.5 text-[10px] font-bold uppercase tracking-wider text-[#667234]">
+                                  {doc.categoryName}
+                                </p>
+                              )}
                               <p className="text-xs text-on-surface-variant leading-relaxed mt-2 line-clamp-3">
                                 {doc.description || 'Không có mô tả cho tài liệu này.'}
                               </p>

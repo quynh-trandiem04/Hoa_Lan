@@ -82,11 +82,33 @@ export interface DocumentItem {
   extension: string;
   sizeBytes: number;
   url: string;
+  categoryId?: string | null;
+  categoryName?: string | null;
+  categorySlug?: string | null;
   createdAt?: string;
 }
 
 export interface PaginatedDocuments {
   items: DocumentItem[];
+  pageNumber: number;
+  totalPages: number;
+  totalCount: number;
+  pageSize: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+}
+
+export interface DocumentCategory {
+  id: string;
+  name: string;
+  description: string;
+  slug?: string;
+  parentId?: string | null;
+  documentCount?: number;
+}
+
+export interface PaginatedDocumentCategories {
+  items: DocumentCategory[];
   pageNumber: number;
   totalPages: number;
   totalCount: number;

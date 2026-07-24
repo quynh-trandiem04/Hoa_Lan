@@ -591,6 +591,7 @@ export interface UploadDocumentPayload {
   file: File;
   title: string;
   description?: string;
+  categoryId?: string | null;
   apiVersion?: string;
 }
 
@@ -598,13 +599,15 @@ export const getDocuments = async (
   pageNumber: number = 1,
   pageSize: number = 10,
   searchTerm?: string,
-  apiVersion?: string
+  apiVersion?: string,
+  categoryId?: string
 ): Promise<import('../types').PaginatedDocuments> => {
   const params = new URLSearchParams({
     PageNumber: String(pageNumber),
     PageSize: String(pageSize),
   });
   if (searchTerm) params.set('SearchTerm', searchTerm);
+  if (categoryId) params.set('CategoryId', categoryId);
   if (apiVersion) params.set('api-version', apiVersion);
   const token = getStoredAuthToken();
   const response = await fetch(`${API_BASE_URL}/api/Documents?${params.toString()}`, {
@@ -618,13 +621,14 @@ export const getDocuments = async (
   return body as import('../types').PaginatedDocuments;
 };
 
-export const createDocument = async ({ file, title, description = '', apiVersion }: UploadDocumentPayload) => {
+export const createDocument = async ({ file, title, description = '', categoryId, apiVersion }: UploadDocumentPayload) => {
   const params = new URLSearchParams();
   if (apiVersion) params.set('api-version', apiVersion);
   const formData = new FormData();
   formData.append('File', file);
   formData.append('Title', title.trim());
   formData.append('Description', description.trim());
+  if (categoryId) formData.append('CategoryId', categoryId);
   const token = getStoredAuthToken();
   const response = await fetch(`${API_BASE_URL}/api/Documents/upload${params.size ? `?${params.toString()}` : ''}`, {
     method: 'POST',
@@ -664,6 +668,137 @@ export const deleteDocument = async (id: string, apiVersion?: string): Promise<v
       throwArticleApiError(body, 'Backend báo không thể xóa tài liệu.');
     }
   }
+};
+
+export interface DocumentCategoryQuery {
+  parentId?: string;
+  pageNumber?: number;
+  pageSize?: number;
+  searchTerm?: string;
+  sortBy?: string;
+  sortDescending?: boolean;
+}
+
+export interface SaveDocumentCategoryPayload {
+  name: string;
+  description: string;
+  slug: string;
+  parentId: string | null;
+}
+
+const normalizeDocumentCategory = (
+  category: Partial<import('../types').DocumentCategory> & { id: string; name: string }
+): import('../types').DocumentCategory => ({
+  id: category.id,
+  name: category.name,
+  description: category.description ?? '',
+  slug: category.slug,
+  parentId: category.parentId ?? null,
+  documentCount: category.documentCount ?? 0,
+});
+
+export const getDocumentCategories = async (
+  query: DocumentCategoryQuery = {}
+): Promise<import('../types').PaginatedDocumentCategories> => {
+  const params = new URLSearchParams();
+  if (query.parentId) params.set('ParentId', query.parentId);
+  params.set('PageNumber', String(query.pageNumber ?? 1));
+  params.set('PageSize', String(query.pageSize ?? 100));
+  if (query.searchTerm) params.set('SearchTerm', query.searchTerm);
+  if (query.sortBy) params.set('SortBy', query.sortBy);
+  if (query.sortDescending !== undefined) params.set('SortDescending', String(query.sortDescending));
+
+  const token = getStoredAuthToken();
+  const response = await fetch(`${API_BASE_URL}/api/document-categories?${params.toString()}`, {
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  const body = await readApiResponse(response);
+  if (!response.ok) throwArticleApiError(body, `Không thể tải danh mục tài liệu (HTTP ${response.status}).`);
+
+  const data = body as Omit<import('../types').PaginatedDocumentCategories, 'items'> & {
+    items?: Array<Partial<import('../types').DocumentCategory> & { id: string; name: string }>;
+  };
+  return {
+    ...data,
+    items: (data.items ?? []).map(normalizeDocumentCategory),
+  };
+};
+
+export const getDocumentCategoryTree = async (): Promise<import('../types').DocumentCategory[]> => {
+  const token = getStoredAuthToken();
+  const response = await fetch(`${API_BASE_URL}/api/document-categories/tree`, {
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  const body = await readApiResponse(response);
+  if (!response.ok) throwArticleApiError(body, `Không thể tải cây danh mục tài liệu (HTTP ${response.status}).`);
+  return Array.isArray(body)
+    ? body.map((category) => normalizeDocumentCategory(category as Partial<import('../types').DocumentCategory> & { id: string; name: string }))
+    : [];
+};
+
+export const getDocumentCategoryById = async (id: string): Promise<import('../types').DocumentCategory> => {
+  const token = getStoredAuthToken();
+  const response = await fetch(`${API_BASE_URL}/api/document-categories/${encodeURIComponent(id)}`, {
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  const body = await readApiResponse(response);
+  if (!response.ok) throwArticleApiError(body, `Không thể tải danh mục tài liệu (HTTP ${response.status}).`);
+  return normalizeDocumentCategory(body as Partial<import('../types').DocumentCategory> & { id: string; name: string });
+};
+
+export const createDocumentCategory = async (payload: SaveDocumentCategoryPayload): Promise<void> => {
+  const token = getStoredAuthToken();
+  const response = await fetch(`${API_BASE_URL}/api/document-categories`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+  const body = await readApiResponse(response);
+  if (!response.ok) throwArticleApiError(body, `Không thể tạo danh mục tài liệu (HTTP ${response.status}).`);
+};
+
+export const updateDocumentCategory = async (
+  id: string,
+  payload: SaveDocumentCategoryPayload
+): Promise<void> => {
+  const token = getStoredAuthToken();
+  const response = await fetch(`${API_BASE_URL}/api/document-categories/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ id, ...payload }),
+  });
+  const body = await readApiResponse(response);
+  if (!response.ok) throwArticleApiError(body, `Không thể cập nhật danh mục tài liệu (HTTP ${response.status}).`);
+};
+
+export const deleteDocumentCategory = async (id: string): Promise<void> => {
+  const token = getStoredAuthToken();
+  const response = await fetch(`${API_BASE_URL}/api/document-categories/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  const body = await readApiResponse(response);
+  if (!response.ok) throwArticleApiError(body, `Không thể xóa danh mục tài liệu (HTTP ${response.status}).`);
 };
 
 // ======================= ARTICLES API (Care Guide) =======================
