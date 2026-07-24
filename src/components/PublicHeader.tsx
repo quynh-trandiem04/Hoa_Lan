@@ -517,7 +517,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
                   <>
                     <div className="border-b border-[#eeeeea] px-5 py-3">
                       <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#899073]">Tài khoản của bạn</p>
-                      <p className="mt-1 truncate font-serif text-sm font-semibold text-[#1a1c1b]" title={currentUserName}>{compactCurrentUserName}</p>
+                      <p className="mt-1 truncate font-serif text-sm font-semibold text-[#1a1c1b]" title={currentUserName}>{currentUserName}</p>
                     </div>
                     <a href="/profile" className="block px-5 py-3 font-serif text-sm text-[#1a1c1b] transition-colors hover:bg-[#56642b]/5 hover:text-[#56642b]" role="menuitem">
                       Thông tin tài khoản
