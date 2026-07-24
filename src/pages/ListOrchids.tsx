@@ -286,17 +286,54 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
             </div>
 
             {/* Filter group: Region */}
-            <div className="space-y-4">
-              <h4 className="border-b border-[#747878]/10 pb-2 text-[11px] font-bold uppercase tracking-widest text-[#1a1c1b]">KHU VỰC PHÂN BỐ</h4>
-              <InlineTreeMultiSelect
-                options={Object.entries(Region).map(([value, label]) => ({ value, label }))}
-                values={selectedRegions}
-                onChange={(values) => {
-                  setSelectedRegions(values);
+            <div className="space-y-5">
+              <h4 className="border-b border-[#747878]/15 pb-3 text-sm font-bold uppercase tracking-[0.12em] text-[#111312]">
+                KHU VỰC PHÂN BỐ
+              </h4>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedRegions([]);
                   scrollToPageTop();
                 }}
-                allLabel="Tất cả khu vực"
-              />
+                className={`block w-full rounded-sm text-left text-[15px] leading-6 transition-colors hover:text-[#315f24] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#87905f] ${
+                  selectedRegions.length === 0 ? 'font-semibold text-[#315f24]' : 'font-normal text-[#1a1c1b]'
+                }`}
+                aria-pressed={selectedRegions.length === 0}
+              >
+                Tất cả khu vực
+              </button>
+
+              <div className="relative ml-3 border-l border-[#d8dbd5] py-1">
+                {Object.entries(Region).map(([value, label]) => {
+                  const selected = selectedRegions.includes(value);
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => {
+                        setSelectedRegions((current) =>
+                          selected ? current.filter((item) => item !== value) : [...current, value]
+                        );
+                        scrollToPageTop();
+                      }}
+                      className={`relative block min-h-12 w-full rounded-sm py-3 pl-5 pr-1 text-left text-[14px] leading-5 transition-colors hover:text-[#315f24] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#87905f] ${
+                        selected ? 'font-bold text-[#315f24]' : 'font-normal text-[#171918]'
+                      }`}
+                      aria-pressed={selected}
+                    >
+                      {selected && (
+                        <span
+                          className="absolute -left-[3px] top-1/2 h-8 w-[5px] -translate-y-1/2 rounded-full bg-[#4da83d]"
+                          aria-hidden="true"
+                        />
+                      )}
+                      <span>{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Filter group: BloomSeason */}
