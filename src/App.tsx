@@ -45,7 +45,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 // Domain Imports
 import { Orchid, Question, Category, CommunityPost, CareArticle, PaginatedDocuments, DocumentItem, Region, BloomSeason, FlowerColor, type ArticleCategory, type DocumentCategory } from './types';
-import { login, register, loginWithGoogle, refreshAuthToken, getCategories, createCategory, getCategoryById, updateCategory, deleteCategory, getArticleById, getSectionArticles, createSectionArticle, updateSectionArticle, deleteSectionArticle, getArticleCategories, getOrchids, getOrchidById, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, deleteDocument, getDocumentCategories, createDocumentCategory, updateDocumentCategory, deleteDocumentCategory, uploadImage, getUploadedImageUrl, getUsers, createUser, updateUser, deleteUser, resetUserPassword, getDiscussions, type ArticleSection, type DiscussionPostDto, type LoginResponse, type UserListItem } from './services/api';
+import { login, register, loginWithGoogle, refreshAuthToken, getCategories, createCategory, getCategoryById, updateCategory, deleteCategory, getArticleById, getSectionArticles, createSectionArticle, updateSectionArticle, deleteSectionArticle, getArticleCategories, getOrchids, getOrchidById, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, updateDocument, deleteDocument, getDocumentCategories, createDocumentCategory, updateDocumentCategory, deleteDocumentCategory, uploadImage, getUploadedImageUrl, getUsers, createUser, updateUser, deleteUser, resetUserPassword, getDiscussions, type ArticleSection, type DiscussionPostDto, type LoginResponse, type UserListItem } from './services/api';
 import { getOrchidImageUrls } from './utils/orchidImages';
 import {
   INITIAL_QUESTIONS,
@@ -591,6 +591,7 @@ export default function App() {
   const [docPage, setDocPage] = useState(1);
   const [showDocumentForm, setShowDocumentForm] = useState(false);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [editingDocument, setEditingDocument] = useState<DocumentItem | null>(null);
   const [uploadingDocument, setUploadingDocument] = useState(false);
   const [documentCategories, setDocumentCategories] = useState<DocumentCategory[]>([]);
   const [loadingDocumentCategories, setLoadingDocumentCategories] = useState(false);
@@ -1466,25 +1467,35 @@ export default function App() {
 
   const handleSaveDocument = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!documentForm.title.trim() || !documentFile) {
-      addToast('Vui lòng nhập tiêu đề và chọn tệp tài liệu', 'error');
+    if (!documentForm.title.trim() || (!editingDocument && !documentFile)) {
+      addToast(editingDocument ? 'Vui lòng nhập tiêu đề tài liệu' : 'Vui lòng nhập tiêu đề và chọn tệp tài liệu', 'error');
       return;
     }
-    if (documentFile.size > 50 * 1024 * 1024) {
+    if (documentFile && documentFile.size > 50 * 1024 * 1024) {
       addToast('Tệp tài liệu không được vượt quá 50 MB', 'error');
       return;
     }
 
     setUploadingDocument(true);
     try {
-      await createDocument({
-        file: documentFile,
-        title: documentForm.title,
-        description: documentForm.description,
-        categoryId: documentForm.categoryId,
-      });
-      addToast('Tải lên tài liệu thành công', 'success');
+      if (editingDocument?.id) {
+        await updateDocument(editingDocument.id, {
+          title: documentForm.title,
+          description: documentForm.description,
+          categoryId: documentForm.categoryId,
+        });
+        addToast('Cập nhật tài liệu thành công', 'success');
+      } else {
+        await createDocument({
+          file: documentFile!,
+          title: documentForm.title,
+          description: documentForm.description,
+          categoryId: documentForm.categoryId,
+        });
+        addToast('Tải lên tài liệu thành công', 'success');
+      }
       setShowDocumentForm(false);
+      setEditingDocument(null);
       setDocumentFile(null);
       setDocumentForm({ title: '', description: '', originalName: '', extension: '', sizeBytes: 0, url: '', categoryId: null });
       await loadDocuments(docPage);
@@ -1574,6 +1585,30 @@ export default function App() {
       addToast(message, 'error');
       throw error;
     }
+  };
+
+  const handleOpenEditDocument = (document: DocumentItem) => {
+    setEditingDocument(document);
+    setDocumentFile(null);
+    setDocumentForm({
+      title: document.title,
+      description: document.description ?? '',
+      originalName: document.originalName,
+      extension: document.extension,
+      sizeBytes: document.sizeBytes,
+      url: document.url,
+      categoryId: document.categoryId ?? null,
+      categoryName: document.categoryName,
+      categorySlug: document.categorySlug,
+    });
+    setShowDocumentForm(true);
+  };
+
+  const handleCloseDocumentForm = () => {
+    setShowDocumentForm(false);
+    setEditingDocument(null);
+    setDocumentFile(null);
+    setDocumentForm({ title: '', description: '', originalName: '', extension: '', sizeBytes: 0, url: '', categoryId: null });
   };
 
   const handleUpdateDocumentCategory = async (id: string, values: DocumentCategoryValues) => {
@@ -3127,6 +3162,8 @@ export default function App() {
                 {!showDocumentForm && (
                   <button
                     onClick={() => {
+                      setEditingDocument(null);
+                      setDocumentFile(null);
                       setDocumentForm({ title: '', description: '', originalName: '', extension: '', sizeBytes: 0, url: '', categoryId: null });
                       setShowDocumentForm(true);
                     }}
@@ -3146,10 +3183,10 @@ export default function App() {
                   >
                   <div className="flex justify-between items-center pb-3 border-b border-outline-variant">
                     <h3 className="font-serif text-xl font-bold text-on-surface">
-                      Thêm tài liệu mới
+                      {editingDocument ? 'Chỉnh sửa tài liệu' : 'Thêm tài liệu mới'}
                     </h3>
                     <button
-                      onClick={() => { setShowDocumentForm(false); setDocumentFile(null); }}
+                      onClick={handleCloseDocumentForm}
                       className="p-1 rounded-full text-outline hover:text-charcoal-text transition-all cursor-pointer"
                     >
                       <X className="w-5 h-5" />
@@ -3179,29 +3216,43 @@ export default function App() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tệp tài liệu *</label>
-                      <input
-                        id="document-file-upload"
-                        type="file"
-                        required
-                        accept=".pdf,.doc,.docx,.xls,.xlsx,.zip,.txt"
-                        onChange={(e) => setDocumentFile(e.target.files?.[0] ?? null)}
-                        className="sr-only"
-                      />
-                      <label
-                        htmlFor="document-file-upload"
-                        className="min-h-32 border-2 border-dashed border-outline-variant rounded-lg flex flex-col items-center justify-center gap-2 px-5 py-6 cursor-pointer hover:border-[#56642b] hover:bg-[#f7f8f2] transition-colors"
-                      >
-                        <FilePlus className="w-7 h-7 text-[#56642b]" />
-                        <span className="text-sm font-semibold text-charcoal-text">
-                          {documentFile ? documentFile.name : 'Chọn tệp từ máy tính'}
-                        </span>
-                        <span className="text-[10px] text-outline">
-                          {documentFile
-                            ? `${(documentFile.size / 1024 / 1024).toFixed(2)} MB`
-                            : 'PDF, DOCX, XLSX, ZIP hoặc TXT'}
-                        </span>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">
+                        Tệp tài liệu {editingDocument ? '' : '*'}
                       </label>
+                      {editingDocument ? (
+                        <div className="min-h-24 border border-outline-variant rounded-lg flex items-center gap-3 px-5 py-4 bg-[#f7f8f2]">
+                          <FileText className="w-7 h-7 shrink-0 text-[#56642b]" />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-charcoal-text">{editingDocument.originalName}</p>
+                            <p className="mt-1 text-[10px] text-outline">Giữ nguyên tệp hiện tại khi chỉnh sửa thông tin.</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <input
+                            id="document-file-upload"
+                            type="file"
+                            required
+                            accept=".pdf,.doc,.docx,.xls,.xlsx,.zip,.txt"
+                            onChange={(e) => setDocumentFile(e.target.files?.[0] ?? null)}
+                            className="sr-only"
+                          />
+                          <label
+                            htmlFor="document-file-upload"
+                            className="min-h-32 border-2 border-dashed border-outline-variant rounded-lg flex flex-col items-center justify-center gap-2 px-5 py-6 cursor-pointer hover:border-[#56642b] hover:bg-[#f7f8f2] transition-colors"
+                          >
+                            <FilePlus className="w-7 h-7 text-[#56642b]" />
+                            <span className="text-sm font-semibold text-charcoal-text">
+                              {documentFile ? documentFile.name : 'Chọn tệp từ máy tính'}
+                            </span>
+                            <span className="text-[10px] text-outline">
+                              {documentFile
+                                ? `${(documentFile.size / 1024 / 1024).toFixed(2)} MB`
+                                : 'PDF, DOCX, XLSX, ZIP hoặc TXT'}
+                            </span>
+                          </label>
+                        </>
+                      )}
                     </div>
                     <div className="space-y-1">
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Mô tả</label>
@@ -3248,7 +3299,7 @@ export default function App() {
                       <button
                         type="button"
                         disabled={uploadingDocument}
-                        onClick={() => { setShowDocumentForm(false); setDocumentFile(null); }}
+                        onClick={handleCloseDocumentForm}
                         className="px-4 py-2 border border-outline text-outline font-medium text-xs uppercase hover:bg-surface-container transition-all cursor-pointer disabled:opacity-60"
                       >
                         Hủy
@@ -3258,7 +3309,9 @@ export default function App() {
                         disabled={uploadingDocument}
                         className="min-w-28 px-5 py-2 bg-botanical-green text-white font-medium text-xs uppercase hover:opacity-90 transition-all rounded cursor-pointer disabled:opacity-60 disabled:cursor-wait"
                       >
-                        {uploadingDocument ? 'Đang tải...' : 'Tải lên'}
+                        {uploadingDocument
+                          ? (editingDocument ? 'Đang lưu...' : 'Đang tải...')
+                          : (editingDocument ? 'Lưu thay đổi' : 'Tải lên')}
                       </button>
                     </div>
                   </form>
@@ -3304,6 +3357,13 @@ export default function App() {
                                 <a href={doc.url} target="_blank" rel="noreferrer" className="p-1.5 rounded-md bg-[#f4f4f2] text-botanical-green hover:bg-botanical-green hover:text-white transition-all cursor-pointer" title="Xem tài liệu">
                                   <Eye className="w-3.5 h-3.5" />
                                 </a>
+                                <button
+                                  onClick={() => handleOpenEditDocument(doc)}
+                                  className="p-1.5 rounded-md bg-[#f4f4f2] text-botanical-green hover:bg-botanical-green hover:text-white transition-all cursor-pointer"
+                                  title="Chỉnh sửa tài liệu"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
                                 <button
                                   onClick={() => handleDeleteDocument(doc.id)}
                                   className="p-1.5 rounded-md bg-error-container/40 text-error hover:bg-error hover:text-white transition-all cursor-pointer"

@@ -595,6 +595,13 @@ export interface UploadDocumentPayload {
   apiVersion?: string;
 }
 
+export interface UpdateDocumentPayload {
+  title: string;
+  description?: string;
+  categoryId?: string | null;
+  apiVersion?: string;
+}
+
 export const getDocuments = async (
   pageNumber: number = 1,
   pageSize: number = 10,
@@ -642,6 +649,33 @@ export const createDocument = async ({ file, title, description = '', categoryId
   if (response.status === 401) throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại trước khi tải tài liệu.');
   if (!response.ok) throwArticleApiError(body, `Không thể tải tài liệu lên (HTTP ${response.status}).`);
   return body as import('../types').DocumentItem;
+};
+
+export const updateDocument = async (
+  id: string,
+  { title, description = '', categoryId, apiVersion }: UpdateDocumentPayload
+): Promise<import('../types').DocumentItem | void> => {
+  const params = new URLSearchParams();
+  if (apiVersion) params.set('api-version', apiVersion);
+  const token = getStoredAuthToken();
+  const response = await fetch(`${API_BASE_URL}/api/Documents/${encodeURIComponent(id)}${params.size ? `?${params.toString()}` : ''}`, {
+    method: 'PUT',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({
+      id,
+      title: title.trim(),
+      description: description.trim(),
+      categoryId: categoryId || null,
+    }),
+  });
+  const body = await readApiResponse(response);
+  if (response.status === 401) throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại trước khi cập nhật tài liệu.');
+  if (!response.ok) throwArticleApiError(body, `Không thể cập nhật tài liệu (HTTP ${response.status}).`);
+  return body as import('../types').DocumentItem | void;
 };
 
 export const deleteDocument = async (id: string, apiVersion?: string): Promise<void> => {
