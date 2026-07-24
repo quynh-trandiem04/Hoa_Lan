@@ -2319,10 +2319,7 @@ export default function App() {
           >
             <BookOpen className="w-5 h-5 shrink-0" />
             <span className={`${isSidebarOpen ? 'block' : 'hidden'} text-xs uppercase tracking-wider font-semibold font-sans`}>Tài liệu</span>
-            <span className={`${isSidebarOpen ? 'block' : 'hidden'} ml-auto text-[10px] font-mono bg-[#56642b]/10 text-[#5a682f] px-2 py-0.5 rounded font-bold`}>
-              {documentsData?.totalCount || 0}
-            </span>
-            <ChevronRight className={`${isSidebarOpen ? 'block' : 'hidden'} h-4 w-4 transition-transform ${expandedAdminMenus.documents ? 'rotate-90' : ''}`} />
+            <ChevronRight className={`${isSidebarOpen ? 'block' : 'hidden'} ml-auto h-4 w-4 transition-transform ${expandedAdminMenus.documents ? 'rotate-90' : ''}`} />
           </button>
 
           <button
