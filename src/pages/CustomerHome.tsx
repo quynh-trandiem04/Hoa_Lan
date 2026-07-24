@@ -303,12 +303,12 @@ export default function CustomerHome({ categories, orchids, onNavigate }: Custom
                 referrerPolicy="no-referrer"
               />
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center p-6 text-center">
-                <button 
-                  onClick={() => onNavigate('document')}
+                <a
+                  href="/document"
                   className="px-6 py-3 bg-white text-botanical-green hover:bg-botanical-green hover:text-white transition-all text-xs font-sans font-bold uppercase tracking-widest cursor-pointer rounded"
                 >
-                  Mở Thư Viện Nghiên Cứu
-                </button>
+                  Mở Tài Liệu
+                </a>
               </div>
             </div>
             <div className="absolute -bottom-6 -left-6 w-32 h-32 bg-botanical-green/5 -z-10 blur-xl"></div>
