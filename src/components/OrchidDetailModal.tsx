@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { OrchidItem } from "../types";
-import { X, Droplet, Sun, Thermometer, ShieldAlert, Layers, MapPin, Beaker } from "lucide-react";
+import { X, Droplet, Sun, Thermometer, ShieldAlert, Layers, MapPin } from "lucide-react";
 
 interface OrchidDetailModalProps {
   orchid: OrchidItem;

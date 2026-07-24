@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { X, Sparkles, TrendingUp, Award, Info } from 'lucide-react';
+import { X, Sparkles, TrendingUp, Info } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface ReportModalProps {

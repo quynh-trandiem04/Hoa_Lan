@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { X, Send, Award, HelpCircle, AlertCircle, Bot, Sparkles, MessageSquare } from "lucide-react";
+import { X, Send, HelpCircle, Bot, Sparkles } from "lucide-react";
 import { preloadedChatResponses, defaultBotWelcome, fallbackBotResponse } from "../data";
 
 interface Message {

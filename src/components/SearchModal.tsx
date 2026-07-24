@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { X } from "lucide-react";
-import { orchidData } from "../data";
+import { LoaderCircle, X } from "lucide-react";
+import type { Orchid } from "../types";
+import { getOrchids } from "../services/api";
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -11,10 +12,48 @@ interface SearchModalProps {
 
 export default function SearchModal({ isOpen, onClose, onNavigate }: SearchModalProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [results, setResults] = useState<Orchid[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (!isOpen || !query) {
+      setResults([]);
+      setLoading(false);
+      setError("");
+      return;
+    }
+
+    let active = true;
+    setLoading(true);
+    setError("");
+    const timer = window.setTimeout(() => {
+      void getOrchids({ pageNumber: 1, pageSize: 20, searchTerm: query, sortBy: "name" })
+        .then((items) => {
+          if (active) setResults(items);
+        })
+        .catch((loadError) => {
+          if (!active) return;
+          setResults([]);
+          setError(loadError instanceof Error ? loadError.message : "Không thể tìm kiếm loài lan.");
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+    }, 300);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [isOpen, searchQuery]);
 
   const handleClose = () => {
     onClose();
     setSearchQuery("");
+    setResults([]);
+    setError("");
   };
 
   return (
@@ -47,29 +86,31 @@ export default function SearchModal({ isOpen, onClose, onNavigate }: SearchModal
               />
             </div>
             <div className="p-4 pt-1 max-h-60 overflow-y-auto space-y-2">
-              {searchQuery.trim().length > 0 ? (
-                orchidData
-                  .filter(item => 
-                    item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                    item.vietnameseName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    item.scientificName.toLowerCase().includes(searchQuery.toLowerCase())
-                  )
-                  .map((item: any) => (
+              {loading ? (
+                <div className="flex items-center justify-center gap-2 py-6 text-xs text-botanical-green">
+                  <LoaderCircle className="h-4 w-4 animate-spin" /> Đang tìm qua API...
+                </div>
+              ) : error ? (
+                <p className="py-6 text-center text-xs text-red-600">{error}</p>
+              ) : searchQuery.trim().length > 0 ? (
+                results.length > 0 ? results.map((item) => (
                     <div
                       key={item.id}
                       onClick={() => {
-                        onNavigate('orchid_detail', item.id);
+                        if (item.id) onNavigate('orchid_detail', item.id);
                         handleClose();
                       }}
                       className="p-3 bg-surface-cream hover:bg-botanical-green/5 hover:text-botanical-green cursor-pointer rounded flex justify-between items-center group font-sans text-xs transition-colors"
                     >
                       <div>
                         <p className="font-semibold">{item.name}</p>
-                        <p className="text-[10px] text-on-surface-variant/70 italic">{item.scientificName}</p>
+                        <p className="text-[10px] text-on-surface-variant/70 italic">{item.englishName}</p>
                       </div>
-                      <span className="text-[10px] uppercase font-semibold text-antique-gold">{item.vietnameseName}</span>
+                      {item.hasFragrance && <span className="text-[10px] uppercase font-semibold text-antique-gold">Có hương thơm</span>}
                     </div>
-                  ))
+                  )) : (
+                    <p className="py-6 text-center text-xs text-on-surface-variant">Không tìm thấy loài lan phù hợp.</p>
+                  )
               ) : (
                 <p className="text-xs text-on-surface-variant text-center py-4 font-sans">Nhập từ khóa để bắt đầu tra cứu nhanh giống hoa lan...</p>
               )}

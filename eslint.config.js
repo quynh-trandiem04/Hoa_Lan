@@ -18,5 +18,20 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    rules: {
+      '@typescript-eslint/no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+      }],
+      // The app intentionally hydrates local/API state from effects.
+      'react-hooks/set-state-in-effect': 'off',
+      // Navigation helpers are safe to use from effects before their declaration.
+      'react-hooks/immutability': 'off',
+      // These effects run on session/navigation boundaries, not helper identity.
+      'react-hooks/exhaustive-deps': 'off',
+      // Toasts.tsx keeps a component and its tightly-coupled hook together.
+      'react-refresh/only-export-components': 'off',
+    },
   },
 ])

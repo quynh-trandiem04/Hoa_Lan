@@ -4,14 +4,14 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Editor } from '@tinymce/tinymce-react';
-import { X, FolderPlus, PlusCircle, Upload, Trash2, Search, Leaf, Star, Check, Flower2, Sun, Snowflake, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
+import { X, FolderPlus, PlusCircle, Upload, Trash2, Leaf, Star, Check, Flower2, Sun, Snowflake, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
 import { Orchid, Category, Region, BloomSeason, FlowerColor } from '../types';
 import { motion } from 'motion/react';
 import { deleteUploadedImage, uploadImage, type UploadedImage } from '../services/api';
 import { getOrchidImageUrls } from '../utils/orchidImages';
 import { toRichTextHtml } from '../utils/richText';
 import CategoryTreeSelect from './CategoryTreeSelect';
+import LocalRichTextEditor from './LocalRichTextEditor';
 
 const flowerColorLabels: Record<string, string> = {
   RED: 'Đỏ',
@@ -66,7 +66,6 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
   const [bloomSeasons, setBloomSeasons] = useState<string[]>([]);
   const [colors, setColors] = useState<string[]>([]);
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
-  const [categorySearch, setCategorySearch] = useState('');
   const [expandedCategoryIds, setExpandedCategoryIds] = useState<Set<string>>(new Set());
 
   const [errorMsg, setErrorMsg] = useState('');
@@ -107,10 +106,7 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
       setColors([]);
       setUploadedImages([]);
     }
-    setCategorySearch('');
-    setExpandedCategoryIds(new Set(categories
-      .filter((category) => categories.some((child) => child.parentId === category.id))
-      .map((category) => category.id)));
+    setExpandedCategoryIds(new Set());
   }, [editOrchidData, isOpen, categories]);
 
   const categoryTree = useMemo(() => {
@@ -126,18 +122,10 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
     };
   }, [categories]);
 
-  const normalizedCategorySearch = categorySearch.trim().toLocaleLowerCase('vi');
-  const categoryMatchesSearch = (category: Category): boolean => {
-    if (!normalizedCategorySearch) return true;
-    if (category.name.toLocaleLowerCase('vi').includes(normalizedCategorySearch)) return true;
-    return (categoryTree.childrenByParent.get(category.id) ?? []).some(categoryMatchesSearch);
-  };
-
   const renderCategoryNode = (category: Category, depth = 0): React.ReactNode => {
-    if (!categoryMatchesSearch(category)) return null;
     const children = categoryTree.childrenByParent.get(category.id) ?? [];
     const hasChildren = children.length > 0;
-    const expanded = normalizedCategorySearch.length > 0 || expandedCategoryIds.has(category.id);
+    const expanded = expandedCategoryIds.has(category.id);
     const selected = categoryIds.includes(category.id);
 
     if (hasChildren) {
@@ -151,12 +139,12 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
               else next.add(category.id);
               return next;
             })}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-2.5 text-left text-sm font-semibold text-charcoal-text transition-colors hover:bg-surface-container-low"
-            style={{ paddingLeft: `${8 + depth * 16}px` }}
+            className="flex w-full items-center justify-between gap-2 py-2.5 text-left text-sm font-semibold text-charcoal-text transition-colors hover:text-[#56642b]"
+            style={{ paddingLeft: `${depth * 22}px` }}
             aria-expanded={expanded}
           >
-            {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             <span>{category.name}</span>
+            {expanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
           </button>
           {expanded && children.map((child) => renderCategoryNode(child, depth + 1))}
         </div>
@@ -170,14 +158,12 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
         onClick={() => setCategoryIds((current) => selected
           ? current.filter((id) => id !== category.id)
           : [...current, category.id])}
-        className={`mb-1 flex w-full items-center gap-3 rounded-md border px-3 py-2.5 text-left text-sm transition-colors ${selected ? 'border-[#87905f]/50 bg-[#f2f4e9] text-[#56642b]' : 'border-outline-variant/70 text-charcoal-text hover:border-[#87905f]/40 hover:bg-[#fafbf7]'}`}
-        style={{ marginLeft: `${Math.min(depth, 3) * 16}px`, width: `calc(100% - ${Math.min(depth, 3) * 16}px)` }}
+        className={`flex w-full items-center justify-between gap-3 py-2.5 pr-0.5 text-left text-sm transition-colors ${selected ? 'font-bold text-[#56642b]' : 'font-normal text-[#5f6461] hover:text-[#56642b]'}`}
+        style={{ paddingLeft: `${depth * 22}px` }}
         aria-pressed={selected}
       >
-        <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${selected ? 'border-[#667234] bg-[#667234] text-white' : 'border-outline'}`}>
-          {selected && <Check className="h-3 w-3" strokeWidth={3} />}
-        </span>
         <span>{category.name}</span>
+        {selected && <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} />}
       </button>
     );
   };
@@ -215,9 +201,9 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
       hasFragrance,
       isPopular,
       slug: finalSlug,
-      regions: regions as any,
-      bloomSeasons: bloomSeasons as any,
-      colors: colors as any,
+      regions: regions as (keyof typeof Region)[],
+      bloomSeasons: bloomSeasons as (keyof typeof BloomSeason)[],
+      colors: colors as (keyof typeof FlowerColor)[],
       uploadedImageIds: uploadedImages.map((image) => image.id),
       imageUrls: uploadedImages.map((image) => image.url).filter(Boolean),
       displayOrder: editOrchidData?.displayOrder ?? 0,
@@ -284,12 +270,12 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="flex max-h-[94vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-outline-variant bg-white shadow-2xl"
+        className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-outline-variant bg-white shadow-2xl"
       >
-        <div className="z-20 flex shrink-0 items-center justify-between border-b border-outline-variant bg-white px-6 py-5 md:px-8">
+        <div className="z-20 flex shrink-0 items-center justify-between border-b border-outline-variant bg-white px-5 py-2.5 md:px-6">
           <div className="flex items-center gap-2 text-[#56642b]">
-            <PlusCircle className="w-5 h-5" />
-            <h3 className="font-serif text-xl md:text-2xl font-bold text-on-surface">
+            <PlusCircle className="h-4 w-4" />
+            <h3 className="font-serif text-base font-bold text-on-surface md:text-lg">
               {isEditing ? 'Cập Nhật Loài Lan' : 'Thêm Loài Lan Mới'}
             </h3>
           </div>
@@ -297,97 +283,63 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
             onClick={onClose}
             className="p-1 rounded-full text-outline hover:text-charcoal-text hover:bg-surface-container transition-all"
           >
-            <X className="w-5 h-5" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 space-y-7 overflow-y-auto p-5 md:p-7">
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4 md:p-5">
           {errorMsg && (
             <div className="p-3 bg-error-container/20 border border-error/20 text-error text-xs rounded-lg">
               {errorMsg}
             </div>
           )}
 
-          <section className="grid gap-7 lg:grid-cols-[1.05fr_1.2fr]">
+          <section className="grid gap-5 lg:grid-cols-[1.05fr_1.2fr]">
             <div className="space-y-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-[#3f433f]">Danh mục loài lan *</h4>
-              <div className="overflow-hidden rounded-lg border border-outline-variant bg-white">
-                <div className="relative border-b border-outline-variant">
-                  <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-outline" />
-                  <input
-                    type="search"
-                    value={categorySearch}
-                    onChange={(event) => setCategorySearch(event.target.value)}
-                    placeholder="Tìm kiếm danh mục..."
-                    className="h-12 w-full bg-white pl-11 pr-4 text-sm outline-none placeholder:text-outline focus:bg-[#fafbf7]"
-                  />
+              {categoryTree.roots.length > 0 ? (
+                <div>
+                  <button type="button" onClick={() => setCategoryIds([])} className={`flex w-full items-center justify-between gap-2 py-2.5 text-left text-sm transition-colors ${categoryIds.length === 0 ? 'font-bold text-[#56642b]' : 'font-medium text-[#434748] hover:text-[#56642b]'}`} aria-pressed={categoryIds.length === 0}>
+                    <span>Tất cả dòng lan</span>
+                    {categoryIds.length === 0 && <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} />}
+                  </button>
+                  <div className="ml-2 border-l border-[#d9dcd5] pl-3">
+                    {categoryTree.roots.map((category) => renderCategoryNode(category))}
+                  </div>
                 </div>
-                <div className="h-64 overflow-y-auto p-3">
-                  {categoryTree.roots.map((category) => renderCategoryNode(category))}
-                  {!categoryTree.roots.some(categoryMatchesSearch) && (
-                    <p className="px-3 py-8 text-center text-xs text-outline">
-                      {categories.length === 0 ? 'Chưa có danh mục. Hãy tạo danh mục trước.' : 'Không tìm thấy danh mục phù hợp.'}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center justify-between text-xs text-outline">
-                <span>Đã chọn ({categoryIds.length})</span>
-                {categoryIds.length > 0 && (
-                  <button type="button" onClick={() => setCategoryIds([])} className="font-medium text-charcoal-text hover:text-[#56642b]">Xóa tất cả</button>
-                )}
-              </div>
-              {categoryIds.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {categoryIds.map((id) => {
-                    const category = categories.find((item) => item.id === id);
-                    if (!category) return null;
-                    return (
-                      <button
-                        key={id}
-                        type="button"
-                        onClick={() => setCategoryIds((current) => current.filter((item) => item !== id))}
-                        className="flex items-center gap-2 rounded-md border border-[#87905f]/50 bg-[#f2f4e9] px-3 py-2 text-xs text-[#56642b]"
-                        title="Bỏ chọn"
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                        <span>{category.name}</span>
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    );
-                  })}
-                </div>
+              ) : (
+                <p className="py-8 text-center text-xs text-outline">Chưa có danh mục. Hãy tạo danh mục trước.</p>
               )}
             </div>
 
-            <div className="space-y-7">
+            <div className="space-y-5">
               <div className="grid gap-3 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={() => setHasFragrance((value) => !value)}
-                  className={`flex min-h-24 items-center gap-4 rounded-lg border p-4 text-left transition-colors ${hasFragrance ? 'border-[#87905f]/50 bg-[#fafbf5]' : 'border-outline-variant bg-white hover:border-[#87905f]/40'}`}
+                  className={`flex min-h-16 items-center gap-3 rounded-lg border p-3 text-left transition-colors ${hasFragrance ? 'border-[#87905f]/50 bg-[#fafbf5]' : 'border-outline-variant bg-white hover:border-[#87905f]/40'}`}
                   aria-pressed={hasFragrance}
                 >
-                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#f2f4e9] text-[#667234]"><Leaf className="h-6 w-6" /></span>
-                  <span className="min-w-0 flex-1"><strong className="block text-sm text-charcoal-text">Có hương thơm</strong><span className="mt-1 block text-xs text-outline">Loài lan có hương thơm đặc trưng</span></span>
-                  <span className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${hasFragrance ? 'bg-[#667234]' : 'bg-[#d7d9d2]'}`}><span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${hasFragrance ? 'translate-x-5' : 'translate-x-1'}`} /></span>
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f2f4e9] text-[#667234]"><Leaf className="h-5 w-5" /></span>
+                  <span className="min-w-0 flex-1"><strong className="block text-sm text-charcoal-text">Có hương thơm</strong><span className="mt-0.5 block text-[11px] leading-4 text-outline">Loài lan có hương thơm đặc trưng</span></span>
+                  <span className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${hasFragrance ? 'bg-[#667234]' : 'bg-[#d7d9d2]'}`}><span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${hasFragrance ? 'translate-x-[18px]' : 'translate-x-0.5'}`} /></span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsPopular((value) => !value)}
-                  className={`flex min-h-24 items-center gap-4 rounded-lg border p-4 text-left transition-colors ${isPopular ? 'border-[#87905f]/50 bg-[#fafbf5]' : 'border-outline-variant bg-white hover:border-[#87905f]/40'}`}
+                  className={`flex min-h-16 items-center gap-3 rounded-lg border p-3 text-left transition-colors ${isPopular ? 'border-[#87905f]/50 bg-[#fafbf5]' : 'border-outline-variant bg-white hover:border-[#87905f]/40'}`}
                   aria-pressed={isPopular}
                 >
-                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#f2f4e9] text-[#667234]"><Star className="h-6 w-6" /></span>
-                  <span className="min-w-0 flex-1"><strong className="block text-sm text-charcoal-text">Phổ biến</strong><span className="mt-1 block text-xs text-outline">Loài lan được trồng phổ biến</span></span>
-                  <span className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${isPopular ? 'bg-[#667234]' : 'bg-[#d7d9d2]'}`}><span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${isPopular ? 'translate-x-5' : 'translate-x-1'}`} /></span>
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f2f4e9] text-[#667234]"><Star className="h-5 w-5" /></span>
+                  <span className="min-w-0 flex-1"><strong className="block text-sm text-charcoal-text">Phổ biến</strong><span className="mt-0.5 block text-[11px] leading-4 text-outline">Loài lan được trồng phổ biến</span></span>
+                  <span className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${isPopular ? 'bg-[#667234]' : 'bg-[#d7d9d2]'}`}><span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${isPopular ? 'translate-x-[18px]' : 'translate-x-0.5'}`} /></span>
                 </button>
               </div>
 
               <div className="space-y-3">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-[#3f433f]">Khu vực phân bố</h4>
-                <div className="flex flex-wrap gap-2.5">
+                <div className="flex flex-wrap gap-2">
                   {Object.entries(Region).map(([key, value]) => {
                     const selected = regions.includes(key);
                     return (
@@ -395,10 +347,10 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
                         key={key}
                         type="button"
                         onClick={() => setRegions((current) => selected ? current.filter((item) => item !== key) : [...current, key])}
-                        className={`flex min-h-11 items-center gap-2 rounded-md border px-4 py-2 text-sm transition-colors ${selected ? 'border-[#87905f]/60 bg-[#f2f4e9] text-[#56642b]' : 'border-outline-variant bg-white text-charcoal-text hover:border-[#87905f]/50'}`}
+                        className={`flex min-h-9 items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs transition-colors ${selected ? 'border-[#87905f]/60 bg-[#f2f4e9] text-[#56642b]' : 'border-outline-variant bg-white text-charcoal-text hover:border-[#87905f]/50'}`}
                         aria-pressed={selected}
                       >
-                        {selected && <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#667234] text-white"><Check className="h-3 w-3" strokeWidth={3} /></span>}
+                        {selected && <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#667234] text-white"><Check className="h-2.5 w-2.5" strokeWidth={3} /></span>}
                         {value}
                       </button>
                     );
@@ -408,10 +360,10 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
             </div>
           </section>
 
-          <section className="space-y-6 border-t border-outline-variant pt-6">
+          <section className="space-y-4 border-t border-outline-variant pt-4">
             <div className="space-y-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-[#3f433f]">Mùa hoa nở</h4>
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+              <div className="grid grid-cols-2 gap-2.5 md:grid-cols-5">
                 {Object.entries(BloomSeason).map(([key, value]) => {
                   const selected = bloomSeasons.includes(key);
                   const SeasonIcon = bloomSeasonIcons[key] ?? Flower2;
@@ -420,12 +372,12 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
                       key={key}
                       type="button"
                       onClick={() => setBloomSeasons((current) => selected ? current.filter((item) => item !== key) : [...current, key])}
-                      className={`relative flex min-h-12 items-center justify-center gap-3 rounded-md border px-3 text-sm transition-colors ${selected ? 'border-[#667234] bg-[#fafbf5] font-semibold text-[#56642b]' : 'border-outline-variant bg-white text-charcoal-text hover:border-[#87905f]/50'}`}
+                      className={`relative flex min-h-9 items-center justify-center gap-2 rounded-md border px-2.5 py-1.5 text-xs transition-colors ${selected ? 'border-[#667234] bg-[#fafbf5] font-semibold text-[#56642b]' : 'border-outline-variant bg-white text-charcoal-text hover:border-[#87905f]/50'}`}
                       aria-pressed={selected}
                     >
-                      <SeasonIcon className="h-5 w-5 text-[#667234]" />
+                      <SeasonIcon className="h-4 w-4 text-[#667234]" />
                       <span>{value}</span>
-                      {selected && <span className="absolute right-3 flex h-5 w-5 items-center justify-center rounded-full bg-[#667234] text-white"><Check className="h-3 w-3" strokeWidth={3} /></span>}
+                      {selected && <span className="absolute right-2 flex h-4 w-4 items-center justify-center rounded-full bg-[#667234] text-white"><Check className="h-2.5 w-2.5" strokeWidth={3} /></span>}
                     </button>
                   );
                 })}
@@ -434,7 +386,7 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
 
             <div className="space-y-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-[#3f433f]">Màu sắc hoa</h4>
-              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
                 {Object.entries(FlowerColor).map(([key, value]) => {
                   const selected = colors.includes(key);
                   return (
@@ -442,12 +394,12 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
                       key={key}
                       type="button"
                       onClick={() => setColors((current) => selected ? current.filter((item) => item !== key) : [...current, key])}
-                      className={`relative flex min-h-11 items-center gap-3 rounded-md border px-4 text-sm transition-colors ${selected ? 'border-[#667234] bg-[#fafbf5] text-[#56642b]' : 'border-outline-variant bg-white text-charcoal-text hover:border-[#87905f]/50'}`}
+                      className={`relative flex min-h-9 items-center gap-2 rounded-md border px-3 py-1.5 text-xs transition-colors ${selected ? 'border-[#667234] bg-[#fafbf5] text-[#56642b]' : 'border-outline-variant bg-white text-charcoal-text hover:border-[#87905f]/50'}`}
                       aria-pressed={selected}
                     >
-                      <span className="h-5 w-5 shrink-0 rounded-full border border-black/15 shadow-sm" style={{ backgroundColor: value }} />
+                      <span className="h-4 w-4 shrink-0 rounded-full border border-black/15 shadow-sm" style={{ backgroundColor: value }} />
                       <span>{flowerColorLabels[key] ?? key}</span>
-                      {selected && <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-[#667234] text-white"><Check className="h-3 w-3" strokeWidth={3} /></span>}
+                      {selected && <span className="ml-auto flex h-4 w-4 items-center justify-center rounded-full bg-[#667234] text-white"><Check className="h-2.5 w-2.5" strokeWidth={3} /></span>}
                     </button>
                   );
                 })}
@@ -455,16 +407,16 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
             </div>
           </section>
 
-          <section className="space-y-5 border-t border-outline-variant pt-6">
+          <section className="space-y-4 border-t border-outline-variant pt-4">
             <h4 className="text-xs font-bold uppercase tracking-wider text-[#3f433f]">Thông tin loài lan</h4>
-            <div className="grid gap-5 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-1">
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tên thường gọi *</label>
-                <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ví dụ: Hoàng Thảo Kèn" className="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2.5 text-sm focus:outline-none focus:border-[#56642b]" />
+                <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ví dụ: Hoàng Thảo Kèn" className="w-full rounded border border-outline-variant bg-surface-container-low px-3 py-2 text-sm focus:border-[#56642b] focus:outline-none" />
               </div>
               <div className="space-y-1">
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tên tiếng Anh / Danh pháp khoa học *</label>
-                <input type="text" value={englishName} onChange={(e) => setEnglishName(e.target.value)} placeholder="Dendrobium nobile Lindl." className="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2.5 text-sm italic focus:outline-none focus:border-[#56642b]" />
+                <input type="text" value={englishName} onChange={(e) => setEnglishName(e.target.value)} placeholder="Dendrobium nobile Lindl." className="w-full rounded border border-outline-variant bg-surface-container-low px-3 py-2 text-sm italic focus:border-[#56642b] focus:outline-none" />
               </div>
             </div>
           </section>
@@ -481,27 +433,16 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
 
           <div className="space-y-1">
             <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Mô tả chi tiết</label>
-            <Editor
-              apiKey="zrlyc4qub67z3kuxndjjrn8c2043rdcb40itl176715lrh3y"
+            <LocalRichTextEditor
               value={detailedDescription}
-              onEditorChange={(content) => setDetailedDescription(content)}
-              init={{
-                height: 300,
-                menubar: false,
-                plugins: [
-                  'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
-                  'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
-                  'insertdatetime', 'media', 'table', 'help', 'wordcount',
-                ],
-                toolbar: 'undo redo | blocks | bold italic forecolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image table | removeformat | code preview fullscreen',
-                content_style: 'body { font-family: "Be Vietnam Pro", "Segoe UI", Arial, sans-serif; font-size: 14px; }',
-              }}
+              onChange={setDetailedDescription}
+              minHeight={180}
             />
           </div>
 
           <div className="space-y-3">
             <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Hình ảnh hoa lan</label>
-            <div className={`w-full min-h-28 border-2 border-dashed border-outline-variant rounded-lg flex flex-col items-center justify-center gap-2 p-4 text-sm transition-colors ${
+            <div className={`flex min-h-20 w-full flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-outline-variant p-3 text-sm transition-colors ${
               isUploadingImages ? 'opacity-60 cursor-wait' : 'hover:border-[#56642b] hover:bg-[#f7f8f2]'
             }`}>
               <Upload className="w-5 h-5 text-[#56642b]" />
@@ -560,19 +501,19 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
 
           </div>
 
-          <div className="z-20 flex shrink-0 justify-end gap-3 border-t border-outline-variant bg-white px-5 py-4 md:px-7">
+          <div className="z-20 flex shrink-0 justify-end gap-2.5 border-t border-outline-variant bg-white px-5 py-2.5 md:px-6">
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting || isUploadingImages}
-              className="min-w-24 rounded-md px-5 py-3 text-sm font-semibold text-charcoal-text transition-colors hover:bg-outline-variant/30"
+              className="min-w-16 rounded-md px-3 py-1.5 text-xs font-semibold text-charcoal-text transition-colors hover:bg-outline-variant/30"
             >
               Hủy
             </button>
             <button
               type="submit"
               disabled={isSubmitting || isUploadingImages}
-              className="min-w-44 rounded-md bg-[#56642b] px-7 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#4a5624] disabled:cursor-not-allowed disabled:opacity-60"
+              className="min-w-28 rounded-md bg-[#56642b] px-5 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-[#4a5624] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSubmitting ? 'ĐANG LƯU...' : (isEditing ? 'LƯU THAY ĐỔI' : 'THÊM MỚI')}
             </button>
@@ -622,17 +563,13 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
       setErrorMsg('Vui lòng cung cấp danh tính chi Lan mới.');
       return;
     }
-    if (!parentId) {
-      setErrorMsg('Vui lòng chọn danh mục cha.');
-      return;
-    }
     setErrorMsg('');
     setIsSubmitting(true);
     try {
       const payload = {
         name,
         description,
-        parentId,
+        parentId: parentId || null,
         slug: editCategoryData?.slug,
       };
       if (editCategoryData && onEditCategory) {
@@ -693,12 +630,13 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
           </div>
 
           <div className="space-y-1">
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-outline font-sans">Danh mục cha</label>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-outline font-sans">Danh mục cha (không bắt buộc)</label>
             <CategoryTreeSelect
               categories={categories}
               value={parentId}
               onChange={setParentId}
               excludeId={editCategoryData?.id}
+              allLabel="Cấp gốc (không có danh mục cha)"
             />
           </div>
 

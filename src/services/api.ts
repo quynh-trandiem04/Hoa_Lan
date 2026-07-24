@@ -27,6 +27,30 @@ export interface LoginResponse {
   [key: string]: unknown;
 }
 
+export type DashboardOverview = Record<string, unknown>;
+
+export const getDashboardOverview = async (): Promise<DashboardOverview> => {
+  const token = getStoredAuthToken();
+  const response = await fetch(`${API_BASE_URL}/api/Dashboard/overview`, {
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  const body = await readApiResponse(response);
+  if (response.status === 401) throw new Error('Phiên đăng nhập quản trị đã hết hạn. Vui lòng đăng nhập lại.');
+  if (!response.ok) {
+    const errorBody = body !== null && typeof body === 'object' ? body as LoginResponse : {};
+    throw new Error(getApiErrorMessage(errorBody, `Không thể tải dashboard (HTTP ${response.status}).`));
+  }
+
+  const wrapped = body !== null && typeof body === 'object' ? body as Record<string, unknown> : {};
+  const value = wrapped.data ?? wrapped.value ?? wrapped;
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as DashboardOverview
+    : {};
+};
+
 const getApiErrorMessage = (responseBody: LoginResponse, fallback: string): string => {
   const validationErrors = responseBody.validationErrors ?? responseBody.errors;
   if (validationErrors && typeof validationErrors === 'object') {
@@ -68,9 +92,9 @@ export const register = async (payload: RegisterPayload): Promise<LoginResponse>
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error('Máy chủ phản hồi quá lâu. Vui lòng thử đăng ký lại.');
+      throw new Error('Máy chủ phản hồi quá lâu. Vui lòng thử đăng ký lại.', { cause: error });
     }
-    throw new Error('Không thể kết nối đến máy chủ đăng ký.');
+    throw new Error('Không thể kết nối đến máy chủ đăng ký.', { cause: error });
   } finally {
     window.clearTimeout(timeout);
   }
@@ -112,9 +136,9 @@ export const login = async (credentials: LoginCredentials): Promise<LoginRespons
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error('Máy chủ phản hồi quá lâu. Vui lòng thử đăng nhập lại.');
+      throw new Error('Máy chủ phản hồi quá lâu. Vui lòng thử đăng nhập lại.', { cause: error });
     }
-    throw new Error('Không thể kết nối đến máy chủ đăng nhập.');
+    throw new Error('Không thể kết nối đến máy chủ đăng nhập.', { cause: error });
   } finally {
     window.clearTimeout(timeout);
   }
@@ -336,12 +360,18 @@ export const getUsers = async (
   pageNumber = 1,
   pageSize = 10,
   searchTerm?: string,
+  sortBy?: string,
+  sortDescending?: boolean,
+  roleId?: string,
 ): Promise<PaginatedUsers> => {
   const params = new URLSearchParams({
     PageNumber: String(pageNumber),
     PageSize: String(pageSize),
   });
   if (searchTerm) params.set('SearchTerm', searchTerm);
+  if (sortBy) params.set('SortBy', sortBy);
+  if (sortDescending !== undefined) params.set('SortDescending', String(sortDescending));
+  if (roleId) params.set('RoleId', roleId);
   const token = getStoredAuthToken();
   const response = await fetch(`${API_BASE_URL}/api/Users?${params.toString()}`, {
     headers: {
@@ -969,6 +999,7 @@ export interface OrchidQuery {
   pageNumber?: number;
   pageSize?: number;
   searchTerm?: string;
+  categoryIds?: string[];
   sortBy?: string;
   sortDescending?: boolean;
   apiVersion?: string;
@@ -977,6 +1008,16 @@ export interface OrchidQuery {
   colors?: string[];
   regions?: string[];
   bloomSeasons?: string[];
+}
+
+export interface PaginatedOrchids {
+  items: Orchid[];
+  pageNumber: number;
+  totalPages: number;
+  totalCount: number;
+  pageSize: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
 }
 
 export type CreateOrchidPayload = Omit<Orchid, 'id'>;
@@ -1073,13 +1114,16 @@ const throwOrchidApiError = (body: unknown, fallback: string): never => {
   throw new Error(getApiErrorMessage(errorBody, fallback));
 };
 
-export const getOrchids = async (query: OrchidQuery = {}): Promise<Orchid[]> => {
+export const getOrchidsPage = async (query: OrchidQuery = {}): Promise<PaginatedOrchids> => {
+  const requestedPageNumber = query.pageNumber ?? 1;
+  const requestedPageSize = query.pageSize ?? 20;
   const token = getStoredAuthToken();
   const params = new URLSearchParams({
-    PageNumber: String(query.pageNumber ?? 1),
-    PageSize: String(query.pageSize ?? 100),
+    PageNumber: String(requestedPageNumber),
+    PageSize: String(requestedPageSize),
   });
   if (query.searchTerm) params.set('SearchTerm', query.searchTerm);
+  if (query.categoryIds?.length) query.categoryIds.forEach(id => params.append('CategoryIds', id));
   if (query.sortBy) params.set('SortBy', query.sortBy);
   if (query.sortDescending !== undefined) params.set('SortDescending', String(query.sortDescending));
   if (query.apiVersion) params.set('api-version', query.apiVersion);
@@ -1098,10 +1142,28 @@ export const getOrchids = async (query: OrchidQuery = {}): Promise<Orchid[]> => 
   if (!response.ok) {
     throw new Error('Không thể tải danh sách hoa lan.');
   }
-  const data = await response.json() as { items?: RawOrchid[] } | RawOrchid[];
-  const items = Array.isArray(data) ? data : data.items ?? [];
-  return items.map(normalizeOrchid);
+  const data = await response.json() as (Partial<Omit<PaginatedOrchids, 'items'>> & { items?: RawOrchid[] }) | RawOrchid[];
+  const rawItems = Array.isArray(data) ? data : data.items ?? [];
+  const totalCount = Array.isArray(data) ? rawItems.length : data.totalCount ?? rawItems.length;
+  const pageSize = Array.isArray(data) ? requestedPageSize : data.pageSize ?? requestedPageSize;
+  const pageNumber = Array.isArray(data) ? requestedPageNumber : data.pageNumber ?? requestedPageNumber;
+  const totalPages = Array.isArray(data)
+    ? Math.max(1, Math.ceil(totalCount / pageSize))
+    : data.totalPages ?? Math.max(1, Math.ceil(totalCount / pageSize));
+
+  return {
+    items: rawItems.map(normalizeOrchid),
+    pageNumber,
+    pageSize,
+    totalCount,
+    totalPages,
+    hasPreviousPage: Array.isArray(data) ? pageNumber > 1 : data.hasPreviousPage ?? pageNumber > 1,
+    hasNextPage: Array.isArray(data) ? pageNumber < totalPages : data.hasNextPage ?? pageNumber < totalPages,
+  };
 };
+
+export const getOrchids = async (query: OrchidQuery = {}): Promise<Orchid[]> =>
+  (await getOrchidsPage(query)).items;
 
 export const getOrchidById = async (id: string, apiVersion?: string): Promise<Orchid> => {
   const token = getStoredAuthToken();
@@ -1125,7 +1187,9 @@ export const createOrchid = async (data: CreateOrchidPayload, apiVersion?: strin
   if (apiVersion) params.set('api-version', apiVersion);
   const query = params.toString();
   // displayOrder is assigned by the backend/database for new orchids.
-  const { displayOrder: _displayOrder, imageUrls: _imageUrls, ...createData } = data;
+  const { displayOrder, imageUrls, ...createData } = data;
+  void displayOrder;
+  void imageUrls;
   const response = await fetch(`${API_BASE_URL}/api/Orchids${query ? `?${query}` : ''}`, {
     method: 'POST',
     headers: {
@@ -1149,7 +1213,8 @@ export const updateOrchid = async (
   const params = new URLSearchParams();
   if (apiVersion) params.set('api-version', apiVersion);
   const query = params.toString();
-  const { imageUrls: _imageUrls, ...updateData } = data;
+  const { imageUrls, ...updateData } = data;
+  void imageUrls;
   const response = await fetch(`${API_BASE_URL}/api/Orchids/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
     method: 'PUT',
     headers: {

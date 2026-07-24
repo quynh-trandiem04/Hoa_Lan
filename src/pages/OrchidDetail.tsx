@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Heart, UserCheck, Search, User, ChevronRight } from 'lucide-react';
+import { Heart, UserCheck } from 'lucide-react';
 import { Category, Orchid, Region, BloomSeason, FlowerColor } from '../types';
 import SearchModal from '../components/SearchModal';
 import { getOrchidImageUrls } from '../utils/orchidImages';
@@ -42,7 +42,9 @@ export default function OrchidDetail({ id, categories, onNavigate }: OrchidDetai
       try {
         const parsed = JSON.parse(saved);
         setIsBookmarked(parsed.includes(id));
-      } catch (e) {}
+      } catch {
+        // Ignore malformed bookmark data and keep the default state.
+      }
     }
     return () => { cancelled = true; };
   }, [id]);
@@ -60,7 +62,9 @@ export default function OrchidDetail({ id, categories, onNavigate }: OrchidDetai
     if (saved) {
       try {
         savedBookmarks = JSON.parse(saved);
-      } catch (e) {}
+      } catch {
+        // Ignore malformed bookmark data and replace it on the next write.
+      }
     }
 
     if (isBookmarked) {

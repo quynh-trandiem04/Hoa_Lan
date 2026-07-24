@@ -1,23 +1,16 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
-  Search, 
   User, 
   ChevronLeft, 
   ChevronRight, 
   ArrowDown, 
   BookOpen, 
-  GraduationCap, 
   Library, 
   X, 
-  Sparkles, 
-  Sprout, 
-  Check, 
-  HelpCircle,
   MessageSquare,
   Bookmark
 } from "lucide-react";
-import { pillarDetails } from "../data";
 import { Category, Orchid, OrchidItem, PillarDetail } from "../types";
 
 // Import custom interactive components
@@ -60,7 +53,6 @@ export default function CustomerHome({ categories, orchids, onNavigate }: Custom
   const totalCards = featuredOrchids.length;
   // We can show indices. On desktop, show 3 items. On mobile, show 1.
   const cardsRef = useRef<HTMLDivElement>(null);
-  const rootCategories = categories.filter((category) => !category.parentId);
 
   useEffect(() => {
     try {

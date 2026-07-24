@@ -5,7 +5,7 @@ import { Category, Orchid, Region, BloomSeason, FlowerColor } from '../types';
 import SearchModal from '../components/SearchModal';
 import PublicFooter from '../components/PublicFooter';
 import PublicHeader from '../components/PublicHeader';
-import { getOrchids } from '../services/api';
+import { getOrchidById, getOrchidsPage } from '../services/api';
 import InlineTreeMultiSelect from '../components/InlineTreeMultiSelect';
 import PageIntro from '../components/PageIntro';
 
@@ -39,38 +39,75 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 6;
+  const [totalOrchidCount, setTotalOrchidCount] = useState(orchids.length);
+  const [totalPages, setTotalPages] = useState(1);
+  const PAGE_SIZE = 9;
 
   useEffect(() => {
     const query = searchQuery.trim();
-    const hasAttributeFilters = selectedRegions.length > 0 || selectedSeasons.length > 0 || selectedColors.length > 0;
+    const requestedCategoryIds = new Set(Object.entries(selectedCategories)
+      .filter(([, selected]) => selected)
+      .map(([id]) => id));
+    let foundDescendant = true;
+    while (foundDescendant) {
+      foundDescendant = false;
+      categories.forEach((category) => {
+        if (category.parentId && requestedCategoryIds.has(category.parentId) && !requestedCategoryIds.has(category.id)) {
+          requestedCategoryIds.add(category.id);
+          foundDescendant = true;
+        }
+      });
+    }
     const params = new URLSearchParams(window.location.search);
     if (query) params.set('q', query);
     else params.delete('q');
     window.history.replaceState({}, '', `${window.location.pathname}${params.size ? `?${params.toString()}` : ''}`);
 
-    if (!query && !hasAttributeFilters) {
-      setApiOrchids(orchids);
-      setIsSearching(false);
-      return;
-    }
-
     let active = true;
     setIsSearching(true);
     const timer = window.setTimeout(() => {
-      void getOrchids({ 
-        pageNumber: 1, 
-        pageSize: 100, 
+      if (showSavedOnly) {
+        const totalSaved = savedOrchids.length;
+        const savedTotalPages = Math.max(1, Math.ceil(totalSaved / PAGE_SIZE));
+        const pageIds = savedOrchids.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+        void Promise.all(pageIds.map((id) => getOrchidById(id)))
+          .then((items) => {
+            if (!active) return;
+            setApiOrchids(items);
+            setTotalOrchidCount(totalSaved);
+            setTotalPages(savedTotalPages);
+          })
+          .catch(() => {
+            if (active) setApiOrchids([]);
+          })
+          .finally(() => {
+            if (active) setIsSearching(false);
+          });
+        return;
+      }
+
+      void getOrchidsPage({
+        pageNumber: currentPage,
+        pageSize: PAGE_SIZE,
         searchTerm: query || undefined,
+        categoryIds: [...requestedCategoryIds],
         regions: selectedRegions,
         bloomSeasons: selectedSeasons,
-        colors: selectedColors
+        colors: selectedColors,
+        sortBy: 'name',
+        sortDescending: sortOrder === 'za'
       })
         .then((result) => {
-          if (active) setApiOrchids(result);
+          if (!active) return;
+          setApiOrchids(result.items);
+          setTotalOrchidCount(result.totalCount);
+          setTotalPages(Math.max(1, result.totalPages));
         })
         .catch(() => {
-          if (active) setApiOrchids([]);
+          if (!active) return;
+          setApiOrchids([]);
+          setTotalOrchidCount(0);
+          setTotalPages(1);
         })
         .finally(() => {
           if (active) setIsSearching(false);
@@ -81,7 +118,7 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
       active = false;
       window.clearTimeout(timer);
     };
-  }, [searchQuery, orchids, selectedRegions, selectedSeasons, selectedColors]);
+  }, [searchQuery, selectedCategories, categories, selectedRegions, selectedSeasons, selectedColors, sortOrder, currentPage, showSavedOnly, savedOrchids]);
 
   useEffect(() => {
     localStorage.setItem('orchidee-orchid-sort', sortOrder);
@@ -132,7 +169,7 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
     if (saved) {
       try {
         setSavedOrchids(JSON.parse(saved));
-      } catch (e) {
+      } catch {
         setSavedOrchids([]);
       }
     }
@@ -175,55 +212,15 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
     setSelectedSeasons([]);
     setSelectedColors([]);
     setShowSavedOnly(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Logic to calculate filtered list
-  const getFilteredOrchids = () => {
-    const selectedIds = selectedCategoryIds;
-    const matchingCategoryIds = new Set(selectedIds);
-    let foundDescendant = true;
-    while (foundDescendant) {
-      foundDescendant = false;
-      categories.forEach((category) => {
-        if (category.parentId && matchingCategoryIds.has(category.parentId) && !matchingCategoryIds.has(category.id)) {
-          matchingCategoryIds.add(category.id);
-          foundDescendant = true;
-        }
-      });
-    }
-
-    return apiOrchids.filter(orchid => {
-      // 1. Category filter (OR inside group if any checked)
-      const hasAnyCatFilter = selectedIds.length > 0;
-      if (hasAnyCatFilter) {
-        const matchesCat = orchid.categoryIds.some(catId => matchingCategoryIds.has(catId));
-        if (!matchesCat) {
-          return false;
-        }
-      }
-
-      // 2. Saved Only filter
-      if (showSavedOnly) {
-        if (!orchid.id || !savedOrchids.includes(orchid.id)) {
-          return false;
-        }
-      }
-
-      return true;
-    });
+  const scrollToPageTop = () => {
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
   };
 
-  const filteredOrchids = getFilteredOrchids().sort((first, second) => {
-    const comparison = first.name.localeCompare(second.name, 'vi', { sensitivity: 'base' });
-    return sortOrder === 'az' ? comparison : -comparison;
-  });
-
-  // Compute sublist for current page
-  const totalPages = Math.ceil(filteredOrchids.length / PAGE_SIZE) || 1;
-  const paginatedOrchids = filteredOrchids.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE
-  );
+  // API already returns exactly one page, so the frontend does not slice a large result set.
+  const paginatedOrchids = apiOrchids;
 
   return (
     <div className="bg-[#f9f9f7] min-h-screen text-[#1a1c1b] font-sans">
@@ -273,9 +270,7 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
 
             {/* Filter group: Categories */}
             <div className="space-y-4">
-              <h4 className="text-[11px] font-sans font-bold tracking-widest text-[#1a1c1b] uppercase border-b border-[#747878]/10 pb-2">
-                PHÂN LOẠI DÒNG LAN
-              </h4>
+              <h4 className="border-b border-[#747878]/10 pb-2 text-[11px] font-bold uppercase tracking-widest text-[#1a1c1b]">PHÂN LOẠI DÒNG LAN</h4>
               <InlineTreeMultiSelect
                 options={categoryOptions.map(({ category, depth }) => ({ value: category.id, label: category.name, depth }))}
                 values={selectedCategoryIds}
@@ -283,6 +278,7 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
                   const next: Record<string, boolean> = {};
                   categories.forEach((category) => { next[category.id] = values.includes(category.id); });
                   setSelectedCategories(next);
+                  scrollToPageTop();
                 }}
                 allLabel="Tất cả dòng lan"
                 emptyMessage="Chưa có danh mục từ máy chủ."
@@ -291,35 +287,35 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
 
             {/* Filter group: Region */}
             <div className="space-y-4">
-              <h4 className="text-[11px] font-sans font-bold tracking-widest text-[#1a1c1b] uppercase border-b border-[#747878]/10 pb-2">
-                KHU VỰC PHÂN BỐ
-              </h4>
+              <h4 className="border-b border-[#747878]/10 pb-2 text-[11px] font-bold uppercase tracking-widest text-[#1a1c1b]">KHU VỰC PHÂN BỐ</h4>
               <InlineTreeMultiSelect
                 options={Object.entries(Region).map(([value, label]) => ({ value, label }))}
                 values={selectedRegions}
-                onChange={setSelectedRegions}
+                onChange={(values) => {
+                  setSelectedRegions(values);
+                  scrollToPageTop();
+                }}
                 allLabel="Tất cả khu vực"
               />
             </div>
 
             {/* Filter group: BloomSeason */}
             <div className="space-y-4">
-              <h4 className="text-[11px] font-sans font-bold tracking-widest text-[#1a1c1b] uppercase border-b border-[#747878]/10 pb-2">
-                MÙA HOA NỞ
-              </h4>
+              <h4 className="border-b border-[#747878]/10 pb-2 text-[11px] font-bold uppercase tracking-widest text-[#1a1c1b]">MÙA HOA NỞ</h4>
               <InlineTreeMultiSelect
                 options={Object.entries(BloomSeason).map(([value, label]) => ({ value, label }))}
                 values={selectedSeasons}
-                onChange={setSelectedSeasons}
+                onChange={(values) => {
+                  setSelectedSeasons(values);
+                  scrollToPageTop();
+                }}
                 allLabel="Tất cả mùa hoa"
               />
             </div>
 
             {/* Filter group: Color */}
             <div className="space-y-4">
-              <h4 className="text-[11px] font-sans font-bold tracking-widest text-[#1a1c1b] uppercase border-b border-[#747878]/10 pb-2">
-                MÀU SẮC HOA
-              </h4>
+              <h4 className="border-b border-[#747878]/10 pb-2 text-[11px] font-bold uppercase tracking-widest text-[#1a1c1b]">MÀU SẮC HOA</h4>
               <div className="flex flex-wrap gap-3">
                 {Object.entries(FlowerColor).map(([key, value]) => (
                   <label key={key} className="flex items-center gap-2 cursor-pointer group" title={key}>
@@ -332,7 +328,10 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
                       type="checkbox"
                       className="hidden"
                       checked={selectedColors.includes(key)}
-                      onChange={(e) => setSelectedColors(prev => e.target.checked ? [...prev, key] : prev.filter(k => k !== key))}
+                      onChange={(e) => {
+                        setSelectedColors(prev => e.target.checked ? [...prev, key] : prev.filter(k => k !== key));
+                        scrollToPageTop();
+                      }}
                     />
                   </label>
                 ))}
@@ -342,7 +341,10 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
             {/* Sidebar Bookmark view filter toggle */}
             <div className="space-y-4 pt-1">
               <button
-                onClick={() => setShowSavedOnly(!showSavedOnly)}
+                onClick={() => {
+                  setShowSavedOnly(!showSavedOnly);
+                  scrollToPageTop();
+                }}
                 className={`w-full flex items-center justify-between p-3.5 border rounded-md text-xs font-sans font-semibold tracking-wider transition-all duration-300 ${
                   showSavedOnly 
                     ? 'bg-[#56642b]/10 border-botanical-green text-botanical-green shadow-sm' 
@@ -390,7 +392,7 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
             
             {/* Top result statistics bar */}
             <div className="flex flex-col gap-3 border-b border-[#747878]/10 pb-3 font-sans text-xs text-[#747878] sm:flex-row sm:items-center sm:justify-between">
-              <span>{isSearching ? 'Đang tìm kiếm bằng API...' : `Đang hiển thị ${filteredOrchids.length} loài lan`}</span>
+              <span>{isSearching ? 'Đang tải dữ liệu...' : `Tìm thấy ${totalOrchidCount} loài lan`}</span>
               <div className="flex flex-wrap items-center gap-2">
                 {showSavedOnly && (
                   <span className="bg-[#56642b]/10 text-botanical-green px-2 py-0.5 text-[10px] rounded-[2px] font-semibold">

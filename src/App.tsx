@@ -3,8 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Editor } from '@tinymce/tinymce-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import CustomerHome from './pages/CustomerHome';
 import Discussion from './pages/Discussion';
 import PlantingAndCare from './pages/PlantingAndCare';
@@ -19,8 +18,6 @@ import {
   LogOut,
   Menu,
   Search,
-  Bell,
-  Settings,
   Plus,
   FilePlus,
   ChevronRight,
@@ -30,21 +27,18 @@ import {
   Trash2,
   X,
   Check,
-  Send,
   Eye,
   EyeOff,
   Layers,
-  HelpCircle,
   FileText,
-  ThumbsUp,
-  MessageSquare,
   Image as ImageIcon,
   Upload,
   SlidersHorizontal,
   RotateCcw,
   ChevronDown,
   Grid2X2,
-  List
+  List,
+  Flower2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -53,9 +47,7 @@ import { Orchid, Question, Category, CommunityPost, CareArticle, PaginatedDocume
 import { login, register, loginWithGoogle, refreshAuthToken, getCategories, createCategory, getCategoryById, updateCategory, deleteCategory, getArticleById, getSectionArticles, createSectionArticle, updateSectionArticle, deleteSectionArticle, getArticleCategories, getOrchids, getOrchidById, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, deleteDocument, uploadImage, getUploadedImageUrl, getUsers, createUser, updateUser, deleteUser, resetUserPassword, getDiscussions, type ArticleSection, type DiscussionPostDto, type LoginResponse, type UserListItem } from './services/api';
 import { getOrchidImageUrls } from './utils/orchidImages';
 import {
-  INITIAL_ORCHIDS,
   INITIAL_QUESTIONS,
-  INITIAL_ARTICLES,
   INITIAL_COMMUNITY_POSTS
 } from './data';
 
@@ -73,6 +65,8 @@ import CustomerProfile from './pages/CustomerProfile';
 import GoogleLoginButton from './components/GoogleLoginButton';
 import ArticleCategoryManager from './components/ArticleCategoryManager';
 import CategoryTreeSelect from './components/CategoryTreeSelect';
+import AdminDashboardOverview from './components/AdminDashboardOverview';
+import LocalRichTextEditor from './components/LocalRichTextEditor';
 
 const ORCHID_FEATURE_FILTERS = [
   { id: 'Popular', name: 'Lan phổ biến', parentId: null },
@@ -182,7 +176,7 @@ const getStoredSessionUserProfile = (): UserListItem | null => {
   }
 };
 
-const formatRelativeTime = (value: string): string => {
+const _formatRelativeTime = (value: string): string => {
   const timestamp = new Date(value).getTime();
   if (!Number.isFinite(timestamp)) return value;
   const elapsedSeconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
@@ -205,6 +199,7 @@ const createSlug = (value: string): string => value
 
 const ADMIN_EMAIL = (import.meta.env.VITE_ADMIN_EMAIL || 'duongthanhson2004@gmail.com').trim().toLowerCase();
 const isAdminAccount = (email: string | null | undefined) => email?.trim().toLowerCase() === ADMIN_EMAIL;
+const SHOW_LEGACY_OVERVIEW = false;
 
 export default function App() {
   const { toasts, addToast, removeToast } = useToasts();
@@ -553,7 +548,7 @@ export default function App() {
 
   // --- Persistent Storage State ---
   const [orchids, setOrchids] = useState<Orchid[]>([]);
-  const [loadingOrchids, setLoadingOrchids] = useState(false);
+  const [, setLoadingOrchids] = useState(false);
 
   const loadOrchids = async () => {
     setLoadingOrchids(true);
@@ -611,10 +606,10 @@ export default function App() {
     }
   };
 
-  const loadUserCount = async () => {
+  const loadUserCount = async (searchTerm = '', sortOrder = 'az') => {
     setLoadingUsers(true);
     try {
-      const data = await getUsers(1, 100);
+      const data = await getUsers(1, 100, searchTerm || undefined, 'fullName', sortOrder === 'za');
       setUserTotalCount(data.totalCount ?? data.items?.length ?? 0);
       setUsers(data.items ?? []);
     } catch (error) {
@@ -642,8 +637,8 @@ export default function App() {
     }
     toggleAdminMenu(menu);
   };
-  const [dashboardDiscussions, setDashboardDiscussions] = useState<DiscussionPostDto[]>([]);
-  const [loadingDashboardDiscussions, setLoadingDashboardDiscussions] = useState(false);
+  const [, setDashboardDiscussions] = useState<DiscussionPostDto[]>([]);
+  const [, setLoadingDashboardDiscussions] = useState(false);
 
   const loadDashboardDiscussions = useCallback(async () => {
     setLoadingDashboardDiscussions(true);
@@ -718,7 +713,7 @@ export default function App() {
   // Reports state removed, we now use communityPosts for post moderation
 
   // System Notifications state
-  const [notifications, setNotifications] = useState([
+  const [, setNotifications] = useState([
     { id: 'n-1', text: 'Minh Anh gửi câu hỏi Cattleya', time: '10 phút trước', read: false },
     { id: 'n-2', text: '5 tài liệu khoa học cần được duyệt lưu trữ', time: '1 giờ trước', read: false },
     { id: 'n-3', text: 'Báo cáo xu hướng thị trường 2026 sẵn sàng', time: '1 ngày trước', read: true }
@@ -741,8 +736,61 @@ export default function App() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchOverlay, setShowSearchOverlay] = useState(false);
-  const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
   const [showProfileCard, setShowProfileCard] = useState(false);
+  const [adminSearchResults, setAdminSearchResults] = useState<{
+    orchids: Orchid[];
+    documents: DocumentItem[];
+    cultivation: CareArticle[];
+    applications: CareArticle[];
+    users: UserListItem[];
+  }>({ orchids: [], documents: [], cultivation: [], applications: [], users: [] });
+  const [loadingAdminSearch, setLoadingAdminSearch] = useState(false);
+
+  useEffect(() => {
+    if (screen !== 'dashboard') return;
+    const query = searchQuery.trim();
+    if (!query) {
+      setAdminSearchResults({ orchids: [], documents: [], cultivation: [], applications: [], users: [] });
+      setLoadingAdminSearch(false);
+      return;
+    }
+
+    let active = true;
+    setLoadingAdminSearch(true);
+    const timer = window.setTimeout(() => {
+      void Promise.allSettled([
+        getOrchids({ pageNumber: 1, pageSize: 6, searchTerm: query }),
+        getDocuments(1, 6, query),
+        getSectionArticles('cultivation', { pageNumber: 1, pageSize: 6, searchTerm: query }),
+        getSectionArticles('application', { pageNumber: 1, pageSize: 6, searchTerm: query }),
+        getUsers(1, 6, query),
+      ]).then(([orchidResult, documentResult, cultivationResult, applicationResult, userResult]) => {
+        if (!active) return;
+        setAdminSearchResults({
+          orchids: orchidResult.status === 'fulfilled' ? orchidResult.value : [],
+          documents: documentResult.status === 'fulfilled' ? documentResult.value.items ?? [] : [],
+          cultivation: cultivationResult.status === 'fulfilled' ? cultivationResult.value : [],
+          applications: applicationResult.status === 'fulfilled' ? applicationResult.value : [],
+          users: userResult.status === 'fulfilled' ? userResult.value.items ?? [] : [],
+        });
+      }).finally(() => {
+        if (active) setLoadingAdminSearch(false);
+      });
+    }, 300);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [screen, searchQuery]);
+
+  useEffect(() => {
+    if (activeTab !== 'users') return;
+    const timer = window.setTimeout(() => {
+      void loadUserCount(searchQuery.trim(), userSortOrder);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [activeTab, searchQuery, userSortOrder]);
 
   // --- Modals State ---
   const [openAddOrchid, setOpenAddOrchid] = useState(false);
@@ -983,16 +1031,13 @@ export default function App() {
   };
 
   // --- Community state ---
-  const [activeCommunitySubTab, setActiveCommunitySubTab] = useState<'feed' | 'moderation'>('feed');
   const [newPostContent, setNewPostContent] = useState('');
   const [newPostImage, setNewPostImage] = useState<string | null>(null);
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
-  const [activeCommentPostId, setActiveCommentPostId] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // --- Moderation Modal state ---
   const [openModerationModal, setOpenModerationModal] = useState(false);
-  const [selectedPendingPost, setSelectedPendingPost] = useState<CommunityPost | null>(null);
+  const [selectedPendingPost] = useState<CommunityPost | null>(null);
 
   // --- Toast notifications mechanism ---
   // --- Orchid Tab Search & Filter States ---
@@ -1004,12 +1049,75 @@ export default function App() {
   const [orchidSortOrder, setOrchidSortOrder] = useState('az');
   const [orchidAdminViewMode, setOrchidAdminViewMode] = useState<'grid' | 'list'>('grid');
   const [showOrchidAdvancedFilters, setShowOrchidAdvancedFilters] = useState(false);
+  const [adminOrchids, setAdminOrchids] = useState<Orchid[]>([]);
+  const [loadingAdminOrchids, setLoadingAdminOrchids] = useState(false);
+  const [adminOrchidError, setAdminOrchidError] = useState('');
   const orchidFilterCategories = useMemo(() => {
     const catalogRoot = categories.find((category) => !category.parentId && category.name.toLocaleLowerCase('vi') === 'danh mục lan');
     return catalogRoot ? categories.filter((category) => category.id !== catalogRoot.id) : categories;
   }, [categories]);
 
-  const handleCreatePost = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (activeTab !== 'orchids') return;
+
+    const categoryIds = new Set<string>();
+    if (selectedCategoryFilter) {
+      categoryIds.add(selectedCategoryFilter);
+      let foundDescendant = true;
+      while (foundDescendant) {
+        foundDescendant = false;
+        categories.forEach((category) => {
+          if (category.parentId && categoryIds.has(category.parentId) && !categoryIds.has(category.id)) {
+            categoryIds.add(category.id);
+            foundDescendant = true;
+          }
+        });
+      }
+    }
+
+    let active = true;
+    setLoadingAdminOrchids(true);
+    setAdminOrchidError('');
+    const timer = window.setTimeout(() => {
+      void getOrchids({
+        pageNumber: 1,
+        pageSize: 100,
+        searchTerm: searchQuery.trim() || undefined,
+        categoryIds: [...categoryIds],
+        isPopular: selectedFeatureFilters.includes('Popular') ? true : undefined,
+        hasFragrance: selectedFeatureFilters.includes('Fragrant') ? true : undefined,
+        regions: selectedRegionFilters,
+        bloomSeasons: selectedSeasonFilters,
+        colors: selectedColorFilters,
+        sortBy: 'name',
+        sortDescending: orchidSortOrder === 'za',
+      })
+        .then((items) => {
+          if (!active) return;
+          setAdminOrchids(items.map((orchid) => {
+            const previous = orchids.find((item) => item.id === orchid.id || (orchid.slug && item.slug === orchid.slug));
+            return getOrchidImageUrls(orchid).length === 0 && previous
+              ? { ...orchid, imageUrls: getOrchidImageUrls(previous) }
+              : orchid;
+          }));
+        })
+        .catch((error) => {
+          if (!active) return;
+          setAdminOrchidError(error instanceof Error ? error.message : 'Không thể tìm kiếm hoa lan từ API.');
+          setAdminOrchids([]);
+        })
+        .finally(() => {
+          if (active) setLoadingAdminOrchids(false);
+        });
+    }, 300);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [activeTab, searchQuery, selectedCategoryFilter, selectedFeatureFilters, selectedRegionFilters, selectedSeasonFilters, selectedColorFilters, orchidSortOrder, categories, orchids]);
+
+  const _handleCreatePost = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPostContent.trim() && !newPostImage) return;
 
@@ -1034,7 +1142,7 @@ export default function App() {
     addToast('Bài viết đã được gửi và đang chờ duyệt', 'success');
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const _handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 2 * 1024 * 1024) {
@@ -1049,7 +1157,7 @@ export default function App() {
     }
   };
 
-  const handleToggleLike = (postId: string) => {
+  const _handleToggleLike = (postId: string) => {
     setCommunityPosts(prev => prev.map(post => {
       if (post.id === postId) {
         return {
@@ -1062,7 +1170,7 @@ export default function App() {
     }));
   };
 
-  const handleAddComment = (postId: string, e: React.FormEvent) => {
+  const _handleAddComment = (postId: string, e: React.FormEvent) => {
     e.preventDefault();
     const commentText = commentInputs[postId];
     if (!commentText?.trim()) return;
@@ -1324,7 +1432,7 @@ export default function App() {
         addToast(`Đã tạo người dùng: ${values.fullName}`, 'success');
       }
       setEditingUser(null);
-      await loadUserCount();
+      await loadUserCount(activeTab === 'users' ? searchQuery.trim() : '', userSortOrder);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Không thể lưu người dùng.';
       addToast(message, 'error');
@@ -1389,7 +1497,7 @@ export default function App() {
     if (!window.confirm(`Bạn có chắc muốn xóa người dùng “${user.fullName}”?`)) return;
     try {
       await deleteUser(user.id);
-      await loadUserCount();
+      await loadUserCount(activeTab === 'users' ? searchQuery.trim() : '', userSortOrder);
       addToast(`Đã xóa người dùng: ${user.fullName}`, 'info');
     } catch (error) {
       addToast(error instanceof Error ? error.message : 'Không thể xóa người dùng.', 'error');
@@ -1397,41 +1505,12 @@ export default function App() {
   };
 
   // Notification clear
-  const clearNotification = (id: string) => {
+  const _clearNotification = (id: string) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
   };
 
   // --- Filtering & Sorting ---
-  const matchingAdminCategoryIds = new Set<string>();
-  if (selectedCategoryFilter) {
-    matchingAdminCategoryIds.add(selectedCategoryFilter);
-    let foundDescendant = true;
-    while (foundDescendant) {
-      foundDescendant = false;
-      categories.forEach((category) => {
-        if (category.parentId && matchingAdminCategoryIds.has(category.parentId) && !matchingAdminCategoryIds.has(category.id)) {
-          matchingAdminCategoryIds.add(category.id);
-          foundDescendant = true;
-        }
-      });
-    }
-  }
-
-  const filteredOrchids = orchids.filter(orc => {
-    const orchidSearchTerm = searchQuery.trim().toLocaleLowerCase('vi');
-    const matchesSearch = !orchidSearchTerm || orc.name.toLocaleLowerCase('vi').includes(orchidSearchTerm) ||
-                          orc.englishName.toLocaleLowerCase('vi').includes(orchidSearchTerm);
-    const matchesCat = !selectedCategoryFilter || orc.categoryIds.some((id) => matchingAdminCategoryIds.has(id));
-    const matchesFeature = selectedFeatureFilters.every((feature) =>
-      (feature === 'Popular' && orc.isPopular) || (feature === 'Fragrant' && orc.hasFragrance));
-    const matchesRegion = selectedRegionFilters.length === 0 || selectedRegionFilters.some((region) => orc.regions?.includes(region as keyof typeof Region));
-    const matchesSeason = selectedSeasonFilters.length === 0 || selectedSeasonFilters.some((season) => orc.bloomSeasons?.includes(season as keyof typeof BloomSeason));
-    const matchesColor = selectedColorFilters.length === 0 || selectedColorFilters.some((color) => orc.colors?.includes(color as keyof typeof FlowerColor));
-    return matchesSearch && matchesCat && matchesFeature && matchesRegion && matchesSeason && matchesColor;
-  }).sort((first, second) => {
-    const comparison = first.name.localeCompare(second.name, 'vi', { sensitivity: 'base' });
-    return orchidSortOrder === 'az' ? comparison : -comparison;
-  });
+  const filteredOrchids = adminOrchids;
 
   const orchidAdvancedFilterCount = selectedFeatureFilters.length
     + selectedRegionFilters.length
@@ -1455,13 +1534,7 @@ export default function App() {
            (cat.scientificName && cat.scientificName.toLowerCase().includes(searchQuery.toLowerCase()));
   });
 
-  const filteredUsers = users.filter((user) => {
-    return user.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-           user.email.toLowerCase().includes(searchQuery.toLowerCase());
-  }).sort((first, second) => {
-    const comparison = first.fullName.localeCompare(second.fullName, 'vi', { sensitivity: 'base' });
-    return userSortOrder === 'az' ? comparison : -comparison;
-  });
+  const filteredUsers = users;
 
   const currentUserProfile = users.find((user) =>
     user.email.toLowerCase() === currentUser?.toLowerCase()
@@ -1501,11 +1574,11 @@ export default function App() {
     <div className="min-h-screen bg-[#f9f9f7] text-[#1a1c1b] font-sans transition-colors duration-300">
 
       {/* =================== SCREEN 0: HOME =================== */}
-      {screen === "home" && <CustomerHome categories={categories} orchids={orchids} onNavigate={(s, id) => setScreen(s as any, id)} />}
+      {screen === "home" && <CustomerHome categories={categories} orchids={orchids} onNavigate={(s, id) => setScreen(s as ScreenType, id)} />}
 
-      {screen === "list_orchids" && <ListOrchids categoryId={selectedCategoryId} categories={categories} orchids={orchids} onNavigate={(s, id) => setScreen(s as any, id)} />}
+      {screen === "list_orchids" && <ListOrchids categoryId={selectedCategoryId} categories={categories} orchids={orchids} onNavigate={(s, id) => setScreen(s as ScreenType, id)} />}
       
-      {screen === "orchid_detail" && selectedOrchidId && <OrchidDetail id={selectedOrchidId} categories={categories} onNavigate={(s, id) => setScreen(s as any, id)} />}
+      {screen === "orchid_detail" && selectedOrchidId && <OrchidDetail id={selectedOrchidId} categories={categories} onNavigate={(s, id) => setScreen(s as ScreenType, id)} />}
 
       {screen === "search" && <GlobalSearch />}
 
@@ -1680,7 +1753,7 @@ export default function App() {
 
             {/* Poetic quote block at absolute bottom-right corner */}
             <div className="absolute bottom-12 right-12 left-12 max-w-lg ml-auto text-right space-y-3 z-20">
-              <p className="font-serif italic text-white text-2xl lg:text-[28px] font-light leading-relaxed tracking-wide drop-shadow-md">
+              <p className="font-display-serif italic text-white text-2xl lg:text-[28px] font-light leading-relaxed tracking-wide drop-shadow-md">
                 "Bắt đầu hành trình lưu giữ và khám phá thế giới hoa lan"
               </p>
               
@@ -1716,7 +1789,7 @@ export default function App() {
 
             {/* Caption on the left-hand bottom-left as requested in prompt screenshot */}
             <div className="absolute bottom-12 left-12 right-12 max-w-md text-left space-y-3 z-20">
-              <p className="font-serif text-white text-3xl lg:text-[36px] font-normal leading-relaxed tracking-wide drop-shadow-md">
+              <p className="font-display-serif text-white text-3xl lg:text-[36px] font-normal leading-relaxed tracking-wide drop-shadow-md">
                 Khám phá vẻ đẹp độc bản của tự nhiên
               </p>
               <div className="w-16 h-[1.5px] bg-[#d6e7a0] mt-2"></div>
@@ -1871,7 +1944,7 @@ export default function App() {
 
             {/* Caption on the left-hand bottom-left as requested in prompt screenshot */}
             <div className="absolute bottom-12 left-12 right-12 max-w-md text-left space-y-3 z-20">
-              <p className="font-serif text-white text-3xl lg:text-[36px] font-normal leading-relaxed tracking-wide drop-shadow-md">
+              <p className="font-display-serif text-white text-3xl lg:text-[36px] font-normal leading-relaxed tracking-wide drop-shadow-md">
                 Khám phá vẻ đẹp độc bản của tự nhiên
               </p>
               <div className="w-16 h-[1.5px] bg-[#d6e7a0] mt-2"></div>
@@ -1985,7 +2058,7 @@ export default function App() {
                 : 'text-[#434748] hover:bg-[#d6e7a1]/20 hover:text-[#56642b]'
             }`}
           >
-            <Layers className="h-5 w-5 shrink-0" />
+            <Flower2 className="h-5 w-5 shrink-0" />
             <span className={`${isSidebarOpen ? 'block' : 'hidden'} text-xs font-semibold uppercase tracking-wider`}>Quản lý hoa lan</span>
             <ChevronRight className={`${isSidebarOpen ? 'block' : 'hidden'} ml-auto h-4 w-4 transition-transform ${expandedAdminMenus.orchids ? 'rotate-90' : ''}`} />
           </button>
@@ -2043,7 +2116,7 @@ export default function App() {
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
             }`}
           >
-            <Layers className="w-5 h-5 shrink-0" />
+            <Layers className="h-5 w-5 shrink-0" />
             <span className="text-[11px] font-semibold uppercase tracking-wider">Danh mục CT&amp;CS</span>
             <span className="ml-auto text-[10px] font-mono bg-surface-container-high px-2 py-0.5 rounded text-outline font-bold">
               {cultivationCategories.length}
@@ -2059,7 +2132,7 @@ export default function App() {
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
             }`}
           >
-            <Sparkles className="w-5 h-5 shrink-0" />
+            <FolderKanban className="h-5 w-5 shrink-0" />
             <span className="text-[11px] font-semibold uppercase tracking-wider">Danh mục ứng dụng</span>
             <span className="ml-auto text-[10px] font-mono bg-surface-container-high px-2 py-0.5 rounded text-outline font-bold">
               {applicationCategories.length}
@@ -2075,7 +2148,7 @@ export default function App() {
                 : 'text-[#434748] hover:text-[#56642b] hover:bg-[#d6e7a1]/20'
             }`}
           >
-            <Layers className="w-5 h-5 shrink-0" />
+            <Flower2 className="h-5 w-5 shrink-0" />
             <span className="text-[11px] font-semibold uppercase tracking-wider">Quản lý loại lan</span>
             <span className="ml-auto text-[10px] font-mono bg-surface-container-high px-2 py-0.5 rounded text-outline font-bold">
               {orchids.length}
@@ -2241,29 +2314,51 @@ export default function App() {
                     exit={{ opacity: 0 }}
                     className="absolute top-10 left-0 right-0 bg-white shadow-2xl border border-outline-variant rounded-xl p-3 z-50 text-xs text-[#1a1c1b] space-y-2 max-h-60 overflow-y-auto"
                   >
-                    <p className="text-[10px] uppercase font-bold tracking-wider text-outline px-1">Gợi ý tìm kiếm</p>
-                    
-                    {filteredOrchids.slice(0, 3).map((orc) => (
-                      <button
-                        key={orc.id}
-                        onMouseDown={() => {
-                          setSearchQuery(orc.name);
-                          setShowSearchOverlay(false);
-                        }}
-                        className="flex items-center gap-2 p-1.5 hover:bg-surface-container rounded w-full text-left transition-colors"
-                      >
-                        <img src={getOrchidImageUrls(orc)[0] || "https://images.unsplash.com/photo-1525310072745-f49212b5ac6d?q=80&w=300"} className="w-6 h-6 rounded object-cover" alt="" referrerPolicy="no-referrer" />
-                        <div>
-                          <p className="font-bold">{orc.name}</p>
-                          <p className="text-[10px] text-outline italic">{orc.englishName}</p>
-                        </div>
-                      </button>
-                    ))}
+                    <p className="px-1 text-[10px] font-bold uppercase tracking-wider text-outline">Kết quả tìm kiếm từ API</p>
 
-                    {filteredOrchids.length === 0 && (
-                      <div className="p-2 text-center text-outline text-[11px]">
-                        Không tìm thấy loài lan phù hợp.
-                      </div>
+                    {loadingAdminSearch ? (
+                      <div className="p-4 text-center text-[11px] text-[#56642b]">Đang tìm kiếm...</div>
+                    ) : (
+                      <>
+                        {adminSearchResults.orchids.slice(0, 2).map((orchid) => (
+                          <button key={orchid.id} type="button" onMouseDown={() => { setActiveTab('orchids'); setSearchQuery(orchid.name); setShowSearchOverlay(false); }} className="flex w-full items-center gap-2 rounded p-1.5 text-left transition-colors hover:bg-surface-container">
+                            <img src={getOrchidImageUrls(orchid)[0] || "https://images.unsplash.com/photo-1525310072745-f49212b5ac6d?q=80&w=300"} className="h-7 w-7 rounded object-cover" alt="" referrerPolicy="no-referrer" />
+                            <span className="min-w-0 flex-1"><strong className="block truncate text-xs">{orchid.name}</strong><span className="block truncate text-[10px] italic text-outline">Loài lan · {orchid.englishName}</span></span>
+                          </button>
+                        ))}
+
+                        {adminSearchResults.documents.slice(0, 2).map((document) => (
+                          <button key={document.id ?? document.url} type="button" onMouseDown={() => { setActiveTab('articles'); setSearchQuery(document.title); setShowSearchOverlay(false); }} className="flex w-full items-center gap-2 rounded p-1.5 text-left transition-colors hover:bg-surface-container">
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-[#eef1e2] text-[#56642b]"><BookOpen className="h-3.5 w-3.5" /></span>
+                            <span className="min-w-0 flex-1"><strong className="block truncate text-xs">{document.title}</strong><span className="block truncate text-[10px] text-outline">Tài liệu · {document.originalName}</span></span>
+                          </button>
+                        ))}
+
+                        {adminSearchResults.cultivation.slice(0, 2).map((article) => (
+                          <button key={article.id} type="button" onMouseDown={() => { setActiveTab('care'); setSearchQuery(article.title); setShowSearchOverlay(false); }} className="flex w-full items-center gap-2 rounded p-1.5 text-left transition-colors hover:bg-surface-container">
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-[#eef1e2] text-[#56642b]"><FileText className="h-3.5 w-3.5" /></span>
+                            <span className="min-w-0 flex-1"><strong className="block truncate text-xs">{article.title}</strong><span className="block text-[10px] text-outline">Bài trồng &amp; chăm sóc</span></span>
+                          </button>
+                        ))}
+
+                        {adminSearchResults.applications.slice(0, 2).map((article) => (
+                          <button key={article.id} type="button" onMouseDown={() => { setActiveTab('applications'); setSearchQuery(article.title); setShowSearchOverlay(false); }} className="flex w-full items-center gap-2 rounded p-1.5 text-left transition-colors hover:bg-surface-container">
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-[#eef1e2] text-[#56642b]"><Sparkles className="h-3.5 w-3.5" /></span>
+                            <span className="min-w-0 flex-1"><strong className="block truncate text-xs">{article.title}</strong><span className="block text-[10px] text-outline">Bài viết ứng dụng</span></span>
+                          </button>
+                        ))}
+
+                        {adminSearchResults.users.slice(0, 2).map((user) => (
+                          <button key={user.id} type="button" onMouseDown={() => { setActiveTab('users'); setSearchQuery(user.fullName || user.email); setShowSearchOverlay(false); }} className="flex w-full items-center gap-2 rounded p-1.5 text-left transition-colors hover:bg-surface-container">
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#eef1e2] text-[#56642b]"><Users className="h-3.5 w-3.5" /></span>
+                            <span className="min-w-0 flex-1"><strong className="block truncate text-xs">{user.fullName || user.email}</strong><span className="block truncate text-[10px] text-outline">Người dùng · {user.email}</span></span>
+                          </button>
+                        ))}
+
+                        {adminSearchResults.orchids.length + adminSearchResults.documents.length + adminSearchResults.cultivation.length + adminSearchResults.applications.length + adminSearchResults.users.length === 0 && (
+                          <div className="p-4 text-center text-[11px] text-outline">Không tìm thấy kết quả phù hợp.</div>
+                        )}
+                      </>
                     )}
                   </motion.div>
                 )}
@@ -2296,6 +2391,32 @@ export default function App() {
           
           {/* ======================= TAB: 1. OVERVIEW ======================= */}
           {activeTab === 'overview' && (
+            <AdminDashboardOverview
+              displayName={currentDisplayName}
+              onAddOrchid={() => setOpenAddOrchid(true)}
+              onAddUser={() => { setEditingUser(null); setOpenInviteAdmin(true); }}
+              onOpenOrchids={() => { setActiveTab('orchids'); setSearchQuery(''); }}
+              onOpenDocuments={() => { setActiveTab('articles'); setSearchQuery(''); }}
+              onOpenListItem={(sectionKey, item) => {
+                const normalizedKey = sectionKey.replace(/[^a-z]/gi, '').toLowerCase();
+                const record = item !== null && typeof item === 'object' ? item as Record<string, unknown> : {};
+                const itemQuery = ['name', 'title', 'fullName', 'email', 'content']
+                  .map((key) => record[key])
+                  .find((value): value is string => typeof value === 'string' && Boolean(value.trim())) ?? '';
+                if (normalizedKey.includes('orchid')) setActiveTab('orchids');
+                else if (normalizedKey.includes('document')) setActiveTab('articles');
+                else if (normalizedKey.includes('cultivation')) setActiveTab('care');
+                else if (normalizedKey.includes('application')) setActiveTab('applications');
+                else if (normalizedKey.includes('user')) setActiveTab('users');
+                else if (normalizedKey.includes('discussion')) setActiveTab('community');
+                else return;
+                setSearchQuery(itemQuery);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            />
+          )}
+
+          {SHOW_LEGACY_OVERVIEW && (
             <div className="space-y-10">
               {/* Top Title Bar */}
               <div>
@@ -2669,8 +2790,8 @@ export default function App() {
                     </span>
                   </button>
 
-                  <div className="whitespace-nowrap text-xs text-outline xl:text-center">
-                    Tìm thấy <strong className="text-base text-[#56642b]">{filteredOrchids.length}</strong> loài lan
+                  <div className="whitespace-nowrap text-xs text-outline xl:text-center" aria-live="polite">
+                    {loadingAdminOrchids ? 'Đang tìm qua API...' : <>Tìm thấy <strong className="text-base text-[#56642b]">{filteredOrchids.length}</strong> loài lan</>}
                   </div>
 
                   <button
@@ -2787,8 +2908,8 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className={`grid grid-cols-1 gap-6 ${orchidAdminViewMode === 'grid' ? 'md:grid-cols-2' : ''}`}>
-                  {filteredOrchids.map((orc) => (
+                <div className={`grid grid-cols-1 gap-6 ${orchidAdminViewMode === 'grid' ? 'md:grid-cols-2' : ''}`} aria-busy={loadingAdminOrchids}>
+                  {!loadingAdminOrchids && !adminOrchidError && filteredOrchids.map((orc) => (
                     <div key={orc.id} className="bg-white p-4 rounded-xl border border-outline-variant/40 hover:border-botanical-green/40 duration-300 transition-all flex gap-4 group relative">
                       <div className="w-24 h-24 rounded-lg overflow-hidden shrink-0 border border-outline-variant/30 bg-surface-container">
                         <img 
@@ -2846,7 +2967,19 @@ export default function App() {
                     </div>
                   ))}
 
-                  {filteredOrchids.length === 0 && (
+                  {loadingAdminOrchids && (
+                    <div className="col-span-12 rounded-xl border border-outline-variant/40 bg-white p-12 text-center text-sm text-outline">
+                      Đang tìm kiếm hoa lan từ API...
+                    </div>
+                  )}
+
+                  {!loadingAdminOrchids && adminOrchidError && (
+                    <div className="col-span-12 rounded-xl border border-red-200 bg-red-50 p-12 text-center text-sm text-red-600">
+                      {adminOrchidError}
+                    </div>
+                  )}
+
+                  {!loadingAdminOrchids && !adminOrchidError && filteredOrchids.length === 0 && (
                     <div className="col-span-12 p-12 text-center bg-white border border-dashed rounded-xl text-outline text-sm">
                       Không có loài lan nào khớp với từ khóa tìm kiếm hoặc tùy chọn lọc của bạn.
                     </div>
@@ -3471,24 +3604,10 @@ export default function App() {
 
                     <div className="space-y-1">
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Nội dung chi tiết *</label>
-                      <Editor
-                        apiKey="zrlyc4qub67z3kuxndjjrn8c2043rdcb40itl176715lrh3y"
+                      <LocalRichTextEditor
                         value={careArticleForm.content}
-                        onEditorChange={(content) => setCareArticleForm({ ...careArticleForm, content })}
-                        init={{
-                          height: 300,
-                          menubar: false,
-                          plugins: [
-                            'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
-                            'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
-                            'insertdatetime', 'media', 'table', 'code', 'help', 'wordcount'
-                          ],
-                          toolbar: 'undo redo | blocks | ' +
-                            'bold italic forecolor | alignleft aligncenter ' +
-                            'alignright alignjustify | bullist numlist outdent indent | ' +
-                            'image | removeformat | help',
-                          content_style: 'body { font-family:"Be Vietnam Pro","Segoe UI",Arial,sans-serif; font-size:14px }',
-                        }}
+                        onChange={(content) => setCareArticleForm({ ...careArticleForm, content })}
+                        minHeight={240}
                       />
                     </div>
 

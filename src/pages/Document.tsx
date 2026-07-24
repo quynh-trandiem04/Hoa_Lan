@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Calendar, Download, Eye, FileText, HardDrive, Search, X } from 'lucide-react';
 import type { DocumentItem } from '../types';
 import { getDocuments } from '../services/api';
@@ -18,13 +18,6 @@ const formatDate = (value?: string) => {
   return Number.isNaN(date.getTime()) ? 'Không rõ' : date.toLocaleDateString('vi-VN');
 };
 
-const normalizeSearchText = (value: string) => value
-  .normalize('NFD')
-  .replace(/[\u0300-\u036f]/g, '')
-  .replace(/đ/g, 'd')
-  .replace(/Đ/g, 'D')
-  .toLocaleLowerCase('vi');
-
 export default function DocumentPage() {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,32 +26,29 @@ export default function DocumentPage() {
   const [searchInput, setSearchInput] = useState(() => new URLSearchParams(window.location.search).get('q') ?? '');
   const [searchTerm, setSearchTerm] = useState(() => new URLSearchParams(window.location.search).get('q') ?? '');
 
-  const filteredDocuments = useMemo(() => {
-    const keyword = normalizeSearchText(searchTerm.trim());
-    if (!keyword) return documents;
-    return documents.filter((document) => normalizeSearchText([
-      document.title,
-      document.originalName,
-      document.description,
-      document.extension,
-    ].filter(Boolean).join(' ')).includes(keyword));
-  }, [documents, searchTerm]);
-
   useEffect(() => {
     let active = true;
+    setLoading(true);
+    setError('');
     const load = async () => {
       try {
-        const result = await getDocuments(1, 100);
+        const result = await getDocuments(1, 100, searchTerm.trim() || undefined);
         if (active) setDocuments(result.items ?? []);
       } catch (loadError) {
-        if (active) setError(loadError instanceof Error ? loadError.message : 'Không thể tải danh sách tài liệu.');
+        if (active) {
+          setDocuments([]);
+          setError(loadError instanceof Error ? loadError.message : 'Không thể tải danh sách tài liệu.');
+        }
       } finally {
         if (active) setLoading(false);
       }
     };
-    void load();
-    return () => { active = false; };
-  }, []);
+    const timer = window.setTimeout(() => void load(), 300);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [searchTerm]);
 
   const handleDownload = async (document: DocumentItem) => {
     if (!document.url || downloadingId) return;
@@ -141,7 +131,7 @@ export default function DocumentPage() {
           <div className="py-20 text-center text-sm text-[#747878]">Đang tải danh sách tài liệu...</div>
         ) : error ? (
           <div className="border border-red-200 bg-red-50 px-6 py-12 text-center text-sm text-red-700">{error}</div>
-        ) : filteredDocuments.length === 0 ? (
+        ) : documents.length === 0 ? (
           <div className="border border-dashed border-[#cfd2cb] bg-white px-6 py-20 text-center">
             <FileText className="mx-auto mb-3 text-[#92978f]" />
             <p className="font-serif text-xl font-bold">{searchTerm ? 'Không tìm thấy tài liệu phù hợp' : 'Chưa có tài liệu'}</p>
@@ -149,7 +139,7 @@ export default function DocumentPage() {
           </div>
         ) : (
           <section className="space-y-6">
-            {filteredDocuments.map((document) => (
+            {documents.map((document) => (
               <article key={document.id} className="relative flex flex-col gap-5 border border-[#eeeeea] bg-white p-6 shadow-[0_8px_24px_rgba(0,0,0,0.035)] sm:flex-row sm:items-start">
                 <div className="flex h-[76px] w-[60px] shrink-0 flex-col items-center justify-center rounded border border-[#dedfdb] bg-[#f4f4f2] text-red-500">
                   <FileText size={29} strokeWidth={1.8} />
