@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, ImagePlus, LoaderCircle, LockKeyhole, MessageSquare, MoreHorizontal, RefreshCw, Search, Send, Trash2, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, ImagePlus, LoaderCircle, LockKeyhole, MessageSquare, MoreHorizontal, RefreshCw, Search, Send, Trash2, X } from 'lucide-react';
 import {
   createDiscussion,
   createDiscussionComment,
@@ -537,7 +537,7 @@ export default function Discussion() {
 
       <main className="mx-auto max-w-7xl px-5 py-8 md:px-16">
         <div className="mb-8 flex items-center gap-2 text-xs font-medium tracking-wider text-[#747878]">
-          <a href="/" className="hover:text-[#56642b]">Trang chủ</a>
+          <a href="/" className="flex items-center gap-1 transition-colors hover:text-botanical-green"><ArrowLeft size={14} /> Trang chủ</a>
           <span>&gt;</span>
           <span className="font-semibold text-[#1a1c1b]">Thảo luận</span>
         </div>
