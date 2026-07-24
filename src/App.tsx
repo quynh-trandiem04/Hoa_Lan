@@ -3504,13 +3504,13 @@ export default function App() {
 
           {/* ======================= TAB: CARE GUIDE / TRỒNG & CHĂM SÓC (API) ======================= */}
           {(activeTab === 'care' || activeTab === 'applications') && (
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
+            <div className="space-y-5">
+              <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-end">
                 <div>
                   <h2 className="font-serif text-3xl font-semibold text-on-surface">
-                    {activeTab === 'applications' ? 'Ứng Dụng' : 'Hướng Dẫn Trồng & Chăm Sóc'}
+                    {activeTab === 'applications' ? 'Ứng dụng' : 'Hướng dẫn trồng & chăm sóc'}
                   </h2>
-                  <p className="text-sm text-on-surface-variant mt-1">
+                  <p className="mt-1 text-sm text-on-surface-variant">
                     {activeTab === 'applications'
                       ? 'Biên soạn và quản lý các bài viết về ứng dụng của hoa lan trong đời sống.'
                       : 'Biên soạn và quản lý các hướng dẫn trồng, chăm sóc và bảo tồn hoa lan.'}
@@ -3524,8 +3524,9 @@ export default function App() {
                       setCareThumbnailPreviewUrl('');
                       setShowCareArticleEditor(true);
                     }}
-                    className="px-5 py-2.5 bg-botanical-green text-white font-sans text-xs font-semibold uppercase tracking-wider rounded-lg hover:shadow cursor-pointer"
+                    className="flex shrink-0 cursor-pointer items-center gap-2 rounded-lg bg-botanical-green px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-white transition-all hover:shadow"
                   >
+                    <FilePlus className="h-4 w-4" />
                     {activeTab === 'applications' ? 'Viết bài ứng dụng mới' : 'Viết hướng dẫn mới'}
                   </button>
                 )}
@@ -3792,18 +3793,8 @@ export default function App() {
                       <div className="animate-spin w-8 h-8 border-4 border-botanical-green border-t-transparent rounded-full"></div>
                     </div>
                   ) : careArticles.length === 0 ? (
-                    <div className="text-center py-16 bg-white rounded-xl border border-outline-variant/30">
-                      <div className="w-16 h-16 bg-[#d6e7a1]/20 rounded-full flex items-center justify-center mx-auto mb-4 text-[#56642b]">
-                        <FileText className="w-8 h-8" />
-                      </div>
-                      <h3 className="font-serif text-xl font-bold text-on-surface mb-2">
-                        {activeTab === 'applications' ? 'Chưa có bài ứng dụng nào' : 'Chưa có bài hướng dẫn nào'}
-                      </h3>
-                      <p className="text-sm text-outline max-w-md mx-auto">
-                        {activeTab === 'applications'
-                          ? 'Hãy bắt đầu tạo nội dung ứng dụng cho hoa lan.'
-                          : 'Hãy bắt đầu viết các bài hướng dẫn kỹ thuật trồng và chăm sóc hoa lan để chia sẻ với cộng đồng.'}
-                      </p>
+                    <div className="rounded-xl border border-dashed border-outline-variant bg-white py-14 text-center text-sm text-outline">
+                      {activeTab === 'applications' ? 'Chưa có bài ứng dụng nào.' : 'Chưa có bài hướng dẫn nào.'}
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
