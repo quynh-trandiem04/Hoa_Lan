@@ -40,6 +40,12 @@ const readCurrentUserName = (): string => {
   return typeof displayName === 'string' ? displayName.trim() : 'Tài khoản';
 };
 
+const getCompactAccountName = (displayName: string) => {
+  const normalizedName = displayName.includes('@') ? displayName.split('@')[0] : displayName;
+  const nameParts = normalizedName.trim().split(/\s+/).filter(Boolean);
+  return nameParts.at(-1) || displayName;
+};
+
 interface StoredUserIdentity {
   id: string;
   name: string;
@@ -368,6 +374,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
   );
   const unreadNotificationCount = commentNotifications.filter((notification) => !readCommentNotificationIds.includes(notification.id)).length;
   const orchidCategories = suppliedCategories ?? loadedCategories;
+  const compactCurrentUserName = getCompactAccountName(currentUserName);
 
   return (
     <header className="sticky top-0 z-50 h-16 w-full border-b border-[#56642b]/10 bg-surface-cream/95 backdrop-blur-md">
@@ -494,7 +501,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
               <User className="h-5 w-5 shrink-0" />
               {isAuthenticated && (
                 <span className="max-w-28 truncate font-sans text-[11px] font-semibold text-[#434748]" title={currentUserName}>
-                  {currentUserName}
+                  {compactCurrentUserName}
                 </span>
               )}
               {isAuthenticated && favoriteCount > 0 && (
@@ -510,7 +517,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
                   <>
                     <div className="border-b border-[#eeeeea] px-5 py-3">
                       <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#899073]">Tài khoản của bạn</p>
-                      <p className="mt-1 truncate font-serif text-sm font-semibold text-[#1a1c1b]" title={currentUserName}>{currentUserName}</p>
+                      <p className="mt-1 truncate font-serif text-sm font-semibold text-[#1a1c1b]" title={currentUserName}>{compactCurrentUserName}</p>
                     </div>
                     <a href="/profile" className="block px-5 py-3 font-serif text-sm text-[#1a1c1b] transition-colors hover:bg-[#56642b]/5 hover:text-[#56642b]" role="menuitem">
                       Thông tin tài khoản
