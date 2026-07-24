@@ -252,7 +252,7 @@ export default function DocumentPage() {
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-8">
+              <div className="grid grid-cols-1 gap-6">
                 {paginatedDocuments.map((document) => {
                   const downloadKey = document.id ?? document.url;
                   return (
