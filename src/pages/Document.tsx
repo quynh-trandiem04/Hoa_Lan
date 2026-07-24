@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Calendar, ChevronLeft, ChevronRight, Download, Eye, FileText, HardDrive, LoaderCircle, Search, X } from 'lucide-react';
+import { ArrowLeft, Calendar, ChevronLeft, ChevronRight, Download, Eye, FileText, HardDrive, LoaderCircle, Search, X } from 'lucide-react';
 import type { DocumentCategory, DocumentItem } from '../types';
 import { getDocumentCategories, getDocuments } from '../services/api';
 import InlineTreeMultiSelect from '../components/InlineTreeMultiSelect';
@@ -172,7 +172,7 @@ export default function DocumentPage() {
 
       <main className="mx-auto max-w-7xl px-4 py-8 font-sans animate-fade-in md:px-16">
         <div className="mb-8 flex items-center space-x-2 text-xs font-medium tracking-wider text-[#747878]">
-          <a href="/" className="transition-colors hover:text-[#56642b]">← Trang chủ</a>
+          <a href="/" className="flex items-center gap-1 transition-colors hover:text-botanical-green"><ArrowLeft size={14} /> Trang chủ</a>
           <span>&gt;</span>
           <span className="font-semibold text-[#1a1c1b]">Tài liệu</span>
         </div>
