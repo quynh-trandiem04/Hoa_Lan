@@ -1,6 +1,6 @@
 import type { MultiSelectOption } from './MultiSelect';
 import { useState } from 'react';
-import { Check, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 
 interface InlineTreeMultiSelectProps {
   options: MultiSelectOption[];
@@ -32,20 +32,21 @@ export default function InlineTreeMultiSelect({
   }
 
   return (
-    <div className="space-y-0.5">
+    <div className="space-y-3">
       {allLabel && (
         <button
           type="button"
           onClick={() => onChange([])}
-          className={`flex w-full items-center justify-between gap-2 py-2 text-left text-xs transition-colors ${values.length === 0 ? 'font-bold text-[#56642b]' : 'font-medium text-[#434748] hover:text-[#56642b]'}`}
+          className={`block w-full rounded-sm text-left text-[14px] leading-6 transition-colors hover:text-[#315f24] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#87905f] ${
+            values.length === 0 ? 'font-semibold text-[#315f24]' : 'font-normal text-[#1a1c1b]'
+          }`}
           aria-pressed={values.length === 0}
         >
-          <span>{allLabel}</span>
-          {values.length === 0 && <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} aria-hidden="true" />}
+          {allLabel}
         </button>
       )}
 
-      <div className={allLabel ? 'ml-2 border-l border-[#d9dcd5] pl-3' : ''}>
+      <div className={allLabel ? 'relative ml-3 border-l border-[#d8dbd5] py-1' : 'relative py-1'}>
         {options.map((option, index) => {
           const selected = values.includes(option.value);
           const depth = option.depth ?? 0;
@@ -61,21 +62,29 @@ export default function InlineTreeMultiSelect({
           if (ancestors.some((ancestor) => !expandedNodes[ancestor.value])) return null;
 
           return (
-            <div key={option.value} className="flex w-full items-center" style={{ paddingLeft: `${depth * 22}px` }}>
+            <div key={option.value} className="relative flex min-h-11 w-full items-center">
+              {selected && (
+                <span
+                  className="absolute -left-[3px] top-1/2 h-8 w-[5px] -translate-y-1/2 rounded-full bg-[#4da83d]"
+                  aria-hidden="true"
+                />
+              )}
               <button
                 type="button"
                 onClick={() => toggleValue(option.value)}
-                className={`flex min-w-0 flex-1 items-center justify-between gap-2 py-2 text-left text-xs leading-5 transition-colors ${selected ? 'font-bold text-[#56642b]' : depth === 0 ? 'font-semibold text-[#343837] hover:text-[#56642b]' : 'font-normal text-[#5f6461] hover:text-[#56642b]'}`}
+                style={{ paddingLeft: `${20 + depth * 22}px` }}
+                className={`flex min-w-0 flex-1 items-center py-2.5 pr-1 text-left text-[14px] leading-5 transition-colors hover:text-[#315f24] focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#87905f] ${
+                  selected ? 'font-bold text-[#315f24]' : 'font-normal text-[#171918]'
+                }`}
                 aria-pressed={selected}
               >
                 <span>{option.label}</span>
-                {selected && <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} aria-hidden="true" />}
               </button>
               {hasChildren && (
                 <button
                   type="button"
                   onClick={() => toggleNode(option.value)}
-                  className="ml-1 flex h-7 w-7 shrink-0 items-center justify-center text-[#5f6461] transition-colors hover:text-[#56642b]"
+                  className="ml-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-sm text-[#5f6461] transition-colors hover:text-[#315f24] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#87905f]"
                   aria-label={`${expandedNodes[option.value] ? 'Thu gọn' : 'Mở rộng'} ${option.label}`}
                   aria-expanded={Boolean(expandedNodes[option.value])}
                 >
