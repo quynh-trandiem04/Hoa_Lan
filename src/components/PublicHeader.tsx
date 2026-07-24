@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Bell, ChevronRight, LogOut, MessageSquare, Search, User, X } from 'lucide-react';
-import type { ArticleCategory, Category } from '../types';
-import { getArticleCategories, getCategories, getDiscussionById, getDiscussions } from '../services/api';
+import type { ArticleCategory, Category, DocumentCategory } from '../types';
+import { getArticleCategories, getCategories, getDiscussionById, getDiscussions, getDocumentCategories } from '../services/api';
 
 interface PublicHeaderProps {
   categories?: Category[];
@@ -93,7 +93,10 @@ const formatNotificationTime = (value: string) => {
   return new Date(value).toLocaleDateString('vi-VN');
 };
 
-type MenuCategory = Pick<Category, 'id' | 'name' | 'parentId'> | Pick<ArticleCategory, 'id' | 'name' | 'parentId'>;
+type MenuCategory =
+  | Pick<Category, 'id' | 'name' | 'parentId'>
+  | Pick<ArticleCategory, 'id' | 'name' | 'parentId'>
+  | Pick<DocumentCategory, 'id' | 'name' | 'parentId'>;
 
 const CascadingMenuDropdown = ({ categories, rootNames, basePath }: { categories: MenuCategory[], rootNames?: string[], basePath: string }) => {
   const root = useMemo(
@@ -167,6 +170,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
   const [loadedCategories, setLoadedCategories] = useState<Category[]>([]);
   const [cultivationCategories, setCultivationCategories] = useState<ArticleCategory[]>([]);
   const [applicationCategories, setApplicationCategories] = useState<ArticleCategory[]>([]);
+  const [documentCategories, setDocumentCategories] = useState<DocumentCategory[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [favoriteCount, setFavoriteCount] = useState(readFavoriteCount);
@@ -206,6 +210,18 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
       setCultivationCategories([]);
       setApplicationCategories([]);
     });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void getDocumentCategories({ pageNumber: 1, pageSize: 100, sortBy: 'name', sortDescending: false })
+      .then((result) => {
+        if (active) setDocumentCategories(result.items ?? []);
+      })
+      .catch(() => {
+        if (active) setDocumentCategories([]);
+      });
     return () => { active = false; };
   }, []);
 
@@ -381,7 +397,12 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
             </a>
             <CascadingMenuDropdown categories={applicationCategories} basePath="/applications" />
           </div>
-          <a href="/document" className={`font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors ${path === '/document' ? activeClass : normalClass}`}>Tài liệu</a>
+          <div className="group relative flex h-full items-center">
+            <a href="/document" className={`flex cursor-pointer items-center gap-1 font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors ${path === '/document' ? activeClass : normalClass}`}>
+              Tài liệu <ChevronRight className="h-3.5 w-3.5 rotate-90" />
+            </a>
+            <CascadingMenuDropdown categories={documentCategories} basePath="/document" />
+          </div>
           <a href="/discussion" className={`font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors ${path === '/discussion' ? activeClass : normalClass}`}>Thảo luận</a>
         </nav>
 
