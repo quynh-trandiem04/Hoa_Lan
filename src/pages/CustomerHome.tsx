@@ -16,7 +16,6 @@ import { Category, Orchid, OrchidItem, PillarDetail } from "../types";
 // Import custom interactive components
 import OrchidDetailModal from "../components/OrchidDetailModal";
 import PillarDetailModal from "../components/PillarDetailModal";
-import ResearchViewer from "../components/ResearchViewer";
 
 import BotAdvisor from "../components/BotAdvisor";
 
@@ -34,7 +33,6 @@ export default function CustomerHome({ categories, orchids, onNavigate }: Custom
   // Modal states
   const [selectedOrchid, setSelectedOrchid] = useState<OrchidItem | null>(null);
   const [selectedPillar, setSelectedPillar] = useState<PillarDetail | null>(null);
-  const [isResearchOpen, setIsResearchOpen] = useState(false);
   const [isBotOpen, setIsBotOpen] = useState(false);
   
   // Custom interactive panels (header overlays)
@@ -306,7 +304,7 @@ export default function CustomerHome({ categories, orchids, onNavigate }: Custom
               />
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center p-6 text-center">
                 <button 
-                  onClick={() => setIsResearchOpen(true)}
+                  onClick={() => onNavigate('document')}
                   className="px-6 py-3 bg-white text-botanical-green hover:bg-botanical-green hover:text-white transition-all text-xs font-sans font-bold uppercase tracking-widest cursor-pointer rounded"
                 >
                   Mở Thư Viện Nghiên Cứu
@@ -457,12 +455,6 @@ export default function CustomerHome({ categories, orchids, onNavigate }: Custom
           <PillarDetailModal 
             pillar={selectedPillar} 
             onClose={() => setSelectedPillar(null)} 
-          />
-        )}
-
-        {isResearchOpen && (
-          <ResearchViewer 
-            onClose={() => setIsResearchOpen(false)} 
           />
         )}
       </AnimatePresence>
