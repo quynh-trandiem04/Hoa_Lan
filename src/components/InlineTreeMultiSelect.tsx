@@ -28,7 +28,7 @@ export default function InlineTreeMultiSelect({
   };
 
   if (options.length === 0) {
-    return <p className="py-2 text-xs text-[#858a85]">{emptyMessage}</p>;
+    return <p className="py-2 text-[14px] leading-6 text-[#858a85]">{emptyMessage}</p>;
   }
 
   return (
