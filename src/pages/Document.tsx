@@ -256,27 +256,27 @@ export default function DocumentPage() {
                 {paginatedDocuments.map((document) => {
                   const downloadKey = document.id ?? document.url;
                   return (
-                    <article key={downloadKey} className="group overflow-hidden rounded-md border border-[#747878]/10 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:flex sm:min-h-48">
-                      <div className="flex h-40 w-full shrink-0 flex-col items-center justify-center bg-[#f0f1ec] text-[#667234] sm:h-auto sm:w-40 lg:w-44">
-                        <FileText size={32} />
-                        <span className="mt-2 text-[10px] font-bold uppercase tracking-wider">{document.extension || 'FILE'}</span>
+                    <article key={downloadKey} className="group overflow-hidden rounded-md border border-[#747878]/10 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:flex sm:min-h-36">
+                      <div className="flex h-32 w-full shrink-0 flex-col items-center justify-center bg-[#f0f1ec] text-[#667234] sm:h-auto sm:w-36">
+                        <FileText size={28} />
+                        <span className="mt-1 text-[10px] font-bold uppercase tracking-wider">{document.extension || 'FILE'}</span>
                       </div>
 
-                      <div className="flex min-w-0 flex-1 flex-col p-4">
+                      <div className="flex min-w-0 flex-1 flex-col p-3.5">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-[#56642b]">
                           {document.categoryName || 'Tài liệu'}
                         </span>
-                        <h2 className="mt-2 line-clamp-2 font-serif text-lg font-bold leading-snug transition-colors group-hover:text-[#56642b]">
+                        <h2 className="mt-1 line-clamp-1 font-serif text-lg font-bold leading-snug transition-colors group-hover:text-[#56642b]">
                           {document.title}
                         </h2>
-                        <p className="mt-2 line-clamp-2 text-xs leading-5 text-[#686d6a]">
+                        <p className="mt-1 line-clamp-1 text-xs leading-4 text-[#686d6a]">
                           {document.description || 'Chưa có mô tả cho tài liệu này.'}
                         </p>
-                        <div className="mt-3 space-y-1 text-[10px] text-[#747878]">
+                        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-[#747878]">
                           <span className="flex items-center gap-1.5"><Calendar size={12} /> {formatDate(document.createdAt)}</span>
                           <span className="flex items-center gap-1.5"><HardDrive size={12} /> {formatFileSize(document.sizeBytes)}</span>
                         </div>
-                        <div className="mt-auto flex flex-wrap items-center gap-4 pt-4">
+                        <div className="mt-auto flex flex-wrap items-center gap-4 pt-2">
                           <button
                             type="button"
                             onClick={() => void handleDownload(document)}
