@@ -22,9 +22,11 @@ import {
   Redo2,
   Strikethrough,
   Table2,
+  Trash2,
   Underline,
   Undo2,
 } from 'lucide-react';
+import { uploadImage } from '../services/api';
 
 interface LocalRichTextEditorProps {
   value: string;
@@ -85,6 +87,8 @@ export default function LocalRichTextEditor({ value, onChange, minHeight = 220 }
   const [sourceValue, setSourceValue] = useState(value);
   const [fullscreen, setFullscreen] = useState(false);
   const [characterCount, setCharacterCount] = useState(0);
+  const [selectedImage, setSelectedImage] = useState<HTMLImageElement | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const updateCharacterCount = () => {
     setCharacterCount(editorRef.current?.innerText.trim().length ?? 0);
@@ -94,6 +98,7 @@ export default function LocalRichTextEditor({ value, onChange, minHeight = 220 }
     const editor = editorRef.current;
     if (!editor || sourceMode || document.activeElement === editor || editor.innerHTML === value) return;
     editor.innerHTML = value;
+    setSelectedImage(null);
     updateCharacterCount();
   }, [sourceMode, value]);
 
@@ -182,6 +187,94 @@ export default function LocalRichTextEditor({ value, onChange, minHeight = 220 }
     emitValue();
   };
 
+  const uploadAndInsertImage = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      window.alert('Tệp được chọn không phải là hình ảnh.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      window.alert('Hình ảnh không được vượt quá 10 MB.');
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const uploaded = await uploadImage(file);
+      if (!uploaded.url) throw new Error('Máy chủ không trả về đường dẫn hình ảnh.');
+      restoreSelection();
+      document.execCommand(
+        'insertHTML',
+        false,
+        `<figure><img src="${escapeHtml(uploaded.url)}" alt="${escapeHtml(file.name)}" style="display:block;max-width:100%;height:auto" /><figcaption>${escapeHtml(file.name)}</figcaption></figure><p><br></p>`,
+      );
+      emitValue();
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Không thể tải hình ảnh lên.');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handlePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    const imageItem = Array.from(event.clipboardData.items).find((item) => item.type.startsWith('image/'));
+    const imageFile = imageItem?.getAsFile();
+    if (!imageFile) return;
+    event.preventDefault();
+    captureSelection();
+    void uploadAndInsertImage(imageFile);
+  };
+
+  const resizeSelectedImage = (width?: number) => {
+    if (!selectedImage) return;
+    if (width) {
+      selectedImage.style.width = `${Math.min(100, Math.max(10, width))}%`;
+      selectedImage.style.height = 'auto';
+      selectedImage.style.maxWidth = '100%';
+    } else {
+      selectedImage.style.removeProperty('width');
+      selectedImage.style.removeProperty('height');
+      selectedImage.removeAttribute('width');
+      selectedImage.removeAttribute('height');
+    }
+    emitValue();
+  };
+
+  const adjustSelectedImageSize = (delta: number) => {
+    if (!selectedImage || !editorRef.current) return;
+    const inlineWidth = Number.parseFloat(selectedImage.style.width);
+    const currentWidth = Number.isFinite(inlineWidth)
+      ? inlineWidth
+      : Math.round((selectedImage.getBoundingClientRect().width / editorRef.current.getBoundingClientRect().width) * 100);
+    resizeSelectedImage(currentWidth + delta);
+  };
+
+  const alignSelectedImage = (alignment: 'left' | 'center' | 'right') => {
+    if (!selectedImage) return;
+    selectedImage.style.display = 'block';
+    selectedImage.style.marginLeft = alignment === 'center' || alignment === 'right' ? 'auto' : '0';
+    selectedImage.style.marginRight = alignment === 'center' || alignment === 'left' ? 'auto' : '0';
+    emitValue();
+  };
+
+  const editSelectedImageDescription = () => {
+    if (!selectedImage) return;
+    const description = window.prompt('Mô tả hình ảnh', selectedImage.alt) ?? selectedImage.alt;
+    selectedImage.alt = description;
+    const figure = selectedImage.closest('figure');
+    const caption = figure?.querySelector('figcaption');
+    if (caption) caption.textContent = description;
+    emitValue();
+  };
+
+  const removeSelectedImage = () => {
+    if (!selectedImage) return;
+    const figure = selectedImage.closest('figure');
+    if (figure) figure.remove();
+    else selectedImage.remove();
+    setSelectedImage(null);
+    emitValue();
+  };
+
   const insertTable = () => {
     const rowInput = window.prompt('Số hàng của bảng', '3');
     if (rowInput === null) return;
@@ -212,6 +305,7 @@ export default function LocalRichTextEditor({ value, onChange, minHeight = 220 }
       window.setTimeout(updateCharacterCount, 0);
       return;
     }
+    setSelectedImage(null);
     setSourceValue(editorRef.current?.innerHTML ?? value);
     setSourceMode(true);
   };
@@ -404,6 +498,31 @@ export default function LocalRichTextEditor({ value, onChange, minHeight = 220 }
         </div>
       </div>
 
+      {selectedImage && !sourceMode && (
+        <div className="flex flex-wrap items-center gap-1 border-b border-[#cbd3b4] bg-[#eef2e4] px-3 py-2 text-[11px] text-[#434748]">
+          <span className="mr-2 font-bold uppercase tracking-wider text-[#56642b]">Chỉnh ảnh</span>
+          <button type="button" onClick={() => adjustSelectedImageSize(-10)} className="rounded border border-[#b9c49b] bg-white px-2 py-1 hover:bg-[#56642b] hover:text-white">−10%</button>
+          {[25, 50, 75, 100].map((width) => (
+            <button
+              key={width}
+              type="button"
+              onClick={() => resizeSelectedImage(width)}
+              className="rounded border border-[#b9c49b] bg-white px-2 py-1 hover:bg-[#56642b] hover:text-white"
+            >
+              {width}%
+            </button>
+          ))}
+          <button type="button" onClick={() => adjustSelectedImageSize(10)} className="rounded border border-[#b9c49b] bg-white px-2 py-1 hover:bg-[#56642b] hover:text-white">+10%</button>
+          <button type="button" onClick={() => resizeSelectedImage()} className="rounded border border-[#b9c49b] bg-white px-2 py-1 hover:bg-[#56642b] hover:text-white">Kích thước gốc</button>
+          <span className="mx-1 h-5 w-px bg-[#b9c49b]" />
+          <button type="button" title="Căn ảnh sang trái" onClick={() => alignSelectedImage('left')} className="flex h-7 w-7 items-center justify-center rounded hover:bg-white"><AlignLeft className="h-4 w-4" /></button>
+          <button type="button" title="Căn ảnh vào giữa" onClick={() => alignSelectedImage('center')} className="flex h-7 w-7 items-center justify-center rounded hover:bg-white"><AlignCenter className="h-4 w-4" /></button>
+          <button type="button" title="Căn ảnh sang phải" onClick={() => alignSelectedImage('right')} className="flex h-7 w-7 items-center justify-center rounded hover:bg-white"><AlignRight className="h-4 w-4" /></button>
+          <button type="button" onClick={editSelectedImageDescription} className="ml-1 rounded border border-[#b9c49b] bg-white px-2 py-1 hover:bg-[#56642b] hover:text-white">Sửa mô tả</button>
+          <button type="button" title="Xóa hình ảnh" onClick={removeSelectedImage} className="ml-auto flex h-7 w-7 items-center justify-center rounded text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button>
+        </div>
+      )}
+
       {sourceMode ? (
         <textarea
           value={sourceValue}
@@ -425,6 +544,11 @@ export default function LocalRichTextEditor({ value, onChange, minHeight = 220 }
           aria-multiline="true"
           onInput={emitValue}
           onBlur={emitValue}
+          onPaste={handlePaste}
+          onClick={(event) => {
+            const target = event.target;
+            setSelectedImage(target instanceof HTMLImageElement ? target : null);
+          }}
           onMouseUp={captureSelection}
           onKeyUp={captureSelection}
           className="prose prose-sm min-h-0 max-w-none flex-1 overflow-y-auto px-4 py-3 text-sm leading-6 text-[#1a1c1b] outline-none prose-headings:font-display-serif prose-a:text-[#56642b] prose-blockquote:border-[#56642b] prose-img:rounded-lg prose-table:border-collapse prose-th:border prose-th:border-outline-variant prose-th:bg-[#f4f4f2] prose-th:p-2 prose-td:border prose-td:border-outline-variant prose-td:p-2"
@@ -433,7 +557,13 @@ export default function LocalRichTextEditor({ value, onChange, minHeight = 220 }
       )}
 
       <div className="flex items-center justify-between border-t border-outline-variant bg-[#fafaf8] px-3 py-1.5 text-[10px] text-outline">
-        <span>{sourceMode ? 'Chế độ mã HTML' : 'Trình soạn thảo văn bản đầy đủ'}</span>
+        <span>
+          {uploadingImage
+            ? 'Đang tải hình ảnh lên...'
+            : sourceMode
+              ? 'Chế độ mã HTML'
+              : 'Có thể dán ảnh trực tiếp; bấm vào ảnh để chỉnh kích thước'}
+        </span>
         <span>{characterCount.toLocaleString('vi-VN')} ký tự</span>
       </div>
     </div>
