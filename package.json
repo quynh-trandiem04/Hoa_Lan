@@ -12,10 +12,12 @@
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",
+    "@tinymce/tinymce-react": "^6.3.0",
     "lucide-react": "^1.21.0",
     "motion": "^12.40.0",
     "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "react-dom": "^19.2.6",
+    "tinymce": "^8.8.2"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
