@@ -4,7 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/sync-tinymce.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/sync-tinymce.mjs",
     "build": "tsc -b && vite build",
     "build:sites": "npm run build && node scripts/build-sites.mjs",
     "lint": "eslint .",

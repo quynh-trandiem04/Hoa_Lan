@@ -1,36 +1,4 @@
 import { Editor } from '@tinymce/tinymce-react';
-import 'tinymce/tinymce';
-import 'tinymce/icons/default';
-import 'tinymce/models/dom/model';
-import 'tinymce/themes/silver';
-import 'tinymce/plugins/advlist';
-import 'tinymce/plugins/anchor';
-import 'tinymce/plugins/autolink';
-import 'tinymce/plugins/autosave';
-import 'tinymce/plugins/charmap';
-import 'tinymce/plugins/code';
-import 'tinymce/plugins/codesample';
-import 'tinymce/plugins/directionality';
-import 'tinymce/plugins/fullscreen';
-import 'tinymce/plugins/help';
-import 'tinymce/plugins/image';
-import 'tinymce/plugins/importcss';
-import 'tinymce/plugins/insertdatetime';
-import 'tinymce/plugins/link';
-import 'tinymce/plugins/lists';
-import 'tinymce/plugins/media';
-import 'tinymce/plugins/nonbreaking';
-import 'tinymce/plugins/pagebreak';
-import 'tinymce/plugins/preview';
-import 'tinymce/plugins/quickbars';
-import 'tinymce/plugins/save';
-import 'tinymce/plugins/searchreplace';
-import 'tinymce/plugins/table';
-import 'tinymce/plugins/visualblocks';
-import 'tinymce/plugins/visualchars';
-import 'tinymce/plugins/wordcount';
-import 'tinymce/skins/ui/oxide/skin.min.css';
-import 'tinymce/skins/ui/oxide/content.min.css';
 import { uploadImage } from '../services/api';
 
 interface LocalRichTextEditorProps {
@@ -76,11 +44,14 @@ export default function LocalRichTextEditor({
   return (
     <div className="overflow-hidden rounded border border-outline-variant bg-white focus-within:border-[#56642b] focus-within:ring-2 focus-within:ring-[#56642b]/10">
       <Editor
+        tinymceScriptSrc="/tinymce/tinymce.min.js"
         licenseKey="gpl"
         value={value}
         rollback={false}
         onEditorChange={onChange}
         init={{
+          base_url: '/tinymce',
+          suffix: '.min',
           height: Math.max(minHeight + 180, 460),
           min_height: minHeight,
           menubar: 'file edit view insert format tools table help',
@@ -142,8 +113,8 @@ export default function LocalRichTextEditor({
           },
           table_resize_bars: true,
           table_sizing_mode: 'relative',
-          content_css: false,
-          skin: false,
+          skin: 'oxide',
+          content_css: 'default',
           content_style: `
             body {
               color: #1a1c1b;
