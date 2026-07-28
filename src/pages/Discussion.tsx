@@ -63,6 +63,79 @@ function AuthorAvatar({ name, avatarUrl, className }: { name: string; avatarUrl?
   );
 }
 
+function PostLikeButton({
+  liked,
+  count,
+  loading,
+  onClick,
+}: {
+  liked: boolean;
+  count: number;
+  loading: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={loading}
+      aria-pressed={liked}
+      aria-label={liked ? 'Bỏ thích bài viết' : 'Thích bài viết'}
+      className={`inline-flex min-h-9 items-center gap-2 rounded-full border px-3.5 py-2 font-semibold transition-all disabled:cursor-wait disabled:opacity-60 ${
+        liked
+          ? 'border-[#65752e]/30 bg-[#eef2e3] text-[#56642b]'
+          : 'border-transparent text-[#666b69] hover:border-[#d8ddca] hover:bg-[#f4f6ed] hover:text-[#56642b]'
+      }`}
+    >
+      {loading ? (
+        <LoaderCircle size={16} className="animate-spin" />
+      ) : (
+        <Heart size={16} fill={liked ? 'currentColor' : 'none'} />
+      )}
+      <span>{liked ? 'Đã thích' : 'Thích'}</span>
+      {count > 0 && (
+        <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${liked ? 'bg-white/80' : 'bg-[#eef0e9]'}`}>
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function CommentLikeButton({
+  liked,
+  count,
+  loading,
+  onClick,
+}: {
+  liked: boolean;
+  count: number;
+  loading: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={loading}
+      aria-pressed={liked}
+      aria-label={liked ? 'Bỏ thích bình luận' : 'Thích bình luận'}
+      className={`absolute -bottom-3 right-2 inline-flex h-7 items-center gap-1 rounded-full border bg-white px-2 text-[10px] font-bold shadow-sm transition-all disabled:cursor-wait disabled:opacity-60 ${
+        liked
+          ? 'border-[#65752e]/35 text-[#65752e]'
+          : 'border-[#dfe1dc] text-[#747878] hover:border-[#899073] hover:text-[#56642b]'
+      }`}
+    >
+      {loading ? (
+        <LoaderCircle size={12} className="animate-spin" />
+      ) : (
+        <Heart size={12} fill={liked ? 'currentColor' : 'none'} />
+      )}
+      <span>{count > 0 ? count : 'Thích'}</span>
+    </button>
+  );
+}
+
 const formatDate = (value: string) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
@@ -243,18 +316,12 @@ function PhotoViewerModal({
           <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#434748]">{postBody.text}</p>
           
           <div className="my-5 flex items-center gap-4 border-y border-[#eeeeea] py-3 text-xs text-[#666b69]">
-            <button
-              type="button"
+            <PostLikeButton
+              liked={post.isLikedByCurrentUser}
+              count={post.likeCount || 0}
+              loading={likingPostIds.has(post.id)}
               onClick={() => void handlePostLike(post.id)}
-              disabled={likingPostIds.has(post.id)}
-              aria-pressed={post.isLikedByCurrentUser}
-              className={`flex items-center gap-1.5 font-semibold transition-colors disabled:opacity-50 ${
-                post.isLikedByCurrentUser ? 'text-[#65752e]' : 'hover:text-[#56642b]'
-              }`}
-            >
-              <Heart size={16} fill={post.isLikedByCurrentUser ? 'currentColor' : 'none'} />
-              <span>{post.likeCount || 0} thích</span>
-            </button>
+            />
             <span className="h-4 w-px bg-[#dedfd9]" />
             <span className="flex items-center gap-1.5">
               <MessageSquare size={16} />
@@ -270,24 +337,18 @@ function PhotoViewerModal({
                   avatarUrl={comment.authorAvatarUrl || authorProfiles[comment.authorId]?.avatarUrl}
                   className="h-8 w-8 bg-[#f0f1ec] text-[10px]"
                 />
-                <div className="min-w-0 flex-1 rounded-2xl bg-[#f0f2f5] px-3.5 py-2">
+                <div className="relative mb-3 min-w-0 flex-1 rounded-2xl bg-[#f0f2f5] px-3.5 py-2.5 pb-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <strong className="text-xs">{comment.authorName || 'Thành viên'}</strong>
                     <time className="text-[10px] text-[#747878]">{formatDate(comment.createdAt)}</time>
                   </div>
                   <p className="mt-1 whitespace-pre-wrap text-sm text-[#434748]">{comment.content}</p>
-                  <button
-                    type="button"
+                  <CommentLikeButton
+                    liked={comment.isLikedByCurrentUser}
+                    count={comment.likeCount || 0}
+                    loading={likingCommentIds.has(comment.id)}
                     onClick={() => void handleCommentLike(post.id, comment.id)}
-                    disabled={likingCommentIds.has(comment.id)}
-                    aria-pressed={comment.isLikedByCurrentUser}
-                    className={`mt-2 flex items-center gap-1 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
-                      comment.isLikedByCurrentUser ? 'text-[#65752e]' : 'text-[#747878] hover:text-[#56642b]'
-                    }`}
-                  >
-                    <Heart size={12} fill={comment.isLikedByCurrentUser ? 'currentColor' : 'none'} />
-                    <span>{comment.likeCount || 0} thích</span>
-                  </button>
+                  />
                 </div>
               </div>
             ))}
@@ -802,18 +863,12 @@ export default function Discussion() {
                   />
                 )}
                 <div className="my-5 flex items-center gap-4 border-y border-[#eeeeea] py-3 text-xs text-[#666b69]">
-                  <button
-                    type="button"
+                  <PostLikeButton
+                    liked={post.isLikedByCurrentUser}
+                    count={post.likeCount || 0}
+                    loading={likingPostIds.has(post.id)}
                     onClick={() => void handlePostLike(post.id)}
-                    disabled={likingPostIds.has(post.id)}
-                    aria-pressed={post.isLikedByCurrentUser}
-                    className={`flex items-center gap-1.5 font-semibold transition-colors disabled:opacity-50 ${
-                      post.isLikedByCurrentUser ? 'text-[#65752e]' : 'hover:text-[#56642b]'
-                    }`}
-                  >
-                    <Heart size={16} fill={post.isLikedByCurrentUser ? 'currentColor' : 'none'} />
-                    <span>{post.likeCount || 0} thích</span>
-                  </button>
+                  />
                   <span className="h-4 w-px bg-[#dedfd9]" />
                   <span className="flex items-center gap-1.5">
                     <MessageSquare size={16} />
@@ -833,24 +888,18 @@ export default function Discussion() {
                         avatarUrl={comment.authorAvatarUrl || authorProfiles[comment.authorId]?.avatarUrl}
                         className="h-8 w-8 bg-[#f0f1ec] text-[10px]"
                       />
-                      <div className="min-w-0 flex-1 rounded-lg bg-[#f7f7f3] px-3 py-2.5">
+                      <div className="relative mb-3 min-w-0 flex-1 rounded-2xl bg-[#f7f7f3] px-3.5 py-2.5 pb-4">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <strong className="text-xs">{comment.authorName || 'Thành viên'}</strong>
                           <time className="text-[10px] text-[#747878]">{formatDate(comment.createdAt)}</time>
                         </div>
                         <p className="mt-1 whitespace-pre-wrap text-sm text-[#434748]">{comment.content}</p>
-                        <button
-                          type="button"
+                        <CommentLikeButton
+                          liked={comment.isLikedByCurrentUser}
+                          count={comment.likeCount || 0}
+                          loading={likingCommentIds.has(comment.id)}
                           onClick={() => void handleCommentLike(post.id, comment.id)}
-                          disabled={likingCommentIds.has(comment.id)}
-                          aria-pressed={comment.isLikedByCurrentUser}
-                          className={`mt-2 flex items-center gap-1 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
-                            comment.isLikedByCurrentUser ? 'text-[#65752e]' : 'text-[#747878] hover:text-[#56642b]'
-                          }`}
-                        >
-                          <Heart size={12} fill={comment.isLikedByCurrentUser ? 'currentColor' : 'none'} />
-                          <span>{comment.likeCount || 0} thích</span>
-                        </button>
+                        />
                       </div>
                     </div>
                   ))}
