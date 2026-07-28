@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, ImagePlus, LoaderCircle, LockKeyhole, MessageSquare, MoreHorizontal, RefreshCw, Search, Send, Trash2, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Heart, ImagePlus, LoaderCircle, LockKeyhole, MessageSquare, MoreHorizontal, RefreshCw, Search, Send, Trash2, X } from 'lucide-react';
 import {
   createDiscussion,
   createDiscussionComment,
@@ -7,6 +7,10 @@ import {
   getDiscussionById,
   getDiscussions,
   getUserById,
+  likeDiscussionComment,
+  likeDiscussionPost,
+  unlikeDiscussionComment,
+  unlikeDiscussionPost,
   uploadImage,
   type DiscussionPostDto,
   type UploadedImage,
@@ -153,6 +157,10 @@ function PhotoViewerModal({
   setCommentInputs,
   handleComment,
   commentingId,
+  handlePostLike,
+  handleCommentLike,
+  likingPostIds,
+  likingCommentIds,
   requireLogin,
   authorProfiles,
 }: {
@@ -163,6 +171,10 @@ function PhotoViewerModal({
   setCommentInputs: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   handleComment: (postId: string) => Promise<void>;
   commentingId: string | null;
+  handlePostLike: (postId: string) => Promise<void>;
+  handleCommentLike: (postId: string, commentId: string) => Promise<void>;
+  likingPostIds: Set<string>;
+  likingCommentIds: Set<string>;
   requireLogin: () => boolean;
   authorProfiles: Record<string, UserListItem>;
 }) {
@@ -230,9 +242,24 @@ function PhotoViewerModal({
           <h2 className="font-serif text-lg font-bold">{post.title}</h2>
           <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#434748]">{postBody.text}</p>
           
-          <div className="my-5 flex items-center gap-2 border-y border-[#eeeeea] py-3 text-xs text-[#666b69]">
-            <MessageSquare size={16} />
-            <span>{post.commentCount ?? post.comments?.length ?? 0} bình luận</span>
+          <div className="my-5 flex items-center gap-4 border-y border-[#eeeeea] py-3 text-xs text-[#666b69]">
+            <button
+              type="button"
+              onClick={() => void handlePostLike(post.id)}
+              disabled={likingPostIds.has(post.id)}
+              aria-pressed={post.isLikedByCurrentUser}
+              className={`flex items-center gap-1.5 font-semibold transition-colors disabled:opacity-50 ${
+                post.isLikedByCurrentUser ? 'text-[#65752e]' : 'hover:text-[#56642b]'
+              }`}
+            >
+              <Heart size={16} fill={post.isLikedByCurrentUser ? 'currentColor' : 'none'} />
+              <span>{post.likeCount || 0} thích</span>
+            </button>
+            <span className="h-4 w-px bg-[#dedfd9]" />
+            <span className="flex items-center gap-1.5">
+              <MessageSquare size={16} />
+              {post.commentCount ?? post.comments?.length ?? 0} bình luận
+            </span>
           </div>
 
           <div className="space-y-4 pb-4">
@@ -249,6 +276,18 @@ function PhotoViewerModal({
                     <time className="text-[10px] text-[#747878]">{formatDate(comment.createdAt)}</time>
                   </div>
                   <p className="mt-1 whitespace-pre-wrap text-sm text-[#434748]">{comment.content}</p>
+                  <button
+                    type="button"
+                    onClick={() => void handleCommentLike(post.id, comment.id)}
+                    disabled={likingCommentIds.has(comment.id)}
+                    aria-pressed={comment.isLikedByCurrentUser}
+                    className={`mt-2 flex items-center gap-1 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
+                      comment.isLikedByCurrentUser ? 'text-[#65752e]' : 'text-[#747878] hover:text-[#56642b]'
+                    }`}
+                  >
+                    <Heart size={12} fill={comment.isLikedByCurrentUser ? 'currentColor' : 'none'} />
+                    <span>{comment.likeCount || 0} thích</span>
+                  </button>
                 </div>
               </div>
             ))}
@@ -307,6 +346,8 @@ export default function Discussion() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [commentingId, setCommentingId] = useState<string | null>(null);
+  const [likingPostIds, setLikingPostIds] = useState<Set<string>>(new Set());
+  const [likingCommentIds, setLikingCommentIds] = useState<Set<string>>(new Set());
   const [viewerState, setViewerState] = useState<{ postId: string; startIndex: number } | null>(null);
   const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
   const [expandedCommentPostIds, setExpandedCommentPostIds] = useState<Set<string>>(new Set());
@@ -442,6 +483,69 @@ export default function Discussion() {
     if (loggedIn) return true;
     setShowLoginPrompt(true);
     return false;
+  };
+
+  const handlePostLike = async (postId: string) => {
+    if (!requireLogin() || likingPostIds.has(postId)) return;
+    const post = posts.find((item) => item.id === postId);
+    if (!post) return;
+
+    setLikingPostIds((current) => new Set(current).add(postId));
+    try {
+      const result = post.isLikedByCurrentUser
+        ? await unlikeDiscussionPost(postId)
+        : await likeDiscussionPost(postId);
+      setPosts((current) => current.map((item) => item.id === postId
+        ? {
+            ...item,
+            likeCount: result.likeCount,
+            isLikedByCurrentUser: result.isLikedByCurrentUser,
+          }
+        : item));
+    } catch (likeError) {
+      addToast(likeError instanceof Error ? likeError.message : 'Không thể cập nhật lượt thích.', 'error');
+    } finally {
+      setLikingPostIds((current) => {
+        const next = new Set(current);
+        next.delete(postId);
+        return next;
+      });
+    }
+  };
+
+  const handleCommentLike = async (postId: string, commentId: string) => {
+    if (!requireLogin() || likingCommentIds.has(commentId)) return;
+    const comment = posts
+      .find((item) => item.id === postId)
+      ?.comments.find((item) => item.id === commentId);
+    if (!comment) return;
+
+    setLikingCommentIds((current) => new Set(current).add(commentId));
+    try {
+      const result = comment.isLikedByCurrentUser
+        ? await unlikeDiscussionComment(postId, commentId)
+        : await likeDiscussionComment(postId, commentId);
+      setPosts((current) => current.map((post) => post.id === postId
+        ? {
+            ...post,
+            comments: post.comments.map((item) => item.id === commentId
+              ? {
+                  ...item,
+                  likeCount: result.likeCount,
+                  isLikedByCurrentUser: result.isLikedByCurrentUser,
+                }
+              : item),
+          }
+        : post));
+    } catch (likeError) {
+      addToast(likeError instanceof Error ? likeError.message : 'Không thể cập nhật lượt thích bình luận.', 'error');
+    } finally {
+      setLikingCommentIds((current) => {
+        const next = new Set(current);
+        next.delete(commentId);
+        return next;
+      });
+    }
   };
 
   const handleCreatePost = async (event: React.FormEvent) => {
@@ -697,9 +801,24 @@ export default function Discussion() {
                     onImageClick={(index) => setViewerState({ postId: post.id, startIndex: index })} 
                   />
                 )}
-                <div className="my-5 flex items-center gap-2 border-y border-[#eeeeea] py-3 text-xs text-[#666b69]">
-                  <MessageSquare size={16} />
-                  <span>{post.commentCount ?? post.comments?.length ?? 0} bình luận</span>
+                <div className="my-5 flex items-center gap-4 border-y border-[#eeeeea] py-3 text-xs text-[#666b69]">
+                  <button
+                    type="button"
+                    onClick={() => void handlePostLike(post.id)}
+                    disabled={likingPostIds.has(post.id)}
+                    aria-pressed={post.isLikedByCurrentUser}
+                    className={`flex items-center gap-1.5 font-semibold transition-colors disabled:opacity-50 ${
+                      post.isLikedByCurrentUser ? 'text-[#65752e]' : 'hover:text-[#56642b]'
+                    }`}
+                  >
+                    <Heart size={16} fill={post.isLikedByCurrentUser ? 'currentColor' : 'none'} />
+                    <span>{post.likeCount || 0} thích</span>
+                  </button>
+                  <span className="h-4 w-px bg-[#dedfd9]" />
+                  <span className="flex items-center gap-1.5">
+                    <MessageSquare size={16} />
+                    {post.commentCount ?? post.comments?.length ?? 0} bình luận
+                  </span>
                 </div>
 
                 <div className="space-y-3">
@@ -720,6 +839,18 @@ export default function Discussion() {
                           <time className="text-[10px] text-[#747878]">{formatDate(comment.createdAt)}</time>
                         </div>
                         <p className="mt-1 whitespace-pre-wrap text-sm text-[#434748]">{comment.content}</p>
+                        <button
+                          type="button"
+                          onClick={() => void handleCommentLike(post.id, comment.id)}
+                          disabled={likingCommentIds.has(comment.id)}
+                          aria-pressed={comment.isLikedByCurrentUser}
+                          className={`mt-2 flex items-center gap-1 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
+                            comment.isLikedByCurrentUser ? 'text-[#65752e]' : 'text-[#747878] hover:text-[#56642b]'
+                          }`}
+                        >
+                          <Heart size={12} fill={comment.isLikedByCurrentUser ? 'currentColor' : 'none'} />
+                          <span>{comment.likeCount || 0} thích</span>
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -842,6 +973,10 @@ export default function Discussion() {
             setCommentInputs={setCommentInputs}
             handleComment={handleComment}
             commentingId={commentingId}
+            handlePostLike={handlePostLike}
+            handleCommentLike={handleCommentLike}
+            likingPostIds={likingPostIds}
+            likingCommentIds={likingCommentIds}
             requireLogin={requireLogin}
             authorProfiles={authorProfiles}
           />

@@ -1565,6 +1565,8 @@ export interface DiscussionCommentDto {
   authorName: string;
   authorAvatarUrl?: string;
   createdAt: string;
+  likeCount: number;
+  isLikedByCurrentUser: boolean;
 }
 
 export interface DiscussionPostDto {
@@ -1576,7 +1578,14 @@ export interface DiscussionPostDto {
   authorAvatarUrl?: string;
   createdAt: string;
   commentCount: number;
+  likeCount: number;
+  isLikedByCurrentUser: boolean;
   comments: DiscussionCommentDto[];
+}
+
+export interface DiscussionLikeResultDto {
+  likeCount: number;
+  isLikedByCurrentUser: boolean;
 }
 
 export interface PaginatedDiscussions {
@@ -1701,6 +1710,56 @@ export const createDiscussionComment = async (
   }
   return '';
 };
+
+const updateDiscussionLike = async (
+  path: string,
+  method: 'POST' | 'DELETE',
+  fallback: string,
+): Promise<DiscussionLikeResultDto> => {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method,
+    headers: discussionHeaders(),
+  });
+  const body = await readApiResponse(response);
+  if (!response.ok) {
+    throwDiscussionApiError(response.status, body, fallback);
+  }
+  return unwrapDiscussionResponse(body) as DiscussionLikeResultDto;
+};
+
+export const likeDiscussionPost = async (postId: string): Promise<DiscussionLikeResultDto> =>
+  updateDiscussionLike(
+    `/api/Discussions/${encodeURIComponent(postId)}/likes`,
+    'POST',
+    'Không thể thích bài thảo luận.',
+  );
+
+export const unlikeDiscussionPost = async (postId: string): Promise<DiscussionLikeResultDto> =>
+  updateDiscussionLike(
+    `/api/Discussions/${encodeURIComponent(postId)}/likes`,
+    'DELETE',
+    'Không thể bỏ thích bài thảo luận.',
+  );
+
+export const likeDiscussionComment = async (
+  postId: string,
+  commentId: string,
+): Promise<DiscussionLikeResultDto> =>
+  updateDiscussionLike(
+    `/api/Discussions/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}/likes`,
+    'POST',
+    'Không thể thích bình luận.',
+  );
+
+export const unlikeDiscussionComment = async (
+  postId: string,
+  commentId: string,
+): Promise<DiscussionLikeResultDto> =>
+  updateDiscussionLike(
+    `/api/Discussions/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}/likes`,
+    'DELETE',
+    'Không thể bỏ thích bình luận.',
+  );
 
 export const deleteDiscussion = async (
   id: string,
