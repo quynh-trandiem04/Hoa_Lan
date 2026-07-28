@@ -252,55 +252,55 @@ export default function DocumentPage() {
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-6">
+              <div className="grid grid-cols-1 gap-5">
                 {paginatedDocuments.map((document) => {
                   const downloadKey = document.id ?? document.url;
                   return (
                     <article
                       key={downloadKey}
-                      className="group flex flex-col gap-4 rounded-xl border border-[#747878]/15 bg-white p-4 shadow-[0_3px_12px_rgba(42,49,32,0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_7px_20px_rgba(42,49,32,0.12)] sm:grid sm:min-h-44 sm:grid-cols-[128px_minmax(0,1fr)_auto] sm:grid-rows-[1fr_auto] sm:gap-x-6 sm:gap-y-3 sm:p-5"
+                      className="group flex flex-col gap-3 rounded-xl border border-[#747878]/15 bg-white p-4 shadow-[0_3px_12px_rgba(42,49,32,0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_7px_20px_rgba(42,49,32,0.12)] sm:grid sm:min-h-40 sm:grid-cols-[112px_minmax(0,1fr)_auto] sm:grid-rows-[1fr_auto] sm:gap-x-5 sm:gap-y-2 sm:p-4"
                     >
-                      <div className="flex h-28 w-full shrink-0 flex-col items-center justify-center rounded-xl bg-[#f0f1ec] text-[#667234] sm:row-span-2 sm:h-full sm:min-h-32">
-                        <FileText size={34} strokeWidth={1.8} />
-                        <span className="mt-2 text-[11px] font-bold uppercase tracking-wider">{document.extension || 'FILE'}</span>
+                      <div className="flex h-24 w-full shrink-0 flex-col items-center justify-center rounded-xl bg-[#f0f1ec] text-[#667234] sm:row-span-2 sm:h-full sm:min-h-28">
+                        <FileText size={30} strokeWidth={1.8} />
+                        <span className="mt-1.5 text-[10px] font-bold uppercase tracking-wider">{document.extension || 'FILE'}</span>
                       </div>
 
                       <div className="min-w-0 self-center">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-[#667234]">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#667234]">
                           {document.categoryName || 'Tài liệu'}
                         </span>
-                        <h2 className="mt-2 line-clamp-1 font-serif text-xl font-bold leading-snug text-[#111412] transition-colors group-hover:text-[#56642b]">
+                        <h2 className="mt-1.5 line-clamp-1 font-serif text-lg font-bold leading-snug text-[#111412] transition-colors group-hover:text-[#56642b]">
                           {document.title}
                         </h2>
-                        <p className="mt-2 line-clamp-2 text-sm leading-5 text-[#686d6a]">
+                        <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-[#686d6a]">
                           {document.description || 'Chưa có mô tả cho tài liệu này.'}
                         </p>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-4 self-center text-xs text-[#747878] sm:flex-nowrap sm:gap-5">
-                        <span className="flex items-center gap-2 whitespace-nowrap"><Calendar size={17} /> {formatDate(document.createdAt)}</span>
-                        <span className="hidden h-6 w-px bg-[#747878]/20 sm:block" />
-                        <span className="flex items-center gap-2 whitespace-nowrap"><HardDrive size={17} /> {formatFileSize(document.sizeBytes)}</span>
+                      <div className="flex flex-wrap items-center gap-3 self-center text-[11px] text-[#747878] sm:flex-nowrap sm:gap-4">
+                        <span className="flex items-center gap-1.5 whitespace-nowrap"><Calendar size={15} /> {formatDate(document.createdAt)}</span>
+                        <span className="hidden h-5 w-px bg-[#747878]/20 sm:block" />
+                        <span className="flex items-center gap-1.5 whitespace-nowrap"><HardDrive size={15} /> {formatFileSize(document.sizeBytes)}</span>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-5 sm:col-span-2 sm:col-start-2">
+                      <div className="flex flex-wrap items-center gap-4 sm:col-span-2 sm:col-start-2">
                         <button
                           type="button"
                           onClick={() => void handleDownload(document)}
                           disabled={downloadingId === downloadKey}
                           className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#667234] hover:underline disabled:cursor-wait disabled:opacity-60"
                         >
-                          <Download size={16} />
+                          <Download size={15} />
                           {downloadingId === downloadKey ? 'Đang tải...' : 'Tải xuống'}
                         </button>
-                        <span className="h-6 w-px bg-[#747878]/20" />
+                        <span className="h-5 w-px bg-[#747878]/20" />
                         <a
                           href={document.url}
                           target="_blank"
                           rel="noreferrer"
                           className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#667234] hover:underline"
                         >
-                          <Eye size={16} /> Xem trước
+                          <Eye size={15} /> Xem trước
                         </a>
                       </div>
                     </article>
