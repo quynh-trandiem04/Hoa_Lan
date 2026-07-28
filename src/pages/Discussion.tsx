@@ -744,6 +744,13 @@ export default function Discussion() {
     void loadPosts(normalizedTerm, '');
   };
 
+  const cancelComposer = () => {
+    setTitle('');
+    setContent('');
+    setAttachedImages([]);
+    setIsComposerOpen(false);
+  };
+
   const composerProfile = readStoredUserProfile();
   const composerFirstName = composerProfile?.fullName?.trim().split(/\s+/).pop() || 'Bạn';
 
@@ -807,7 +814,7 @@ export default function Discussion() {
                   <h2 className="font-serif text-xl font-bold">Tạo bài thảo luận</h2>
                   <button
                     type="button"
-                    onClick={() => setIsComposerOpen(false)}
+                    onClick={cancelComposer}
                     disabled={submitting || uploadingImage}
                     className="rounded-full p-1.5 text-[#747878] transition-colors hover:bg-[#f0f1ec] hover:text-[#303433] disabled:opacity-50"
                     aria-label="Thu gọn khung đăng bài"
@@ -815,6 +822,19 @@ export default function Discussion() {
                   >
                     <X size={19} />
                   </button>
+                </div>
+                <div className="mb-5 flex items-center gap-3 border-b border-[#ecece7] pb-4">
+                  <AuthorAvatar
+                    name={composerProfile?.fullName || composerFirstName}
+                    avatarUrl={composerProfile?.avatarUrl}
+                    className="h-11 w-11 text-xs"
+                  />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-[#1a1c1b]">
+                      {composerProfile?.fullName || composerFirstName}
+                    </p>
+                    <p className="mt-0.5 text-xs text-[#747878]">Đăng trong cộng đồng Hoa Lan</p>
+                  </div>
                 </div>
                 <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[#666b69]">Tiêu đề *</label>
                 <input
@@ -873,7 +893,15 @@ export default function Discussion() {
                   </label>
                 </div>
                 <p className="mt-1.5 text-[11px] text-[#747878]">Hỗ trợ JPG, PNG, WEBP hoặc GIF, tối đa 10 MB/ảnh và tối đa 5 ảnh/bài.</p>
-                <div className="mt-4 flex justify-end">
+                <div className="mt-4 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={cancelComposer}
+                    disabled={submitting || uploadingImage}
+                    className="rounded-lg border border-[#cfd2cb] bg-white px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-[#56642b] transition-colors hover:bg-[#f4f6ed] disabled:opacity-60"
+                  >
+                    Hủy
+                  </button>
                   <button disabled={submitting || uploadingImage} className="flex items-center gap-2 rounded-lg bg-[#56642b] px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white disabled:opacity-60">
                     {submitting && <LoaderCircle size={15} className="animate-spin" />}
                     {submitting ? 'Đang đăng...' : 'Đăng bài'}
