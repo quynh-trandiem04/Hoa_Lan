@@ -31,7 +31,7 @@ export default function PublicFooter() {
       </div>
 
       <div className="mx-auto mt-10 max-w-7xl border-t border-outline-variant/20 px-6 pt-6 md:px-16">
-        <p className="text-xs text-on-surface-variant/80">© 2026 Orchids. Đồ án môn học.</p>
+        <p className="text-xs text-on-surface-variant/80">© 2026 Orchids. Khóa luận tốt nghiệp.</p>
       </div>
     </footer>
   );
