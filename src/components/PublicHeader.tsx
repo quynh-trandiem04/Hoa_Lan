@@ -40,10 +40,15 @@ const readCurrentUserName = (): string => {
   return typeof displayName === 'string' ? displayName.trim() : 'Tài khoản';
 };
 
-const getCompactAccountName = (displayName: string) => {
-  const normalizedName = displayName.includes('@') ? displayName.split('@')[0] : displayName;
-  const nameParts = normalizedName.trim().split(/\s+/).filter(Boolean);
-  return nameParts.at(-1) || displayName;
+const readCurrentUserAvatar = (): string => {
+  const rawProfile = localStorage.getItem('orchidee_user') || sessionStorage.getItem('orchidee_user');
+  if (!rawProfile) return '';
+  try {
+    const profile = JSON.parse(rawProfile) as { avatarUrl?: unknown };
+    return typeof profile.avatarUrl === 'string' ? profile.avatarUrl.trim() : '';
+  } catch {
+    return '';
+  }
 };
 
 interface StoredUserIdentity {
@@ -181,6 +186,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [favoriteCount, setFavoriteCount] = useState(readFavoriteCount);
   const [currentUserName, setCurrentUserName] = useState(readCurrentUserName);
+  const [currentUserAvatar, setCurrentUserAvatar] = useState(readCurrentUserAvatar);
   const [notificationMenuOpen, setNotificationMenuOpen] = useState(false);
   const [commentNotifications, setCommentNotifications] = useState<CommentNotification[]>([]);
   const [readCommentNotificationIds, setReadCommentNotificationIds] = useState(() => readNotificationIds(readCurrentUserIdentity()));
@@ -313,6 +319,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
     const refreshAccountSummary = () => {
       setFavoriteCount(readFavoriteCount());
       setCurrentUserName(readCurrentUserName());
+      setCurrentUserAvatar(readCurrentUserAvatar());
       setReadCommentNotificationIds(readNotificationIds(readCurrentUserIdentity()));
       void loadCommentNotifications();
     };
@@ -330,6 +337,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
     if (profileCloseTimerRef.current) window.clearTimeout(profileCloseTimerRef.current);
     setFavoriteCount(readFavoriteCount());
     setCurrentUserName(readCurrentUserName());
+    setCurrentUserAvatar(readCurrentUserAvatar());
     setProfileMenuOpen(true);
   };
 
@@ -374,7 +382,6 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
   );
   const unreadNotificationCount = commentNotifications.filter((notification) => !readCommentNotificationIds.includes(notification.id)).length;
   const orchidCategories = suppliedCategories ?? loadedCategories;
-  const compactCurrentUserName = getCompactAccountName(currentUserName);
 
   return (
     <header className="sticky top-0 z-50 h-16 w-full border-b border-[#56642b]/10 bg-surface-cream/95 backdrop-blur-md">
@@ -498,11 +505,22 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
               aria-expanded={profileMenuOpen}
               aria-haspopup="menu"
             >
-              <User className="h-5 w-5 shrink-0" />
-              {isAuthenticated && (
-                <span className="max-w-28 truncate font-sans text-[11px] font-semibold text-[#434748]" title={currentUserName}>
-                  {compactCurrentUserName}
-                </span>
+              {isAuthenticated ? (
+                currentUserAvatar ? (
+                  <img
+                    src={currentUserAvatar}
+                    alt={`Ảnh đại diện của ${currentUserName}`}
+                    className="h-8 w-8 shrink-0 rounded-full border border-[#56642b]/15 object-cover"
+                    referrerPolicy="no-referrer"
+                    onError={() => setCurrentUserAvatar('')}
+                  />
+                ) : (
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#eef1e8] font-sans text-xs font-bold text-[#56642b]">
+                    {currentUserName.trim().charAt(0).toUpperCase()}
+                  </span>
+                )
+              ) : (
+                <User className="h-5 w-5 shrink-0" />
               )}
               {isAuthenticated && favoriteCount > 0 && (
                 <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-[#56642b] px-1 text-[9px] font-bold leading-none text-white">
