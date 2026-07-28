@@ -169,20 +169,11 @@ export default function CustomerHome({ categories, orchids, onNavigate }: Custom
           <div className="absolute inset-0 bg-black/25 z-10"></div>
           <img 
             className="w-full h-full object-cover transition-transform duration-[10000ms] scale-102 hover:scale-105" 
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuAEjxfg07deoOmsn5iwPWO7HBi7H4Xzs5MAcRkgBSdki56Mc3jnLy5--YHOiJ_xTR6bvfvc12Zh5ok5FnjYdI3gcMXUDPgU5yLFpyk62wwuLQgncSXhIDDzajocQp7I3R8DrIFKUMrurKeyFkFY8mRpDHU4B7338F7CYkV5MX_Cu2FGn0Z3Gitu5Qd1_I4YclJXFDR_Z8RBMio8C7LvmplAmvsYo2ZD_U8Rygd2qT3mJgateTXAOzLGFf1tnJkWiDR8RhpKRVsBFcWX"
-            alt="Ethereal botanical garden orchids background"
-            referrerPolicy="no-referrer"
+            src="/images/phalaenopsis-purple-hero.png"
+            alt="Hoa lan Hồ Điệp tím dưới ánh nắng"
           />
         </div>
         <div className="relative z-20 text-center px-6 max-w-4xl text-white mt-8">
-          <motion.span 
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="text-xs md:text-sm uppercase tracking-[0.3em] font-medium block mb-4 text-[#d6e7a1] font-sans"
-          >
-            L'ART DE VIVRE BOTANICAL RESEARCH
-          </motion.span>
           <motion.h1 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
