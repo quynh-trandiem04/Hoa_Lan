@@ -23,6 +23,10 @@ import { Toasts, useToasts } from '../components/Toasts';
 const LOGIN_URL = `/login?returnUrl=${encodeURIComponent('/discussion')}`;
 const RECENT_COMMENT_LIMIT = 3;
 
+const hasApiErrorMessage = (error: unknown, message: string) =>
+  error instanceof Error
+  && error.message.toLocaleLowerCase('vi').includes(message.toLocaleLowerCase('vi'));
+
 const hasAuthToken = () => Boolean(
   localStorage.getItem('orchidee_auth_token')
   || sessionStorage.getItem('orchidee_auth_token'),
@@ -561,6 +565,7 @@ export default function Discussion() {
     const post = posts.find((item) => item.id === postId);
     if (!post) return;
 
+    const nextLikedState = !post.isLikedByCurrentUser;
     setLikingPostIds((current) => new Set(current).add(postId));
     try {
       const result = post.isLikedByCurrentUser
@@ -570,11 +575,21 @@ export default function Discussion() {
         ? {
             ...item,
             likeCount: result.likeCount,
-            isLikedByCurrentUser: result.isLikedByCurrentUser,
+            isLikedByCurrentUser: nextLikedState,
           }
         : item));
     } catch (likeError) {
-      addToast(likeError instanceof Error ? likeError.message : 'Không thể cập nhật lượt thích.', 'error');
+      if (nextLikedState && hasApiErrorMessage(likeError, 'Dữ liệu đã tồn tại')) {
+        setPosts((current) => current.map((item) => item.id === postId
+          ? {
+              ...item,
+              likeCount: Math.max(1, item.likeCount || 0),
+              isLikedByCurrentUser: true,
+            }
+          : item));
+      } else {
+        addToast(likeError instanceof Error ? likeError.message : 'Không thể cập nhật lượt thích.', 'error');
+      }
     } finally {
       setLikingPostIds((current) => {
         const next = new Set(current);
@@ -591,6 +606,7 @@ export default function Discussion() {
       ?.comments.find((item) => item.id === commentId);
     if (!comment) return;
 
+    const nextLikedState = !comment.isLikedByCurrentUser;
     setLikingCommentIds((current) => new Set(current).add(commentId));
     try {
       const result = comment.isLikedByCurrentUser
@@ -603,13 +619,28 @@ export default function Discussion() {
               ? {
                   ...item,
                   likeCount: result.likeCount,
-                  isLikedByCurrentUser: result.isLikedByCurrentUser,
+                  isLikedByCurrentUser: nextLikedState,
                 }
               : item),
           }
         : post));
     } catch (likeError) {
-      addToast(likeError instanceof Error ? likeError.message : 'Không thể cập nhật lượt thích bình luận.', 'error');
+      if (nextLikedState && hasApiErrorMessage(likeError, 'Dữ liệu đã tồn tại')) {
+        setPosts((current) => current.map((postItem) => postItem.id === postId
+          ? {
+              ...postItem,
+              comments: postItem.comments.map((item) => item.id === commentId
+                ? {
+                    ...item,
+                    likeCount: Math.max(1, item.likeCount || 0),
+                    isLikedByCurrentUser: true,
+                  }
+                : item),
+            }
+          : postItem));
+      } else {
+        addToast(likeError instanceof Error ? likeError.message : 'Không thể cập nhật lượt thích bình luận.', 'error');
+      }
     } finally {
       setLikingCommentIds((current) => {
         const next = new Set(current);
