@@ -67,6 +67,19 @@ function AuthorAvatar({ name, avatarUrl, className }: { name: string; avatarUrl?
   );
 }
 
+const isAdminProfile = (profile?: UserListItem) => {
+  const role = profile?.roleName?.replace(/[\s_-]+/g, '').toLocaleLowerCase('vi') || '';
+  return ['admin', 'administrator', 'systemadmin', 'superadmin'].includes(role);
+};
+
+function AdminBadge() {
+  return (
+    <span className="inline-flex items-center rounded-md bg-[#eee8ff] px-2 py-0.5 text-[10px] font-semibold text-[#7151c9]">
+      Admin
+    </span>
+  );
+}
+
 function PostLikeButton({
   liked,
   count,
@@ -353,7 +366,10 @@ function PhotoViewerModal({
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <strong className="text-sm">{comment.authorName || 'Thành viên'}</strong>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <strong className="truncate text-sm">{comment.authorName || 'Thành viên'}</strong>
+                      {(comment.isSystemAdmin || isAdminProfile(authorProfiles[comment.authorId])) && <AdminBadge />}
+                    </div>
                     <time className="text-xs text-[#747878]">{formatDate(comment.createdAt)}</time>
                   </div>
                   <p className="mt-1.5 whitespace-pre-wrap text-sm leading-5 text-[#303433]">{comment.content}</p>
@@ -1011,7 +1027,10 @@ export default function Discussion() {
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <strong className="text-sm">{comment.authorName || 'Thành viên'}</strong>
+                          <div className="flex min-w-0 items-center gap-2">
+                            <strong className="truncate text-sm">{comment.authorName || 'Thành viên'}</strong>
+                            {(comment.isSystemAdmin || isAdminProfile(authorProfiles[comment.authorId])) && <AdminBadge />}
+                          </div>
                           <time className="text-xs text-[#747878]">{formatDate(comment.createdAt)}</time>
                         </div>
                         <p className="mt-1.5 whitespace-pre-wrap text-sm leading-5 text-[#303433]">{comment.content}</p>

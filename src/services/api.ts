@@ -1642,6 +1642,7 @@ export interface DiscussionCommentDto {
   authorId: string;
   authorName: string;
   authorAvatarUrl?: string;
+  isSystemAdmin?: boolean;
   createdAt: string;
   likeCount: number;
   isLikedByCurrentUser: boolean;
