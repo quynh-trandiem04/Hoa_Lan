@@ -342,6 +342,22 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (localStorage.getItem("orchidee_remember_session") === "false") return;
+    if (localStorage.getItem("orchidee_auth")) return;
+
+    const sessionAuth = sessionStorage.getItem("orchidee_auth");
+    const sessionToken = sessionStorage.getItem("orchidee_auth_token");
+    if (!sessionAuth || !sessionToken) return;
+
+    ["orchidee_admin_user", "orchidee_auth", "orchidee_auth_token", "orchidee_user"].forEach((key) => {
+      const value = sessionStorage.getItem(key);
+      if (value !== null) localStorage.setItem(key, value);
+      sessionStorage.removeItem(key);
+    });
+    localStorage.setItem("orchidee_remember_session", "true");
+  }, []);
+
+  useEffect(() => {
     let isActive = true;
 
     const refreshStoredSession = async () => {
@@ -383,16 +399,20 @@ export default function App() {
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState(() => localStorage.getItem("orchidee_remembered_email") || "");
-  const [password, setPassword] = useState(() => localStorage.getItem("orchidee_remembered_password") || "");
+  const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [agreeTerms, setAgreeTerms] = useState(false);
-  const [rememberMe, setRememberMe] = useState(() => Boolean(localStorage.getItem("orchidee_remembered_email")));
+  const [rememberMe, setRememberMe] = useState(() => localStorage.getItem("orchidee_remember_session") !== "false");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [, setAuthRevision] = useState(0);
+
+  useEffect(() => {
+    localStorage.removeItem("orchidee_remembered_password");
+  }, []);
 
   useEffect(() => {
     const handleAuthRefreshed = (event: Event) => {
@@ -532,12 +552,13 @@ export default function App() {
       storage.setItem("orchidee_auth", JSON.stringify(authData));
 
       if (rememberMe) {
+        localStorage.setItem("orchidee_remember_session", "true");
         localStorage.setItem("orchidee_remembered_email", normalizedEmail);
-        localStorage.setItem("orchidee_remembered_password", password);
       } else {
+        localStorage.setItem("orchidee_remember_session", "false");
         localStorage.removeItem("orchidee_remembered_email");
-        localStorage.removeItem("orchidee_remembered_password");
       }
+      localStorage.removeItem("orchidee_remembered_password");
 
       storage.setItem("orchidee_auth_token", token);
       const sessionProfile = createSessionUserProfile(authData, token, normalizedEmail);
@@ -572,13 +593,16 @@ export default function App() {
       localStorage.removeItem("orchidee_admin_user");
       localStorage.removeItem("orchidee_auth");
       localStorage.removeItem("orchidee_auth_token");
+      localStorage.removeItem("orchidee_user");
       sessionStorage.removeItem("orchidee_admin_user");
       sessionStorage.removeItem("orchidee_auth");
       sessionStorage.removeItem("orchidee_auth_token");
+      sessionStorage.removeItem("orchidee_user");
 
       storage.setItem("orchidee_admin_user", googleEmail);
       storage.setItem("orchidee_auth", JSON.stringify(authData));
       storage.setItem("orchidee_auth_token", token);
+      localStorage.setItem("orchidee_remember_session", rememberMe ? "true" : "false");
       const sessionProfile = createSessionUserProfile(authData, token, googleEmail, idToken);
       if (sessionProfile) storage.setItem('orchidee_user', JSON.stringify(sessionProfile));
 
@@ -2013,7 +2037,7 @@ export default function App() {
                     id="login_email"
                     name="email"
                     type="email"
-                    autoComplete={rememberMe ? "email" : "off"}
+                    autoComplete="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -2029,7 +2053,7 @@ export default function App() {
                     id="login_password"
                     name="password"
                     type={showPassword ? "text" : "password"}
-                    autoComplete={rememberMe ? "current-password" : "off"}
+                    autoComplete="current-password"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -2057,7 +2081,7 @@ export default function App() {
                       onChange={(e) => setRememberMe(e.target.checked)}
                       className="w-4 h-4 rounded-[1px] border-[#e2e3e1] text-[#56642b] focus:ring-[#56642b]"
                     />
-                    <span>Ghi nhớ mật khẩu</span>
+                    <span>Duy trì đăng nhập</span>
                   </label>
                   <button type="button" onClick={() => setScreen("forgot_password")} className="text-[11px] text-[#56642b] hover:underline font-medium">Quên mật khẩu?</button>
                 </div>
