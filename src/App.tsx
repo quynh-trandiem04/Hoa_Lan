@@ -3205,12 +3205,11 @@ export default function App() {
                     </div>
                     <div className="space-y-1">
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Danh mục tài liệu</label>
-                      <CategoryTreeSelect
+                      <InlineCategoryTreePicker
                         categories={documentCategories}
                         value={documentForm.categoryId ?? ''}
                         onChange={(categoryId) => setDocumentForm({ ...documentForm, categoryId: categoryId || null })}
                         allLabel="Không phân loại"
-                        placeholder="Chọn danh mục tài liệu"
                       />
                     </div>
                     <div className="space-y-1">
