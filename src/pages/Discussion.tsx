@@ -114,7 +114,7 @@ function CommentLikeButton({
   onClick: () => void;
 }) {
   return (
-    <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
+    <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
       {count > 0 && (
         <span className="text-xs text-[#747878]">
           {count} lượt thích
@@ -126,7 +126,7 @@ function CommentLikeButton({
         disabled={loading}
         aria-pressed={liked}
         aria-label={liked ? 'Bỏ thích bình luận' : 'Thích bình luận'}
-        className={`inline-flex min-h-9 items-center gap-2 rounded-full border bg-white px-4 py-2 text-xs font-bold transition-all disabled:cursor-wait disabled:opacity-60 ${
+        className={`inline-flex min-h-8 items-center gap-1.5 rounded-full border bg-white px-3 py-1.5 text-xs font-bold transition-all disabled:cursor-wait disabled:opacity-60 ${
           liked
             ? 'border-[#65752e]/40 bg-[#f4f6ed] text-[#65752e]'
             : 'border-[#cfd2cb] text-[#747878] hover:border-[#899073] hover:text-[#56642b]'
@@ -340,19 +340,19 @@ function PhotoViewerModal({
             {visibleComments.map((comment) => (
               <div
                 key={comment.id}
-                className="flex gap-3 rounded-2xl border border-[#e5e6e1] bg-white p-4 shadow-[0_5px_16px_rgba(32,36,34,0.08)]"
+                className="flex gap-2.5 rounded-2xl border border-[#e5e6e1] bg-white p-3 shadow-[0_4px_12px_rgba(32,36,34,0.07)]"
               >
                 <AuthorAvatar
                   name={comment.authorName}
                   avatarUrl={comment.authorAvatarUrl || authorProfiles[comment.authorId]?.avatarUrl}
-                  className="h-10 w-10 bg-[#f0f1ec] text-xs"
+                  className="h-9 w-9 bg-[#f0f1ec] text-[10px]"
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <strong className="text-sm">{comment.authorName || 'Thành viên'}</strong>
                     <time className="text-xs text-[#747878]">{formatDate(comment.createdAt)}</time>
                   </div>
-                  <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[#303433]">{comment.content}</p>
+                  <p className="mt-1.5 whitespace-pre-wrap text-sm leading-5 text-[#303433]">{comment.content}</p>
                   <CommentLikeButton
                     liked={comment.isLikedByCurrentUser}
                     count={comment.likeCount || 0}
@@ -891,7 +891,7 @@ export default function Discussion() {
                     <div
                       key={comment.id}
                       id={`discussion-comment-${comment.id}`}
-                      className={`flex gap-3 rounded-2xl border bg-white p-4 shadow-[0_5px_16px_rgba(32,36,34,0.08)] transition-all ${
+                      className={`flex gap-2.5 rounded-2xl border bg-white p-3 shadow-[0_4px_12px_rgba(32,36,34,0.07)] transition-all ${
                         targetCommentId === comment.id
                           ? 'border-[#899073] ring-2 ring-[#899073]/20'
                           : 'border-[#e5e6e1]'
@@ -900,14 +900,14 @@ export default function Discussion() {
                       <AuthorAvatar
                         name={comment.authorName}
                         avatarUrl={comment.authorAvatarUrl || authorProfiles[comment.authorId]?.avatarUrl}
-                        className="h-11 w-11 bg-[#f0f1ec] text-xs"
+                        className="h-9 w-9 bg-[#f0f1ec] text-[10px]"
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <strong className="text-sm">{comment.authorName || 'Thành viên'}</strong>
                           <time className="text-xs text-[#747878]">{formatDate(comment.createdAt)}</time>
                         </div>
-                        <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[#303433]">{comment.content}</p>
+                        <p className="mt-1.5 whitespace-pre-wrap text-sm leading-5 text-[#303433]">{comment.content}</p>
                         <CommentLikeButton
                           liked={comment.isLikedByCurrentUser}
                           count={comment.likeCount || 0}
