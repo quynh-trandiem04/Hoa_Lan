@@ -7,7 +7,7 @@ export default function PublicFooter() {
             Orchids
           </a>
           <p className="max-w-md text-sm leading-relaxed text-on-surface-variant">
-            Website quản lý và cung cấp thông tin về hoa lan, được xây dựng phục vụ đồ án môn học.
+            Website quản lý và cung cấp thông tin về hoa lan, được xây dựng phục vụ khóa luận tốt nghiệp.
           </p>
         </div>
 
