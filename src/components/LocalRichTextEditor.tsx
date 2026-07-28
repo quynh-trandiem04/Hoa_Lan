@@ -23,7 +23,6 @@ const plugins = [
   'insertdatetime',
   'link',
   'lists',
-  'media',
   'nonbreaking',
   'pagebreak',
   'preview',
@@ -61,7 +60,7 @@ export default function LocalRichTextEditor({
           toolbar:
             'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | forecolor backcolor removeformat | ' +
             'alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | ' +
-            'link image media table | blockquote codesample | searchreplace visualblocks visualchars | ' +
+            'link image table | blockquote codesample | searchreplace visualblocks visualchars | ' +
             'ltr rtl | charmap insertdatetime nonbreaking pagebreak anchor | code preview fullscreen help',
           quickbars_insert_toolbar: 'quickimage quicktable',
           quickbars_selection_toolbar: 'bold italic underline | blocks | quicklink blockquote',
@@ -82,7 +81,7 @@ export default function LocalRichTextEditor({
           image_uploadtab: true,
           automatic_uploads: true,
           paste_data_images: true,
-          file_picker_types: 'image media',
+          file_picker_types: 'image',
           images_reuse_filename: false,
           images_upload_handler: async (blobInfo, progress) => {
             progress(10);
