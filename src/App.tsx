@@ -69,6 +69,7 @@ import CategoryTreeSelect from './components/CategoryTreeSelect';
 import AdminDashboardOverview from './components/AdminDashboardOverview';
 import LocalRichTextEditor from './components/LocalRichTextEditor';
 import DocumentCategoryManager, { type DocumentCategoryValues } from './components/DocumentCategoryManager';
+import InlineCategoryTreePicker from './components/InlineCategoryTreePicker';
 
 const ORCHID_FEATURE_FILTERS = [
   { id: 'Popular', name: 'Lan phổ biến', parentId: null },
@@ -3628,36 +3629,44 @@ export default function App() {
 
                     <div className="space-y-1">
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Danh mục</label>
-                      <select
-                        value={careArticleForm.categoryId ?? ''}
-                        onChange={(e) => setCareArticleForm({ ...careArticleForm, categoryId: e.target.value })}
-                        className="w-full bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green text-charcoal-text"
-                      >
-                        <option value="" disabled hidden>-- Chọn danh mục --</option>
-                        {(() => {
-                          const result: Array<{ id: string; name: string; depth: number }> = [];
-                          const visited = new Set<string>();
-                          
-                          const appendChildren = (parentId: string | null, depth: number) => {
-                            currentArticleCategories
-                              .filter((category) => (category.parentId ?? null) === parentId)
-                              .forEach((category) => {
-                                if (visited.has(category.id)) return;
-                                visited.add(category.id);
-                                result.push({ id: category.id, name: category.name, depth });
-                                appendChildren(category.id, depth + 1);
-                              });
-                          };
+                      {activeTab === 'applications' ? (
+                        <InlineCategoryTreePicker
+                          categories={currentArticleCategories}
+                          value={careArticleForm.categoryId ?? ''}
+                          onChange={(categoryId) => setCareArticleForm({ ...careArticleForm, categoryId })}
+                        />
+                      ) : (
+                        <select
+                          value={careArticleForm.categoryId ?? ''}
+                          onChange={(e) => setCareArticleForm({ ...careArticleForm, categoryId: e.target.value })}
+                          className="w-full bg-[#f4f4f2] border border-outline-variant rounded px-3 py-2 text-sm focus:outline-none focus:border-botanical-green text-charcoal-text"
+                        >
+                          <option value="" disabled hidden>-- Chọn danh mục --</option>
+                          {(() => {
+                            const result: Array<{ id: string; name: string; depth: number }> = [];
+                            const visited = new Set<string>();
 
-                          appendChildren(null, 0);
-                          
-                          return result.map(c => (
-                            <option key={c.id} value={c.id}>
-                              {'\u00A0\u00A0'.repeat(c.depth)}{c.depth > 0 ? '— ' : ''}{c.name}
-                            </option>
-                          ));
-                        })()}
-                      </select>
+                            const appendChildren = (parentId: string | null, depth: number) => {
+                              currentArticleCategories
+                                .filter((category) => (category.parentId ?? null) === parentId)
+                                .forEach((category) => {
+                                  if (visited.has(category.id)) return;
+                                  visited.add(category.id);
+                                  result.push({ id: category.id, name: category.name, depth });
+                                  appendChildren(category.id, depth + 1);
+                                });
+                            };
+
+                            appendChildren(null, 0);
+
+                            return result.map(c => (
+                              <option key={c.id} value={c.id}>
+                                {'\u00A0\u00A0'.repeat(c.depth)}{c.depth > 0 ? '— ' : ''}{c.name}
+                              </option>
+                            ));
+                          })()}
+                        </select>
+                      )}
                     </div>
 
                     <div className="space-y-1">
