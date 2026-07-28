@@ -414,6 +414,7 @@ export default function Discussion() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [attachedImages, setAttachedImages] = useState<UploadedImage[]>([]);
+  const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [searchTerm, setSearchTerm] = useState(() => new URLSearchParams(window.location.search).get('q') ?? '');
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
@@ -560,6 +561,11 @@ export default function Discussion() {
     return false;
   };
 
+  const openComposer = () => {
+    if (!requireLogin()) return;
+    setIsComposerOpen(true);
+  };
+
   const handlePostLike = async (postId: string) => {
     if (!requireLogin() || likingPostIds.has(postId)) return;
     const post = posts.find((item) => item.id === postId);
@@ -670,6 +676,7 @@ export default function Discussion() {
       setTitle('');
       setContent('');
       setAttachedImages([]);
+      setIsComposerOpen(false);
       addToast('Đăng bài thảo luận thành công.', 'success');
     } catch (submitError) {
       addToast(submitError instanceof Error ? submitError.message : 'Không thể đăng bài thảo luận.', 'error');
@@ -737,6 +744,9 @@ export default function Discussion() {
     void loadPosts(normalizedTerm, '');
   };
 
+  const composerProfile = readStoredUserProfile();
+  const composerFirstName = composerProfile?.fullName?.trim().split(/\s+/).pop() || 'Bạn';
+
   return (
     <div className="min-h-screen bg-[#f7f6f1] text-[#1a1c1b]">
       <PublicHeader />
@@ -767,8 +777,45 @@ export default function Discussion() {
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
           <section className="space-y-5">
+            {!isComposerOpen ? (
+              <div className="flex items-center gap-3 rounded-xl border border-[#e0e1dc] bg-white p-3 shadow-sm">
+                <AuthorAvatar
+                  name={composerProfile?.fullName || composerFirstName}
+                  avatarUrl={composerProfile?.avatarUrl}
+                  className="h-10 w-10 text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={openComposer}
+                  className="min-w-0 flex-1 rounded-full bg-[#f0f2f3] px-4 py-3 text-left text-sm text-[#747878] transition-colors hover:bg-[#e8ebec]"
+                >
+                  {composerFirstName} ơi, bạn đang nghĩ gì thế?
+                </button>
+                <button
+                  type="button"
+                  onClick={openComposer}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#42a866] transition-colors hover:bg-[#edf7ef]"
+                  aria-label="Đăng bài có ảnh"
+                  title="Đăng bài có ảnh"
+                >
+                  <ImagePlus size={23} />
+                </button>
+              </div>
+            ) : (
             <form onSubmit={handleCreatePost} className="rounded-xl border border-[#e0e1dc] bg-white p-5 shadow-sm">
-                <h2 className="mb-4 font-serif text-xl font-bold">Tạo bài thảo luận</h2>
+                <div className="mb-4 flex items-center justify-between gap-4">
+                  <h2 className="font-serif text-xl font-bold">Tạo bài thảo luận</h2>
+                  <button
+                    type="button"
+                    onClick={() => setIsComposerOpen(false)}
+                    disabled={submitting || uploadingImage}
+                    className="rounded-full p-1.5 text-[#747878] transition-colors hover:bg-[#f0f1ec] hover:text-[#303433] disabled:opacity-50"
+                    aria-label="Thu gọn khung đăng bài"
+                    title="Thu gọn"
+                  >
+                    <X size={19} />
+                  </button>
+                </div>
                 <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[#666b69]">Tiêu đề *</label>
                 <input
                   value={title}
@@ -833,6 +880,7 @@ export default function Discussion() {
                   </button>
                 </div>
             </form>
+            )}
 
             {loading ? (
               <div className="flex justify-center rounded-xl border border-[#e0e1dc] bg-white py-16 text-[#56642b]"><LoaderCircle className="animate-spin" /></div>
