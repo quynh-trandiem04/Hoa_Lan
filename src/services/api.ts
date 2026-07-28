@@ -27,11 +27,91 @@ export interface LoginResponse {
   [key: string]: unknown;
 }
 
+const AUTH_SESSION_KEY = 'orchidee_auth';
+const AUTH_TOKEN_KEY = 'orchidee_auth_token';
+const AUTH_USER_KEY = 'orchidee_user';
+const AUTH_EMAIL_KEY = 'orchidee_admin_user';
+
+const getAuthStorage = (): Storage | null => {
+  if (localStorage.getItem(AUTH_SESSION_KEY) || localStorage.getItem(AUTH_TOKEN_KEY)) return localStorage;
+  if (sessionStorage.getItem(AUTH_SESSION_KEY) || sessionStorage.getItem(AUTH_TOKEN_KEY)) return sessionStorage;
+  return null;
+};
+
+const getStoredAuthToken = () => getAuthStorage()?.getItem(AUTH_TOKEN_KEY) || null;
+
+const clearStoredAuthSession = (storage: Storage) => {
+  [AUTH_SESSION_KEY, AUTH_TOKEN_KEY, AUTH_USER_KEY, AUTH_EMAIL_KEY].forEach((key) => storage.removeItem(key));
+};
+
+let refreshSessionPromise: Promise<string | null> | null = null;
+
+export async function refreshStoredAuthSession(): Promise<string | null> {
+  if (refreshSessionPromise) return refreshSessionPromise;
+
+  refreshSessionPromise = (async () => {
+    const storage = getAuthStorage();
+    if (!storage) return null;
+
+    const rawSession = storage.getItem(AUTH_SESSION_KEY);
+    if (!rawSession) return null;
+
+    try {
+      const session = JSON.parse(rawSession) as LoginResponse;
+      const token = session.accessToken || session.token || storage.getItem(AUTH_TOKEN_KEY);
+      const storedRefreshToken = session.refreshToken;
+      if (!token || !storedRefreshToken) return null;
+
+      const refreshedSession = await refreshAuthToken({
+        token,
+        refreshToken: storedRefreshToken,
+      });
+      const refreshedToken = refreshedSession.accessToken || refreshedSession.token;
+      if (!refreshedToken) throw new Error('Máy chủ không trả về access token mới.');
+
+      const mergedSession: LoginResponse = {
+        ...session,
+        ...refreshedSession,
+        token: refreshedSession.token || session.token,
+        accessToken: refreshedSession.accessToken || session.accessToken,
+        refreshToken: refreshedSession.refreshToken || storedRefreshToken,
+      };
+
+      storage.setItem(AUTH_SESSION_KEY, JSON.stringify(mergedSession));
+      storage.setItem(AUTH_TOKEN_KEY, refreshedToken);
+      window.dispatchEvent(new CustomEvent('orchidee-auth-refreshed', {
+        detail: { token: refreshedToken, session: mergedSession },
+      }));
+      return refreshedToken;
+    } catch (error) {
+      clearStoredAuthSession(storage);
+      window.dispatchEvent(new CustomEvent('orchidee-auth-expired'));
+      throw error;
+    }
+  })().finally(() => {
+    refreshSessionPromise = null;
+  });
+
+  return refreshSessionPromise;
+}
+
+async function authFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+  const response = await fetch(input, init);
+  if (response.status !== 401) return response;
+
+  const refreshedToken = await refreshStoredAuthSession();
+  if (!refreshedToken) return response;
+
+  const headers = new Headers(init.headers);
+  headers.set('Authorization', `Bearer ${refreshedToken}`);
+  return fetch(input, { ...init, headers });
+}
+
 export type DashboardOverview = Record<string, unknown>;
 
 export const getDashboardOverview = async (): Promise<DashboardOverview> => {
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/Dashboard/overview`, {
+  const response = await authFetch(`${API_BASE_URL}/api/Dashboard/overview`, {
     headers: {
       Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -242,9 +322,6 @@ export interface CategoryQuery {
   apiVersion?: string;
 }
 
-const getStoredAuthToken = () => localStorage.getItem('orchidee_auth_token')
-  || sessionStorage.getItem('orchidee_auth_token');
-
 export const getCategories = async (
   query: CategoryQuery = {}
 ): Promise<PaginatedCategories> => {
@@ -259,7 +336,7 @@ export const getCategories = async (
   if (query.apiVersion) params.set('api-version', query.apiVersion);
 
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/Categories?${params.toString()}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/Categories?${params.toString()}`, {
     headers: {
       Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -373,7 +450,7 @@ export const getUsers = async (
   if (sortDescending !== undefined) params.set('SortDescending', String(sortDescending));
   if (roleId) params.set('RoleId', roleId);
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/Users?${params.toString()}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/Users?${params.toString()}`, {
     headers: {
       Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -390,7 +467,7 @@ export const getUsers = async (
 
 const userApiRequest = async (path: string, init: RequestInit, fallback: string): Promise<unknown> => {
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await authFetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
@@ -480,7 +557,7 @@ const throwCategoryApiError = (body: unknown, fallback: string): never => {
 
 export const createCategory = async (payload: CreateCategoryPayload): Promise<unknown> => {
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/Categories`, {
+  const response = await authFetch(`${API_BASE_URL}/api/Categories`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -521,7 +598,7 @@ export const getCategoryById = async (id: string, apiVersion?: string): Promise<
   if (apiVersion) params.set('api-version', apiVersion);
   const query = params.toString();
   const token = getStoredAuthToken();
-  const response = await fetch(
+  const response = await authFetch(
     `${API_BASE_URL}/api/Categories/${encodeURIComponent(id)}${query ? `?${query}` : ''}`,
     {
       headers: {
@@ -544,7 +621,7 @@ export const updateCategory = async (
   if (apiVersion) params.set('api-version', apiVersion);
   const query = params.toString();
   const token = getStoredAuthToken();
-  const response = await fetch(
+  const response = await authFetch(
     `${API_BASE_URL}/api/Categories/${encodeURIComponent(id)}${query ? `?${query}` : ''}`,
     {
       method: 'PUT',
@@ -566,7 +643,7 @@ export const deleteCategory = async (id: string, apiVersion?: string): Promise<v
   if (apiVersion) params.set('api-version', apiVersion);
   const query = params.toString();
   const token = getStoredAuthToken();
-  const response = await fetch(
+  const response = await authFetch(
     `${API_BASE_URL}/api/Categories/${encodeURIComponent(id)}${query ? `?${query}` : ''}`,
     {
       method: 'DELETE',
@@ -617,7 +694,7 @@ export const getDocuments = async (
   if (categoryId) params.set('CategoryId', categoryId);
   if (apiVersion) params.set('api-version', apiVersion);
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/Documents?${params.toString()}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/Documents?${params.toString()}`, {
     headers: {
       Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -637,7 +714,7 @@ export const createDocument = async ({ file, title, description = '', categoryId
   formData.append('Description', description.trim());
   if (categoryId) formData.append('CategoryId', categoryId);
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/Documents/upload${params.size ? `?${params.toString()}` : ''}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/Documents/upload${params.size ? `?${params.toString()}` : ''}`, {
     method: 'POST',
     headers: {
       Accept: 'application/json',
@@ -658,7 +735,7 @@ export const updateDocument = async (
   const params = new URLSearchParams();
   if (apiVersion) params.set('api-version', apiVersion);
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/Documents/${encodeURIComponent(id)}${params.size ? `?${params.toString()}` : ''}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/Documents/${encodeURIComponent(id)}${params.size ? `?${params.toString()}` : ''}`, {
     method: 'PUT',
     headers: {
       Accept: 'application/json',
@@ -682,7 +759,7 @@ export const deleteDocument = async (id: string, apiVersion?: string): Promise<v
   const params = new URLSearchParams();
   if (apiVersion) params.set('api-version', apiVersion);
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/Documents/${encodeURIComponent(id)}${params.size ? `?${params.toString()}` : ''}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/Documents/${encodeURIComponent(id)}${params.size ? `?${params.toString()}` : ''}`, {
     method: 'DELETE',
     headers: {
       Accept: 'application/json',
@@ -743,7 +820,7 @@ export const getDocumentCategories = async (
   if (query.sortDescending !== undefined) params.set('SortDescending', String(query.sortDescending));
 
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/document-categories?${params.toString()}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/document-categories?${params.toString()}`, {
     headers: {
       Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -763,7 +840,7 @@ export const getDocumentCategories = async (
 
 export const getDocumentCategoryTree = async (): Promise<import('../types').DocumentCategory[]> => {
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/document-categories/tree`, {
+  const response = await authFetch(`${API_BASE_URL}/api/document-categories/tree`, {
     headers: {
       Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -778,7 +855,7 @@ export const getDocumentCategoryTree = async (): Promise<import('../types').Docu
 
 export const getDocumentCategoryById = async (id: string): Promise<import('../types').DocumentCategory> => {
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/document-categories/${encodeURIComponent(id)}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/document-categories/${encodeURIComponent(id)}`, {
     headers: {
       Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -791,7 +868,7 @@ export const getDocumentCategoryById = async (id: string): Promise<import('../ty
 
 export const createDocumentCategory = async (payload: SaveDocumentCategoryPayload): Promise<void> => {
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/document-categories`, {
+  const response = await authFetch(`${API_BASE_URL}/api/document-categories`, {
     method: 'POST',
     headers: {
       Accept: 'application/json',
@@ -809,7 +886,7 @@ export const updateDocumentCategory = async (
   payload: SaveDocumentCategoryPayload
 ): Promise<void> => {
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/document-categories/${encodeURIComponent(id)}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/document-categories/${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: {
       Accept: 'application/json',
@@ -824,7 +901,7 @@ export const updateDocumentCategory = async (
 
 export const deleteDocumentCategory = async (id: string): Promise<void> => {
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/document-categories/${encodeURIComponent(id)}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/document-categories/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     headers: {
       Accept: 'application/json',
@@ -888,7 +965,7 @@ export const getArticles = async (query: ArticleQuery = {}): Promise<CareArticle
   if (query.sortDescending !== undefined) params.set('SortDescending', String(query.sortDescending));
   if (query.apiVersion) params.set('api-version', query.apiVersion);
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/Articles?${params.toString()}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/Articles?${params.toString()}`, {
     headers: {
       Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -906,7 +983,7 @@ export const getArticleById = async (id: string, apiVersion?: string): Promise<C
   if (apiVersion) params.set('api-version', apiVersion);
   const query = params.toString();
   const token = getStoredAuthToken();
-  const response = await fetch(
+  const response = await authFetch(
     `${API_BASE_URL}/api/Articles/${encodeURIComponent(id)}${query ? `?${query}` : ''}`,
     { headers: { Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) } }
   );
@@ -920,7 +997,7 @@ export const createArticle = async (data: CreateArticlePayload, apiVersion?: str
   if (apiVersion) params.set('api-version', apiVersion);
   const query = params.toString();
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/Articles${query ? `?${query}` : ''}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/Articles${query ? `?${query}` : ''}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -943,7 +1020,7 @@ export const updateArticle = async (
   if (apiVersion) params.set('api-version', apiVersion);
   const query = params.toString();
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/Articles/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/Articles/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -962,7 +1039,7 @@ export const deleteArticle = async (id: string, apiVersion?: string): Promise<vo
   if (apiVersion) params.set('api-version', apiVersion);
   const query = params.toString();
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/Articles/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/Articles/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
     method: 'DELETE',
     headers: {
       Accept: 'application/json',
@@ -1037,7 +1114,7 @@ const sectionRequest = async (
   init: RequestInit,
   fallback: string,
 ): Promise<unknown> => {
-  const response = await fetch(`${API_BASE_URL}${sectionBasePath(section)}${suffix}`, {
+  const response = await authFetch(`${API_BASE_URL}${sectionBasePath(section)}${suffix}`, {
     ...init,
     headers: {
       ...sectionHeaders(Boolean(init.body)),
@@ -1302,7 +1379,7 @@ export const getOrchidsPage = async (query: OrchidQuery = {}): Promise<Paginated
   if (query.regions?.length) query.regions.forEach(r => params.append('Regions', r));
   if (query.bloomSeasons?.length) query.bloomSeasons.forEach(s => params.append('BloomSeasons', s));
 
-  const response = await fetch(`${API_BASE_URL}/api/Orchids?${params.toString()}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/Orchids?${params.toString()}`, {
     headers: {
       Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -1339,7 +1416,7 @@ export const getOrchidById = async (id: string, apiVersion?: string): Promise<Or
   const params = new URLSearchParams();
   if (apiVersion) params.set('api-version', apiVersion);
   const query = params.toString();
-  const response = await fetch(`${API_BASE_URL}/api/Orchids/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/Orchids/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
     headers: {
       Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -1359,7 +1436,7 @@ export const createOrchid = async (data: CreateOrchidPayload, apiVersion?: strin
   const { displayOrder, imageUrls, ...createData } = data;
   void displayOrder;
   void imageUrls;
-  const response = await fetch(`${API_BASE_URL}/api/Orchids${query ? `?${query}` : ''}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/Orchids${query ? `?${query}` : ''}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1384,7 +1461,7 @@ export const updateOrchid = async (
   const query = params.toString();
   const { imageUrls, ...updateData } = data;
   void imageUrls;
-  const response = await fetch(`${API_BASE_URL}/api/Orchids/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/Orchids/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -1403,7 +1480,7 @@ export const deleteOrchid = async (id: string, apiVersion?: string): Promise<voi
   const params = new URLSearchParams();
   if (apiVersion) params.set('api-version', apiVersion);
   const query = params.toString();
-  const response = await fetch(`${API_BASE_URL}/api/Orchids/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/Orchids/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
     method: 'DELETE',
     headers: {
       Accept: 'application/json',
@@ -1501,7 +1578,7 @@ export const uploadImage = async (file: File): Promise<UploadedImage> => {
   formData.append('file', file);
   const previewUrl = URL.createObjectURL(file);
   try {
-    const response = await fetch(`${API_BASE_URL}/api/Images/upload`, {
+    const response = await authFetch(`${API_BASE_URL}/api/Images/upload`, {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -1533,7 +1610,7 @@ export const uploadImage = async (file: File): Promise<UploadedImage> => {
 
 export const deleteUploadedImage = async (publicId: string): Promise<void> => {
   const token = getStoredAuthToken();
-  const response = await fetch(`${API_BASE_URL}/api/Images/${encodeURIComponent(publicId)}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/Images/${encodeURIComponent(publicId)}`, {
     method: 'DELETE',
     headers: {
       Accept: 'application/json',
@@ -1635,7 +1712,7 @@ export const getDiscussions = async (query: {
   if (query.searchTerm) params.set('SearchTerm', query.searchTerm);
   if (query.apiVersion) params.set('api-version', query.apiVersion);
 
-  const response = await fetch(`${API_BASE_URL}/api/Discussions?${params.toString()}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/Discussions?${params.toString()}`, {
     headers: discussionHeaders(),
   });
   const body = await readApiResponse(response);
@@ -1649,7 +1726,7 @@ export const getDiscussionById = async (id: string, apiVersion?: string): Promis
   const params = new URLSearchParams();
   if (apiVersion) params.set('api-version', apiVersion);
   const suffix = params.size ? `?${params.toString()}` : '';
-  const response = await fetch(`${API_BASE_URL}/api/Discussions/${encodeURIComponent(id)}${suffix}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/Discussions/${encodeURIComponent(id)}${suffix}`, {
     headers: discussionHeaders(),
   });
   const body = await readApiResponse(response);
@@ -1666,7 +1743,7 @@ export const createDiscussion = async (
   const params = new URLSearchParams();
   if (apiVersion) params.set('api-version', apiVersion);
   const suffix = params.size ? `?${params.toString()}` : '';
-  const response = await fetch(`${API_BASE_URL}/api/Discussions${suffix}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/Discussions${suffix}`, {
     method: 'POST',
     headers: discussionHeaders(true),
     body: JSON.stringify(payload),
@@ -1691,7 +1768,7 @@ export const createDiscussionComment = async (
   const params = new URLSearchParams();
   if (apiVersion) params.set('api-version', apiVersion);
   const suffix = params.size ? `?${params.toString()}` : '';
-  const response = await fetch(
+  const response = await authFetch(
     `${API_BASE_URL}/api/Discussions/${encodeURIComponent(discussionId)}/comments${suffix}`,
     {
       method: 'POST',
@@ -1716,7 +1793,7 @@ const updateDiscussionLike = async (
   method: 'POST' | 'DELETE',
   fallback: string,
 ): Promise<DiscussionLikeResultDto> => {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await authFetch(`${API_BASE_URL}${path}`, {
     method,
     headers: discussionHeaders(),
   });
@@ -1768,7 +1845,7 @@ export const deleteDiscussion = async (
   const params = new URLSearchParams();
   if (apiVersion) params.set('api-version', apiVersion);
   const suffix = params.size ? `?${params.toString()}` : '';
-  const response = await fetch(`${API_BASE_URL}/api/Discussions/${encodeURIComponent(id)}${suffix}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/Discussions/${encodeURIComponent(id)}${suffix}`, {
     method: 'DELETE',
     headers: discussionHeaders(),
   });

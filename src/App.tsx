@@ -45,7 +45,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 // Domain Imports
 import { Orchid, Question, Category, CommunityPost, CareArticle, PaginatedDocuments, DocumentItem, Region, BloomSeason, FlowerColor, type ArticleCategory, type DocumentCategory } from './types';
-import { login, register, loginWithGoogle, refreshAuthToken, getCategories, createCategory, getCategoryById, updateCategory, deleteCategory, getArticleById, getSectionArticles, createSectionArticle, updateSectionArticle, deleteSectionArticle, getArticleCategories, getOrchids, getOrchidById, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, updateDocument, deleteDocument, getDocumentCategories, createDocumentCategory, updateDocumentCategory, deleteDocumentCategory, uploadImage, getUploadedImageUrl, getUsers, createUser, updateUser, deleteUser, resetUserPassword, getDiscussions, type ArticleSection, type DiscussionPostDto, type LoginResponse, type UserListItem } from './services/api';
+import { login, register, loginWithGoogle, refreshStoredAuthSession, getCategories, createCategory, getCategoryById, updateCategory, deleteCategory, getArticleById, getSectionArticles, createSectionArticle, updateSectionArticle, deleteSectionArticle, getArticleCategories, getOrchids, getOrchidById, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, updateDocument, deleteDocument, getDocumentCategories, createDocumentCategory, updateDocumentCategory, deleteDocumentCategory, uploadImage, getUploadedImageUrl, getUsers, createUser, updateUser, deleteUser, resetUserPassword, getDiscussions, type ArticleSection, type DiscussionPostDto, type LoginResponse, type UserListItem } from './services/api';
 import { getOrchidImageUrls } from './utils/orchidImages';
 import {
   INITIAL_QUESTIONS,
@@ -112,6 +112,42 @@ const getJwtExpiration = (token: string): number | null => {
   return typeof expiration === 'number' ? expiration * 1000 : null;
 };
 
+const JWT_ROLE_CLAIM_KEYS = [
+  'role',
+  'roles',
+  'http://schemas.microsoft.com/ws/2008/06/identity/claims/role',
+];
+
+const getJwtRoles = (token: string | null | undefined): string[] => {
+  if (!token) return [];
+  const claims = decodeJwtPayload(token);
+  if (!claims) return [];
+
+  return JWT_ROLE_CLAIM_KEYS.flatMap((key) => {
+    const value = claims[key];
+    if (typeof value === 'string') return [value];
+    if (Array.isArray(value)) return value.filter((role): role is string => typeof role === 'string');
+    return [];
+  }).map((role) => role.trim()).filter(Boolean);
+};
+
+const isAdminRole = (role: string): boolean => {
+  const normalizedRole = role.replace(/[\s_-]+/g, '').toLowerCase();
+  return normalizedRole === 'admin'
+    || normalizedRole === 'administrator'
+    || normalizedRole === 'systemadmin'
+    || normalizedRole === 'superadmin';
+};
+
+const isAdminToken = (token: string | null | undefined): boolean =>
+  getJwtRoles(token).some(isAdminRole);
+
+const getStoredAccessToken = (): string | null =>
+  localStorage.getItem('orchidee_auth_token')
+  || sessionStorage.getItem('orchidee_auth_token');
+
+const isStoredSessionAdmin = (): boolean => isAdminToken(getStoredAccessToken());
+
 const getFirstString = (source: Record<string, unknown> | null | undefined, keys: string[]): string => {
   if (!source) return '';
   for (const key of keys) {
@@ -149,8 +185,8 @@ const createSessionUserProfile = (
       || fallbackEmail,
     avatarUrl: getFirstString(authData, ['avatarUrl', 'picture'])
       || getFirstString(identityClaims, ['picture']),
-    roleName: getFirstString(authData, ['role', 'roleName'])
-      || getFirstString(accessClaims, ['role', 'http://schemas.microsoft.com/ws/2008/06/identity/claims/role']),
+    roleName: getJwtRoles(accessToken)[0]
+      || getFirstString(authData, ['role', 'roleName']),
   };
 };
 
@@ -168,8 +204,12 @@ const getStoredSessionUserProfile = (): UserListItem | null => {
   const storage = localStorage.getItem('orchidee_auth') ? localStorage : sessionStorage;
   const rawAuth = storage.getItem('orchidee_auth');
   const token = storage.getItem('orchidee_auth_token');
-  const email = storage.getItem('orchidee_admin_user') || '';
-  if (!rawAuth || !token || !email) return null;
+  if (!rawAuth || !token) return null;
+  const email = storage.getItem('orchidee_admin_user')
+    || getFirstString(decodeJwtPayload(token), [
+      'email',
+      'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
+    ]);
   try {
     const profile = createSessionUserProfile(JSON.parse(rawAuth) as LoginResponse, token, email);
     if (profile) storage.setItem('orchidee_user', JSON.stringify(profile));
@@ -200,8 +240,6 @@ const createSlug = (value: string): string => value
   .replace(/[^a-z0-9]+/g, '-')
   .replace(/^-|-$/g, '');
 
-const ADMIN_EMAIL = (import.meta.env.VITE_ADMIN_EMAIL || 'duongthanhson2004@gmail.com').trim().toLowerCase();
-const isAdminAccount = (email: string | null | undefined) => email?.trim().toLowerCase() === ADMIN_EMAIL;
 const SHOW_LEGACY_OVERVIEW = false;
 
 export default function App() {
@@ -216,8 +254,8 @@ export default function App() {
     if (path === '/signup') return 'signup';
     if (path === '/forgot_password' || path === '/forgot-password') return 'forgot_password';
     if (path === '/admin/dashboard' || path === '/dashboard') {
-      const storedUser = localStorage.getItem('orchidee_admin_user') || sessionStorage.getItem('orchidee_admin_user');
-      return isAdminAccount(storedUser) ? 'dashboard' : (storedUser ? 'home' : 'login');
+      const storedToken = getStoredAccessToken();
+      return isAdminToken(storedToken) ? 'dashboard' : (storedToken ? 'home' : 'login');
     }
     if (path === '/discussion') return 'discussion';
     if (path === '/planting-and-care') return 'planting_and_care';
@@ -244,12 +282,11 @@ export default function App() {
 
   const setScreen = (newScreen: ScreenType, id?: string) => {
     if (newScreen === 'dashboard') {
-      const storedUser = localStorage.getItem('orchidee_admin_user')
-        || sessionStorage.getItem('orchidee_admin_user');
-      if (!isAdminAccount(storedUser)) {
-        const fallbackScreen: ScreenType = storedUser ? 'home' : 'login';
+      const storedToken = getStoredAccessToken();
+      if (!isAdminToken(storedToken)) {
+        const fallbackScreen: ScreenType = storedToken ? 'home' : 'login';
         setScreenState(fallbackScreen);
-        window.history.pushState({}, '', storedUser ? '/' : '/login');
+        window.history.pushState({}, '', storedToken ? '/' : '/login');
         return;
       }
     }
@@ -288,14 +325,13 @@ export default function App() {
   useEffect(() => {
     const handlePopState = () => {
       const nextScreen = getInitialScreen();
-      const storedUser = localStorage.getItem("orchidee_admin_user")
-        || sessionStorage.getItem("orchidee_admin_user");
+      const storedToken = getStoredAccessToken();
       const isDashboardPath = window.location.pathname === '/admin/dashboard'
         || window.location.pathname === '/dashboard';
 
-      if (isDashboardPath && !isAdminAccount(storedUser)) {
-        window.history.replaceState({}, '', storedUser ? '/' : '/login');
-        setScreenState(storedUser ? "home" : "login");
+      if (isDashboardPath && !isAdminToken(storedToken)) {
+        window.history.replaceState({}, '', storedToken ? '/' : '/login');
+        setScreenState(storedToken ? "home" : "login");
         return;
       }
 
@@ -329,23 +365,8 @@ export default function App() {
         const fiveMinutesFromNow = Date.now() + 5 * 60 * 1000;
         if (expiresAt !== null && expiresAt > fiveMinutesFromNow) return;
 
-        const refreshedSession = await refreshAuthToken({
-          token,
-          refreshToken: storedRefreshToken,
-        });
+        await refreshStoredAuthSession();
         if (!isActive) return;
-
-        const refreshedToken = refreshedSession.accessToken || refreshedSession.token || token;
-        const mergedSession: LoginResponse = {
-          ...session,
-          ...refreshedSession,
-          token: refreshedSession.token || session.token,
-          accessToken: refreshedSession.accessToken || session.accessToken,
-          refreshToken: refreshedSession.refreshToken || storedRefreshToken,
-        };
-
-        storage.setItem("orchidee_auth", JSON.stringify(mergedSession));
-        storage.setItem("orchidee_auth_token", refreshedToken);
       } catch (error) {
         console.error("Không thể làm mới phiên đăng nhập:", error);
       }
@@ -371,6 +392,50 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [, setAuthRevision] = useState(0);
+
+  useEffect(() => {
+    const handleAuthRefreshed = (event: Event) => {
+      const token = (event as CustomEvent<{ token?: string }>).detail?.token;
+      if (!token) return;
+
+      const storage = localStorage.getItem("orchidee_auth")
+        ? localStorage
+        : sessionStorage;
+      const rawSession = storage.getItem("orchidee_auth");
+      const fallbackEmail = storage.getItem("orchidee_admin_user") || "";
+      if (rawSession) {
+        try {
+          const profile = createSessionUserProfile(
+            JSON.parse(rawSession) as LoginResponse,
+            token,
+            fallbackEmail,
+          );
+          if (profile) storage.setItem("orchidee_user", JSON.stringify(profile));
+        } catch {
+          // Token has already been refreshed; an invalid cached profile is non-fatal.
+        }
+      }
+      setAuthRevision((revision) => revision + 1);
+    };
+
+    const handleAuthExpired = () => {
+      setCurrentUser(null);
+      const isDashboardPath = window.location.pathname === '/admin/dashboard'
+        || window.location.pathname === '/dashboard';
+      if (isDashboardPath) {
+        window.history.replaceState({}, '', '/login');
+        setScreenState('login');
+      }
+    };
+
+    window.addEventListener('orchidee-auth-refreshed', handleAuthRefreshed);
+    window.addEventListener('orchidee-auth-expired', handleAuthExpired);
+    return () => {
+      window.removeEventListener('orchidee-auth-refreshed', handleAuthRefreshed);
+      window.removeEventListener('orchidee-auth-expired', handleAuthExpired);
+    };
+  }, []);
 
   useEffect(() => {
     const storedUser = localStorage.getItem("orchidee_admin_user")
@@ -382,14 +447,14 @@ export default function App() {
       const initialScreen = getInitialScreen();
       const isDashboardPath = window.location.pathname === '/admin/dashboard'
         || window.location.pathname === '/dashboard';
-      if (isDashboardPath && !isAdminAccount(storedUser)) {
+      if (isDashboardPath && !isAdminToken(storedToken)) {
         window.history.replaceState({}, '', '/');
         setScreenState('home');
         return;
       }
       if (initialScreen === "login" || initialScreen === "signup") {
         const returnUrl = new URLSearchParams(window.location.search).get('returnUrl');
-        setScreen(returnUrl === '/discussion' ? 'discussion' : returnUrl === '/profile' ? 'profile' : (isAdminAccount(storedUser) ? 'dashboard' : 'home'));
+        setScreen(returnUrl === '/discussion' ? 'discussion' : returnUrl === '/profile' ? 'profile' : (isAdminToken(storedToken) ? 'dashboard' : 'home'));
       }
     } else {
       localStorage.removeItem("orchidee_admin_user");
@@ -456,7 +521,13 @@ export default function App() {
       }
 
       localStorage.removeItem("orchidee_admin_user");
+      localStorage.removeItem("orchidee_auth");
+      localStorage.removeItem("orchidee_auth_token");
+      localStorage.removeItem("orchidee_user");
       sessionStorage.removeItem("orchidee_admin_user");
+      sessionStorage.removeItem("orchidee_auth");
+      sessionStorage.removeItem("orchidee_auth_token");
+      sessionStorage.removeItem("orchidee_user");
       storage.setItem("orchidee_admin_user", normalizedEmail);
       storage.setItem("orchidee_auth", JSON.stringify(authData));
 
@@ -475,7 +546,7 @@ export default function App() {
       setCurrentUser(normalizedEmail);
       setPassword("");
       const returnUrl = new URLSearchParams(window.location.search).get('returnUrl');
-      setScreen(returnUrl === '/discussion' ? 'discussion' : returnUrl === '/profile' ? 'profile' : (isAdminAccount(normalizedEmail) ? 'dashboard' : 'home'));
+      setScreen(returnUrl === '/discussion' ? 'discussion' : returnUrl === '/profile' ? 'profile' : (isAdminToken(token) ? 'dashboard' : 'home'));
       addToast("Đăng nhập thành công!", "success");
     } catch (error) {
       addToast(
@@ -513,7 +584,7 @@ export default function App() {
 
       setCurrentUser(googleEmail);
       const returnUrl = new URLSearchParams(window.location.search).get('returnUrl');
-      setScreen(returnUrl === '/discussion' ? 'discussion' : returnUrl === '/profile' ? 'profile' : (isAdminAccount(googleEmail) ? 'dashboard' : 'home'));
+      setScreen(returnUrl === '/discussion' ? 'discussion' : returnUrl === '/profile' ? 'profile' : (isAdminToken(token) ? 'dashboard' : 'home'));
       addToast("Đăng nhập Google thành công!", "success");
     } catch (error) {
       addToast(
@@ -2388,7 +2459,7 @@ export default function App() {
               <div className={`${isSidebarOpen ? 'block' : 'hidden'} min-w-0`}>
                 <p className="text-xs font-bold text-on-surface truncate leading-tight">{currentDisplayName}</p>
                 <p className="text-[9px] text-[#56642b] font-semibold tracking-wider font-mono">
-                  {isAdminAccount(currentUser) ? 'SUPER ADMIN' : 'CUSTOMER'}
+                  {isStoredSessionAdmin() ? 'ADMIN' : 'CUSTOMER'}
                 </p>
               </div>
             </button>
