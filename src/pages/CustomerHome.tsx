@@ -284,14 +284,13 @@ export default function CustomerHome({ categories, orchids, onNavigate }: Custom
             </div>
           </div>
 
-          {/* Right Side: Botanist Scholar Image */}
+          {/* Right Side: White Phalaenopsis Orchid Image */}
           <div className="relative">
             <div className="aspect-[4/5] bg-surface-container overflow-hidden rounded-lg shadow-xl relative group">
               <img 
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-103" 
                 src="/research-botanist.png"
-                alt="Professional botanist investigating Phalaenopsis orchid in laboratory greenhouse"
-                referrerPolicy="no-referrer"
+                alt="Chậu hoa lan Hồ Điệp trắng"
               />
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center p-6 text-center">
                 <a
