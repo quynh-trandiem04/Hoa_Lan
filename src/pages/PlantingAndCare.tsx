@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, FileText, LoaderCircle, Search, X } from 'lucide-react';
+import { ArrowLeft, CalendarClock, ChevronLeft, ChevronRight, FileText, LoaderCircle, Search, X } from 'lucide-react';
 import type { ArticleCategory, CareArticle } from '../types';
 import { getArticleById, getArticleCategories, getSectionArticles, getUploadedImageUrl, type ArticleSection } from '../services/api';
 import PublicFooter from '../components/PublicFooter';
@@ -15,6 +15,20 @@ const PAGE_SIZE = 8;
 const capitalizeFirst = (value: string) => value
   ? `${value.charAt(0).toLocaleUpperCase('vi-VN')}${value.slice(1)}`
   : value;
+
+const formatPublishedAt = (value?: string | null) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
+};
 
 interface PlantingAndCareProps {
   section?: ArticleSection;
@@ -213,9 +227,17 @@ export default function PlantingAndCare({
               />
             )}
 
-            <span className="inline-block rounded bg-[#d6e7a1]/35 px-2.5 py-1 text-[10px] font-bold uppercase text-[#56642b]">
-              Đã xuất bản
-            </span>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="inline-block rounded bg-[#d6e7a1]/35 px-2.5 py-1 text-[10px] font-bold uppercase text-[#56642b]">
+                Đã xuất bản
+              </span>
+              {formatPublishedAt(selectedArticle.publishedAt) && (
+                <time className="flex items-center gap-1.5 text-xs text-[#747878]" dateTime={selectedArticle.publishedAt ?? undefined}>
+                  <CalendarClock size={14} />
+                  {formatPublishedAt(selectedArticle.publishedAt)}
+                </time>
+              )}
+            </div>
             <h1 className="mt-4 font-serif text-3xl font-bold leading-tight md:text-5xl">{selectedArticle.title}</h1>
             {selectedArticle.summary && (
               <p className="mt-5 border-l-2 border-[#56642b] pl-4 text-sm leading-7 text-[#5d625f]">
@@ -287,7 +309,15 @@ export default function PlantingAndCare({
                           <div className="flex h-40 w-full shrink-0 items-center justify-center bg-[#f0f1ec] text-[#90958d] sm:h-auto sm:w-40 lg:w-44"><FileText size={30} /></div>
                         )}
                         <div className="flex min-w-0 flex-1 flex-col p-4">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#56642b]">Đã xuất bản</span>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#56642b]">Đã xuất bản</span>
+                            {formatPublishedAt(article.publishedAt) && (
+                              <time className="flex items-center gap-1 text-[10px] text-[#747878]" dateTime={article.publishedAt ?? undefined}>
+                                <CalendarClock size={12} />
+                                {formatPublishedAt(article.publishedAt)}
+                              </time>
+                            )}
+                          </div>
                           <h3 className="mt-2 line-clamp-2 font-serif text-lg font-bold leading-snug transition-colors group-hover:text-[#56642b]">{article.title}</h3>
                           <p className="mt-2 line-clamp-2 text-xs leading-5 text-[#686d6a]">{article.summary || article.content.replace(/<[^>]+>/g, '')}</p>
                           <span className="mt-auto pt-3 text-[10px] font-bold uppercase tracking-wider text-[#56642b]">{openingArticleId === article.id ? 'Đang tải...' : 'Đọc tiếp →'}</span>

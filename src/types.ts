@@ -182,6 +182,7 @@ export interface CareArticle {
   thumbnailImageId: string | null;
   thumbnailImageUrl?: string;
   isPublished: boolean;
+  publishedAt?: string | null;
   orchidIds: string[];
   documentIds: string[];
   categoryId?: string | null;

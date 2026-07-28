@@ -938,6 +938,7 @@ const normalizeArticle = (
   thumbnailImageId: article.thumbnailImageId ?? null,
   thumbnailImageUrl: article.thumbnailImageUrl ?? '',
   isPublished: article.isPublished ?? false,
+  publishedAt: article.publishedAt ?? null,
   orchidIds: article.orchidIds ?? [],
   documentIds: article.documentIds ?? [],
   categoryId: article.categoryId ?? article.articleCategoryIds?.[0] ?? article.categories?.[0]?.id ?? null,
