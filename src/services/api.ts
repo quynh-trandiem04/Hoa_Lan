@@ -1840,6 +1840,28 @@ export const unlikeDiscussionComment = async (
     'Không thể bỏ thích bình luận.',
   );
 
+export const updateDiscussion = async (
+  id: string,
+  payload: { title: string; content: string },
+  apiVersion?: string,
+): Promise<void> => {
+  const params = new URLSearchParams();
+  if (apiVersion) params.set('api-version', apiVersion);
+  const suffix = params.size ? `?${params.toString()}` : '';
+  const response = await authFetch(`${API_BASE_URL}/api/Discussions/${encodeURIComponent(id)}${suffix}`, {
+    method: 'PUT',
+    headers: discussionHeaders(true),
+    body: JSON.stringify(payload),
+  });
+  const body = await readApiResponse(response);
+  if (!response.ok) {
+    if (response.status === 404 || response.status === 405) {
+      throw new Error('Máy chủ chưa hỗ trợ chỉnh sửa bài thảo luận. Vui lòng bổ sung API PUT /api/Discussions/{id}.');
+    }
+    throwDiscussionApiError(response.status, body, 'Không thể cập nhật bài thảo luận.');
+  }
+};
+
 export const deleteDiscussion = async (
   id: string,
   apiVersion?: string,

@@ -39,7 +39,8 @@ import {
   ChevronDown,
   Grid2X2,
   List,
-  Flower2
+  Flower2,
+  MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -70,6 +71,7 @@ import AdminDashboardOverview from './components/AdminDashboardOverview';
 import LocalRichTextEditor from './components/LocalRichTextEditor';
 import DocumentCategoryManager, { type DocumentCategoryValues } from './components/DocumentCategoryManager';
 import InlineCategoryTreePicker from './components/InlineCategoryTreePicker';
+import AdminDiscussionManager from './components/AdminDiscussionManager';
 
 const ORCHID_FEATURE_FILTERS = [
   { id: 'Popular', name: 'Lan phổ biến', parentId: null },
@@ -2465,6 +2467,21 @@ export default function App() {
             </span>
           </button>
 
+          <button
+            onClick={() => { setActiveTab('community'); setSearchQuery(''); }}
+            title={!isSidebarOpen ? 'Quản lý thảo luận' : undefined}
+            className={`order-[60] flex w-full items-center rounded px-4 py-3 text-left transition-all duration-300 ${isSidebarOpen ? 'gap-3' : 'justify-center'} ${
+              activeTab === 'community'
+                ? 'border-r-2 border-[#56642b] bg-[#d6e7a1]/20 font-bold text-[#56642b]'
+                : 'text-[#434748] hover:bg-[#d6e7a1]/20 hover:text-[#56642b]'
+            }`}
+          >
+            <MessageSquare className="h-5 w-5 shrink-0" />
+            <span className={`${isSidebarOpen ? 'block' : 'hidden'} text-xs font-semibold uppercase tracking-wider`}>
+              Thảo luận
+            </span>
+          </button>
+
         </nav>
 
         {/* Footer-styled administrator profile context */}
@@ -3628,6 +3645,13 @@ export default function App() {
                 )}
               </div>
             </div>
+          )}
+
+          {activeTab === 'community' && (
+            <AdminDiscussionManager
+              searchQuery={searchQuery}
+              notify={addToast}
+            />
           )}
 
           {/* ======================= TAB: CULTIVATION CATEGORIES ======================= */}
