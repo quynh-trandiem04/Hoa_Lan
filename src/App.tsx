@@ -3712,7 +3712,7 @@ export default function App() {
                     </table>
                   </div>
                 )}
-                {filteredUsers.length > adminPageSize && <div className="border-t border-outline-variant/40 p-4">
+                <div className="border-t border-outline-variant/40 p-4">
                   <AdminPagination
                     currentPage={userPage}
                     totalItems={filteredUsers.length}
@@ -3720,7 +3720,7 @@ export default function App() {
                     onPageChange={setUserPage}
                     itemLabel="người dùng"
                   />
-                </div>}
+                </div>
               </div>
             </div>
           )}

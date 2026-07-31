@@ -22,10 +22,8 @@ export default function AdminPagination({
   itemLabel = 'mục',
 }: AdminPaginationProps) {
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  if (totalItems <= pageSize) return null;
-
   const safePage = Math.min(Math.max(currentPage, 1), totalPages);
-  const startItem = (safePage - 1) * pageSize + 1;
+  const startItem = totalItems === 0 ? 0 : (safePage - 1) * pageSize + 1;
   const endItem = Math.min(safePage * pageSize, totalItems);
 
   return (
