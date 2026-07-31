@@ -2713,7 +2713,7 @@ export default function App() {
         </header>
 
         {/* Dashboard Pages Content */}
-        <div className="flex-1 p-8 pb-12">
+        <div className="flex flex-1 flex-col p-8 pb-12">
           
           {/* ======================= TAB: 1. OVERVIEW ======================= */}
           {activeTab === 'overview' && (
@@ -2911,7 +2911,7 @@ export default function App() {
 
           {/* ======================= TAB: 2. CATEGORIES / DANH MỤC ======================= */}
           {activeTab === 'categories' && (
-            <div className="space-y-5">
+            <div className="flex flex-1 flex-col gap-5">
               <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-end">
                 <div>
                   <h2 className="font-serif text-3xl font-semibold text-on-surface">Quản lý danh mục hoa lan</h2>
@@ -2929,7 +2929,7 @@ export default function App() {
               </div>
 
               {/* Category Grid Section */}
-              <div className="space-y-4">
+              <div className="flex flex-1 flex-col gap-4">
                 {loadingCategories && (
                   <p className="py-8 text-center text-sm text-on-surface-variant">
                     Đang tải danh mục từ máy chủ...
@@ -3071,7 +3071,7 @@ export default function App() {
 
           {/* ======================= TAB: ORCHIDS / KHO LAN ======================= */}
           {activeTab === 'orchids' && (
-            <div className="space-y-4">
+            <div className="flex flex-1 flex-col gap-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="font-serif text-3xl font-semibold text-on-surface">Quản lý loài lan</h2>
@@ -3212,7 +3212,7 @@ export default function App() {
               </div>
 
               {/* List of Specimen Section */}
-              <div className="space-y-4">
+              <div className="flex flex-1 flex-col gap-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <h3 className="font-serif text-xl font-bold text-on-surface">Danh sách loài lan <span className="ml-2 inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-[#eef1e2] px-2 text-sm text-[#56642b]">{filteredOrchids.length}</span></h3>
                   <div className="flex items-center gap-2">
@@ -3343,7 +3343,7 @@ export default function App() {
 
           {/* ======================= TAB: 3. ARTICLES / QUẢN LÝ TÀI LIỆU ======================= */}
           {activeTab === 'articles' && (
-            <div className="space-y-4">
+            <div className="flex flex-1 flex-col gap-4">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
                 <div>
                   <h2 className="font-serif text-3xl font-semibold text-on-surface">Quản Trị Tài Liệu Về Lan & Luồng Kiến Thức</h2>
@@ -3509,7 +3509,7 @@ export default function App() {
                   </motion.div>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="flex flex-1 flex-col gap-4">
                   {loadingDocuments ? (
                     <div className="text-center py-12 text-outline text-sm font-medium">Đang tải danh sách tài liệu...</div>
                   ) : (
@@ -3592,7 +3592,7 @@ export default function App() {
 
           {/* ======================= TAB: 4. USERS / NHÂN VIÊN ======================= */}
           {activeTab === 'users' && (
-            <div className="space-y-4">
+            <div className="flex flex-1 flex-col gap-4">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
                 <div>
                   <h2 className="font-serif text-3xl font-semibold text-on-surface">Quản Lý Người Dùng</h2>
@@ -3609,7 +3609,7 @@ export default function App() {
               </div>
 
               {/* Administrators Table */}
-              <div className="bg-white rounded-xl border border-outline-variant/40 shadow-sm overflow-hidden">
+              <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-outline-variant/40 bg-white shadow-sm">
                 <div className="flex flex-col gap-3 border-b border-outline-variant bg-[#f4f4f2]/50 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
                   <h3 className="font-serif text-lg font-bold text-on-surface">
                     Danh sách người dùng
@@ -3758,7 +3758,7 @@ export default function App() {
 
           {/* ======================= TAB: CARE GUIDE / TRỒNG & CHĂM SÓC (API) ======================= */}
           {(activeTab === 'care' || activeTab === 'applications') && (
-            <div className="space-y-5">
+            <div className="flex flex-1 flex-col gap-5">
               <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-end">
                 <div>
                   <h2 className="font-serif text-3xl font-semibold text-on-surface">
@@ -4026,7 +4026,7 @@ export default function App() {
                       {activeTab === 'applications' ? 'Chưa có bài ứng dụng nào.' : 'Chưa có bài hướng dẫn nào.'}
                     </div>
                   ) : (
-                    <div className="space-y-5">
+                    <div className="flex flex-1 flex-col gap-5">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {pagedCareArticles.map((art) => (
                         <div key={art.id} className="bg-white rounded-xl border border-outline-variant/30 overflow-hidden flex items-stretch hover:shadow-md transition-all">

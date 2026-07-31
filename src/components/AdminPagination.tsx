@@ -27,7 +27,7 @@ export default function AdminPagination({
   const endItem = Math.min(safePage * pageSize, totalItems);
 
   return (
-    <div className="flex flex-col items-center justify-between gap-3 rounded-xl border border-outline-variant/50 bg-white px-4 py-3 sm:flex-row">
+    <div className="mt-auto flex flex-col items-center justify-between gap-3 rounded-xl border border-outline-variant/50 bg-white px-4 py-3 sm:flex-row">
       <p className="text-xs text-outline">
         Hiển thị <strong className="text-on-surface">{startItem}–{endItem}</strong> trong{' '}
         <strong className="text-on-surface">{totalItems}</strong> {itemLabel}

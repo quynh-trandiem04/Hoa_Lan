@@ -216,7 +216,7 @@ export default function ArticleCategoryManager({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-[calc(100vh-10rem)] flex-col gap-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
         <div>
           <h2 className="font-serif text-3xl font-semibold text-on-surface">{title}</h2>
@@ -270,7 +270,7 @@ export default function ArticleCategoryManager({
         </div>
       )}
 
-      <div className="space-y-4">
+      <div className="flex flex-1 flex-col gap-4">
         {loading && <p className="py-8 text-center text-sm text-on-surface-variant">Đang tải danh mục từ máy chủ...</p>}
         {!loading && categories.length === 0 ? (
           <div className="py-14 text-center text-sm text-outline">

@@ -171,7 +171,7 @@ export default function AdminDiscussionManager({
   };
 
   return (
-    <div className="space-y-5">
+    <div className="flex min-h-[calc(100vh-10rem)] flex-col gap-5">
       <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-end">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#71803c]">Kiểm soát nội dung cộng đồng</p>

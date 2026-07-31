@@ -176,7 +176,7 @@ export default function DocumentCategoryManager({
   };
 
   return (
-    <div className="space-y-5">
+    <div className="flex min-h-[calc(100vh-10rem)] flex-col gap-5">
       <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-end">
         <div>
           <h2 className="font-serif text-3xl font-semibold text-on-surface">Quản lý danh mục tài liệu</h2>
