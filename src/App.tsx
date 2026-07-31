@@ -2723,6 +2723,7 @@ export default function App() {
               onAddUser={() => { setEditingUser(null); setOpenInviteAdmin(true); }}
               onOpenOrchids={() => { setActiveTab('orchids'); setSearchQuery(''); }}
               onOpenDocuments={() => { setActiveTab('articles'); setSearchQuery(''); }}
+              onOpenDiscussions={() => { setActiveTab('community'); setSearchQuery(''); }}
               onOpenListItem={(sectionKey, item) => {
                 const normalizedKey = sectionKey.replace(/[^a-z]/gi, '').toLowerCase();
                 const record = item !== null && typeof item === 'object' ? item as Record<string, unknown> : {};

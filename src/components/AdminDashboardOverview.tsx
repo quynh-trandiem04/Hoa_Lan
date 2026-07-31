@@ -20,6 +20,7 @@ interface AdminDashboardOverviewProps {
   onAddUser: () => void;
   onOpenOrchids: () => void;
   onOpenDocuments: () => void;
+  onOpenDiscussions: () => void;
   onOpenListItem: (sectionKey: string, item: unknown) => void;
 }
 
@@ -163,6 +164,7 @@ export default function AdminDashboardOverview({
   onAddUser,
   onOpenOrchids,
   onOpenDocuments,
+  onOpenDiscussions,
   onOpenListItem,
 }: AdminDashboardOverviewProps) {
   const [overview, setOverview] = useState<DashboardOverview>({});
@@ -306,6 +308,7 @@ export default function AdminDashboardOverview({
             <div className="mt-6 grid gap-2">
               <button type="button" onClick={onAddOrchid} className="flex items-center gap-3 rounded-xl bg-white px-4 py-3 text-left text-xs font-bold text-[#2d351d] transition-transform hover:-translate-y-0.5"><Plus className="h-4 w-4" /> Thêm loại lan mới</button>
               <button type="button" onClick={onAddUser} className="flex items-center gap-3 rounded-xl border border-white/20 px-4 py-3 text-left text-xs font-bold text-white transition-colors hover:bg-white/10"><UserPlus className="h-4 w-4" /> Thêm người dùng</button>
+              <button type="button" onClick={onOpenDiscussions} className="flex items-center gap-3 rounded-xl border border-white/20 px-4 py-3 text-left text-xs font-bold text-white transition-colors hover:bg-white/10"><MessageSquare className="h-4 w-4" /> Quản lý thảo luận</button>
             </div>
           </section>
 
