@@ -72,6 +72,7 @@ import LocalRichTextEditor from './components/LocalRichTextEditor';
 import DocumentCategoryManager, { type DocumentCategoryValues } from './components/DocumentCategoryManager';
 import InlineCategoryTreePicker from './components/InlineCategoryTreePicker';
 import AdminDiscussionManager from './components/AdminDiscussionManager';
+import AdminPagination from './components/AdminPagination';
 
 const ORCHID_FEATURE_FILTERS = [
   { id: 'Popular', name: 'Lan phổ biến', parentId: null },
@@ -741,6 +742,11 @@ export default function App() {
   };
 
   const [activeTab, setActiveTab] = useState<'overview' | 'categories' | 'orchids' | 'articles' | 'document_categories' | 'users' | 'community' | 'care' | 'cultivation_cats' | 'application_cats' | 'applications'>('overview');
+  const adminPageSize = 8;
+  const [categoryPage, setCategoryPage] = useState(1);
+  const [orchidPage, setOrchidPage] = useState(1);
+  const [userPage, setUserPage] = useState(1);
+  const [careArticlePage, setCareArticlePage] = useState(1);
   const [expandedAdminMenus, setExpandedAdminMenus] = useState({
     orchids: false,
     applications: false,
@@ -1751,8 +1757,67 @@ export default function App() {
     return cat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
            (cat.scientificName && cat.scientificName.toLowerCase().includes(searchQuery.toLowerCase()));
   });
+  const filteredRootCategories = filteredCategories
+    .filter((category) => !category.parentId)
+    .sort((left, right) => left.name.localeCompare(right.name, 'vi'));
+  const pagedRootCategories = filteredRootCategories.slice(
+    (categoryPage - 1) * adminPageSize,
+    categoryPage * adminPageSize,
+  );
 
   const filteredUsers = users;
+  const pagedOrchids = useMemo(
+    () => filteredOrchids.slice((orchidPage - 1) * adminPageSize, orchidPage * adminPageSize),
+    [adminPageSize, filteredOrchids, orchidPage],
+  );
+  const pagedUsers = useMemo(
+    () => filteredUsers.slice((userPage - 1) * adminPageSize, userPage * adminPageSize),
+    [adminPageSize, filteredUsers, userPage],
+  );
+  const pagedCareArticles = useMemo(
+    () => careArticles.slice((careArticlePage - 1) * adminPageSize, careArticlePage * adminPageSize),
+    [adminPageSize, careArticlePage, careArticles],
+  );
+
+  useEffect(() => {
+    setCategoryPage(1);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setOrchidPage(1);
+  }, [
+    searchQuery,
+    selectedCategoryFilter,
+    selectedFeatureFilters,
+    selectedRegionFilters,
+    selectedSeasonFilters,
+    selectedColorFilters,
+    orchidSortOrder,
+  ]);
+
+  useEffect(() => {
+    setUserPage(1);
+  }, [searchQuery, userSortOrder]);
+
+  useEffect(() => {
+    setCareArticlePage(1);
+  }, [activeTab]);
+
+  useEffect(() => {
+    setCategoryPage((page) => Math.min(page, Math.max(1, Math.ceil(filteredRootCategories.length / adminPageSize))));
+  }, [adminPageSize, filteredRootCategories.length]);
+
+  useEffect(() => {
+    setOrchidPage((page) => Math.min(page, Math.max(1, Math.ceil(filteredOrchids.length / adminPageSize))));
+  }, [adminPageSize, filteredOrchids.length]);
+
+  useEffect(() => {
+    setUserPage((page) => Math.min(page, Math.max(1, Math.ceil(filteredUsers.length / adminPageSize))));
+  }, [adminPageSize, filteredUsers.length]);
+
+  useEffect(() => {
+    setCareArticlePage((page) => Math.min(page, Math.max(1, Math.ceil(careArticles.length / adminPageSize))));
+  }, [adminPageSize, careArticles.length]);
 
   const currentUserProfile = users.find((user) =>
     user.email.toLowerCase() === currentUser?.toLowerCase()
@@ -2876,7 +2941,9 @@ export default function App() {
                 )}
                 {(() => {
                   const renderCategoryTree = (parentId: string | null, level: number = 0) => {
-                    const children = filteredCategories.filter(c => (c.parentId || null) === parentId);
+                    const children = parentId === null
+                      ? pagedRootCategories
+                      : filteredCategories.filter(c => (c.parentId || null) === parentId);
                     if (children.length === 0) return null;
 
                     const leaves = children.filter(c => !filteredCategories.some(sub => sub.parentId === c.id));
@@ -2990,6 +3057,13 @@ export default function App() {
 
                   return renderCategoryTree(null, 0);
                 })()}
+                <AdminPagination
+                  currentPage={categoryPage}
+                  totalItems={filteredRootCategories.length}
+                  pageSize={adminPageSize}
+                  onPageChange={setCategoryPage}
+                  itemLabel="nhóm danh mục"
+                />
               </div>
             </div>
           )}
@@ -3169,7 +3243,7 @@ export default function App() {
                 </div>
 
                 <div className={`grid grid-cols-1 gap-6 ${orchidAdminViewMode === 'grid' ? 'md:grid-cols-2' : ''}`} aria-busy={loadingAdminOrchids}>
-                  {!loadingAdminOrchids && !adminOrchidError && filteredOrchids.map((orc) => (
+                  {!loadingAdminOrchids && !adminOrchidError && pagedOrchids.map((orc) => (
                     <div key={orc.id} className="bg-white p-4 rounded-xl border border-outline-variant/40 hover:border-botanical-green/40 duration-300 transition-all flex gap-4 group relative">
                       <div className="w-24 h-24 rounded-lg overflow-hidden shrink-0 border border-outline-variant/30 bg-surface-container">
                         <img 
@@ -3245,6 +3319,13 @@ export default function App() {
                     </div>
                   )}
                 </div>
+                <AdminPagination
+                  currentPage={orchidPage}
+                  totalItems={filteredOrchids.length}
+                  pageSize={adminPageSize}
+                  onPageChange={setOrchidPage}
+                  itemLabel="loài lan"
+                />
               </div>
             </div>
           )}
@@ -3492,27 +3573,14 @@ export default function App() {
                         )}
                       </div>
 
-                      {/* Pagination Controls */}
-                      {documentsData && (documentsData.totalPages > 1) && (
-                        <div className="flex justify-center items-center gap-4 mt-8">
-                          <button
-                            disabled={!documentsData.hasPreviousPage}
-                            onClick={() => setDocPage(prev => Math.max(1, prev - 1))}
-                            className="px-4 py-2 bg-white border border-outline-variant text-[#56642b] rounded-lg text-xs font-semibold uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-container transition-all cursor-pointer"
-                          >
-                            Trang trước
-                          </button>
-                          <span className="text-xs font-mono font-bold text-on-surface bg-surface-container px-3 py-1.5 rounded">
-                            {documentsData.pageNumber} / {documentsData.totalPages}
-                          </span>
-                          <button
-                            disabled={!documentsData.hasNextPage}
-                            onClick={() => setDocPage(prev => prev + 1)}
-                            className="px-4 py-2 bg-white border border-outline-variant text-[#56642b] rounded-lg text-xs font-semibold uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-container transition-all cursor-pointer"
-                          >
-                            Trang sau
-                          </button>
-                        </div>
+                      {documentsData && (
+                        <AdminPagination
+                          currentPage={documentsData.pageNumber}
+                          totalItems={documentsData.totalCount}
+                          pageSize={documentsData.pageSize}
+                          onPageChange={setDocPage}
+                          itemLabel="tài liệu"
+                        />
                       )}
                     </>
                   )}
@@ -3586,7 +3654,7 @@ export default function App() {
                   <div className="px-6 py-12 text-center text-sm text-outline">Không có người dùng phù hợp.</div>
                 ) : userViewMode === 'grid' ? (
                   <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-                    {filteredUsers.map((user) => (
+                    {pagedUsers.map((user) => (
                       <div key={user.id} className="group flex min-w-0 items-center gap-4 rounded-xl border border-outline-variant/60 bg-white p-4 transition-all hover:border-[#87905f]/50 hover:shadow-sm">
                         {user.avatarUrl ? (
                           <img src={user.avatarUrl} alt={user.fullName} className="h-14 w-14 shrink-0 rounded-xl border border-outline-variant object-cover" referrerPolicy="no-referrer" />
@@ -3621,7 +3689,7 @@ export default function App() {
                         <tr><th className="px-6 py-2.5">Người dùng</th><th className="px-6 py-2.5">Email</th><th className="px-6 py-2.5">Vai trò</th><th className="px-6 py-2.5 text-right">Điều khiển</th></tr>
                       </thead>
                       <tbody className="divide-y divide-outline-variant/30">
-                        {filteredUsers.map((user) => (
+                        {pagedUsers.map((user) => (
                           <tr key={user.id} className="transition-colors hover:bg-gray-50/70">
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-3">
@@ -3643,6 +3711,15 @@ export default function App() {
                     </table>
                   </div>
                 )}
+                {filteredUsers.length > adminPageSize && <div className="border-t border-outline-variant/40 p-4">
+                  <AdminPagination
+                    currentPage={userPage}
+                    totalItems={filteredUsers.length}
+                    pageSize={adminPageSize}
+                    onPageChange={setUserPage}
+                    itemLabel="người dùng"
+                  />
+                </div>}
               </div>
             </div>
           )}
@@ -3948,8 +4025,9 @@ export default function App() {
                       {activeTab === 'applications' ? 'Chưa có bài ứng dụng nào.' : 'Chưa có bài hướng dẫn nào.'}
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {careArticles.map((art) => (
+                    <div className="space-y-5">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {pagedCareArticles.map((art) => (
                         <div key={art.id} className="bg-white rounded-xl border border-outline-variant/30 overflow-hidden flex items-stretch hover:shadow-md transition-all">
                           {(art.thumbnailImageUrl || getUploadedImageUrl(art.thumbnailImageId)) && (
                             <img
@@ -3996,6 +4074,14 @@ export default function App() {
                           </div>
                         </div>
                       ))}
+                      </div>
+                      <AdminPagination
+                        currentPage={careArticlePage}
+                        totalItems={careArticles.length}
+                        pageSize={adminPageSize}
+                        onPageChange={setCareArticlePage}
+                        itemLabel={activeTab === 'applications' ? 'bài ứng dụng' : 'bài hướng dẫn'}
+                      />
                     </div>
                   )}
                 </>

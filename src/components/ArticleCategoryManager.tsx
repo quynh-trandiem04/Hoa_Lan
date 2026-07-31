@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Edit, FolderPlus, Layers, Plus, Trash2, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { ArticleCategory } from '../types';
@@ -10,6 +10,7 @@ import {
   type ArticleSection,
 } from '../services/api';
 import CategoryTreeSelect from './CategoryTreeSelect';
+import AdminPagination from './AdminPagination';
 
 interface ArticleCategoryManagerProps {
   section: ArticleSection;
@@ -38,12 +39,28 @@ export default function ArticleCategoryManager({
   onReload,
   notify,
 }: ArticleCategoryManagerProps) {
+  const pageSize = 6;
+  const [currentPage, setCurrentPage] = useState(1);
   const [editing, setEditing] = useState<ArticleCategory | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [parentId, setParentId] = useState('');
+  const rootCategories = useMemo(
+    () => categories
+      .filter((category) => !category.parentId)
+      .sort((a, b) => a.name.localeCompare(b.name, 'vi')),
+    [categories],
+  );
+  const pagedRootCategories = useMemo(
+    () => rootCategories.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, rootCategories],
+  );
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, Math.max(1, Math.ceil(rootCategories.length / pageSize))));
+  }, [rootCategories.length]);
 
   const closeForm = () => {
     setShowForm(false);
@@ -121,9 +138,11 @@ export default function ArticleCategoryManager({
   };
 
   const renderCategoryTree = (currentParentId: string | null, level = 0): React.ReactNode => {
-    const children = categories
-      .filter((category) => (category.parentId ?? null) === currentParentId)
-      .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+    const children = currentParentId === null
+      ? pagedRootCategories
+      : categories
+        .filter((category) => (category.parentId ?? null) === currentParentId)
+        .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
     if (children.length === 0) return null;
 
     const leaves = children.filter((category) => !categories.some((child) => child.parentId === category.id));
@@ -260,6 +279,15 @@ export default function ArticleCategoryManager({
           </div>
         ) : !loading ? renderCategoryTree(null) : null}
       </div>
+      {!loading && (
+        <AdminPagination
+          currentPage={currentPage}
+          totalItems={rootCategories.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          itemLabel="nhóm danh mục"
+        />
+      )}
     </div>
   );
 }

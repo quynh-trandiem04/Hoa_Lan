@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { BookOpen, Edit, FileText, FolderPlus, Trash2, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { DocumentCategory } from '../types';
 import CategoryTreeSelect from './CategoryTreeSelect';
+import AdminPagination from './AdminPagination';
 
 export interface DocumentCategoryValues {
   name: string;
@@ -26,6 +27,8 @@ export default function DocumentCategoryManager({
   onUpdate,
   onDelete,
 }: DocumentCategoryManagerProps) {
+  const pageSize = 6;
+  const [currentPage, setCurrentPage] = useState(1);
   const [editing, setEditing] = useState<DocumentCategory | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState('');
@@ -43,6 +46,15 @@ export default function DocumentCategoryManager({
     result.forEach((items) => items.sort((a, b) => a.name.localeCompare(b.name, 'vi')));
     return result;
   }, [categories]);
+  const rootCategories = childrenByParent.get(null) ?? [];
+  const pagedRootCategories = useMemo(
+    () => rootCategories.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, rootCategories],
+  );
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, Math.max(1, Math.ceil(rootCategories.length / pageSize))));
+  }, [rootCategories.length]);
 
   const openCreate = () => {
     setEditing(null);
@@ -98,7 +110,9 @@ export default function DocumentCategoryManager({
   };
 
   const renderTree = (currentParentId: string | null, depth = 0): React.ReactNode => {
-    const children = childrenByParent.get(currentParentId) ?? [];
+    const children = currentParentId === null
+      ? pagedRootCategories
+      : childrenByParent.get(currentParentId) ?? [];
     if (children.length === 0) return null;
 
     return (
@@ -186,6 +200,15 @@ export default function DocumentCategoryManager({
         </div>
       )}
       {!loading && categories.length > 0 && renderTree(null)}
+      {!loading && (
+        <AdminPagination
+          currentPage={currentPage}
+          totalItems={rootCategories.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          itemLabel="nhóm danh mục"
+        />
+      )}
 
       {showForm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-charcoal-text/40 p-4 backdrop-blur-sm">

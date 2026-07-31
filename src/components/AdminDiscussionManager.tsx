@@ -18,6 +18,7 @@ import {
   updateDiscussion,
   type DiscussionPostDto,
 } from '../services/api';
+import AdminPagination from './AdminPagination';
 
 interface AdminDiscussionManagerProps {
   searchQuery: string;
@@ -54,7 +55,9 @@ export default function AdminDiscussionManager({
   searchQuery,
   notify,
 }: AdminDiscussionManagerProps) {
+  const pageSize = 10;
   const [posts, setPosts] = useState<DiscussionPostDto[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [selectedPost, setSelectedPost] = useState<DiscussionPostDto | null>(null);
   const [editingPost, setEditingPost] = useState<DiscussionPostDto | null>(null);
@@ -89,6 +92,20 @@ export default function AdminDiscussionManager({
       ),
     );
   }, [posts, searchQuery]);
+
+  const pagedPosts = useMemo(
+    () => filteredPosts.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, filteredPosts],
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(filteredPosts.length / pageSize));
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, filteredPosts.length]);
 
   const openDetails = async (post: DiscussionPostDto) => {
     try {
@@ -206,7 +223,7 @@ export default function AdminDiscussionManager({
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/40">
-                {filteredPosts.map((post) => (
+                {pagedPosts.map((post) => (
                   <tr key={post.id} className="transition-colors hover:bg-[#fafbf6]">
                     <td className="max-w-md px-5 py-4">
                       <p className="truncate text-sm font-bold text-on-surface">{post.title}</p>
@@ -258,6 +275,14 @@ export default function AdminDiscussionManager({
           </div>
         </div>
       )}
+
+      <AdminPagination
+        currentPage={currentPage}
+        totalItems={filteredPosts.length}
+        pageSize={pageSize}
+        onPageChange={setCurrentPage}
+        itemLabel="bài thảo luận"
+      />
 
       {selectedPost && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-label="Chi tiết bài thảo luận">
