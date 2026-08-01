@@ -56,7 +56,7 @@ export default function LocalRichTextEditor({
           menubar: 'file edit view insert format tools table help',
           plugins,
           toolbar_mode: 'wrap',
-          toolbar_sticky: true,
+          toolbar_sticky: false,
           toolbar:
             'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | forecolor backcolor removeformat | ' +
             'alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | ' +
