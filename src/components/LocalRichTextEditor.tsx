@@ -73,6 +73,20 @@ export default function LocalRichTextEditor({
           elementpath: true,
           object_resizing: 'img',
           resize_img_proportional: true,
+          setup: (editor) => {
+            editor.on('ObjectSelected', (event) => {
+              const target = event.target;
+              if (target.nodeName !== 'IMG') return;
+
+              window.requestAnimationFrame(() => {
+                target.scrollIntoView({
+                  behavior: 'smooth',
+                  block: 'center',
+                  inline: 'nearest',
+                });
+              });
+            });
+          },
           image_advtab: true,
           image_caption: true,
           image_description: true,
@@ -120,14 +134,20 @@ export default function LocalRichTextEditor({
               font-family: Arial, Helvetica, sans-serif;
               font-size: 14px;
               line-height: 1.65;
-              padding: 12px 16px;
+              box-sizing: border-box;
+              min-height: 100%;
+              padding: 32px 16px 72px;
             }
             h1, h2, h3, h4, h5, h6 {
               color: #1a1c1b;
               font-family: Georgia, "Times New Roman", serif;
             }
             a { color: #56642b; }
-            img { max-width: 100%; height: auto; }
+            img {
+              height: auto;
+              max-width: 100%;
+              scroll-margin-block: 48px;
+            }
             figure.image { margin: 1rem auto; }
             figure.image figcaption { color: #747878; font-size: 12px; }
             blockquote {
