@@ -74,6 +74,20 @@ export default function LocalRichTextEditor({
           object_resizing: 'img',
           resize_img_proportional: true,
           setup: (editor) => {
+            editor.on('PastePostProcess', (event) => {
+              event.node.querySelectorAll('img').forEach((image) => {
+                image.removeAttribute('width');
+                image.removeAttribute('height');
+                image.style.removeProperty('width');
+                image.style.removeProperty('height');
+                image.style.removeProperty('min-width');
+                image.style.removeProperty('min-height');
+                image.style.removeProperty('max-width');
+                image.style.removeProperty('max-height');
+                image.style.removeProperty('object-fit');
+              });
+            });
+
             editor.on('ObjectSelected', (event) => {
               const target = event.target;
               if (target.nodeName !== 'IMG') return;
@@ -146,6 +160,7 @@ export default function LocalRichTextEditor({
             img {
               height: auto;
               max-width: 100%;
+              object-fit: contain;
               scroll-margin-block: 48px;
             }
             figure.image { margin: 1rem auto; }
