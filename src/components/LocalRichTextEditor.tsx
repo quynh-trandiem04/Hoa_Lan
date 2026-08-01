@@ -72,8 +72,146 @@ export default function LocalRichTextEditor({
           statusbar: true,
           elementpath: true,
           object_resizing: 'img',
-          resize_img_proportional: true,
+          resize_img_proportional: false,
           setup: (editor) => {
+            type ResizeSide = 'n' | 'e' | 's' | 'w';
+
+            let selectedImage: HTMLImageElement | null = null;
+
+            const removeSideHandles = () => {
+              editor
+                .getBody()
+                ?.querySelectorAll<HTMLElement>('.mce-word-resize-handle')
+                .forEach((handle) => handle.remove());
+            };
+
+            const positionSideHandles = () => {
+              if (!selectedImage || !selectedImage.isConnected) {
+                removeSideHandles();
+                return;
+              }
+
+              const position = editor.dom.getPos(selectedImage, editor.getBody());
+              const rect = selectedImage.getBoundingClientRect();
+              const points: Record<ResizeSide, { left: number; top: number }> = {
+                n: { left: position.x + rect.width / 2, top: position.y },
+                e: { left: position.x + rect.width, top: position.y + rect.height / 2 },
+                s: { left: position.x + rect.width / 2, top: position.y + rect.height },
+                w: { left: position.x, top: position.y + rect.height / 2 },
+              };
+
+              editor
+                .getBody()
+                .querySelectorAll<HTMLElement>('.mce-word-resize-handle')
+                .forEach((handle) => {
+                  const side = handle.dataset.resizeSide as ResizeSide;
+                  const point = points[side];
+                  handle.style.left = `${point.left - handle.offsetWidth / 2}px`;
+                  handle.style.top = `${point.top - handle.offsetHeight / 2}px`;
+                });
+            };
+
+            const startSideResize = (side: ResizeSide, event: MouseEvent) => {
+              if (!selectedImage) return;
+
+              event.preventDefault();
+              event.stopPropagation();
+
+              const image = selectedImage;
+              const startX = event.screenX;
+              const startY = event.screenY;
+              const startWidth = image.getBoundingClientRect().width;
+              const startHeight = image.getBoundingClientRect().height;
+              const ratio = startWidth / startHeight;
+
+              image.style.width = `${startWidth}px`;
+              image.style.height = `${startHeight}px`;
+
+              const onMove = (moveEvent: MouseEvent) => {
+                moveEvent.preventDefault();
+
+                const deltaX = moveEvent.screenX - startX;
+                const deltaY = moveEvent.screenY - startY;
+                let width = startWidth;
+                let height = startHeight;
+
+                if (side === 'e') width = startWidth + deltaX;
+                if (side === 'w') width = startWidth - deltaX;
+                if (side === 's') height = startHeight + deltaY;
+                if (side === 'n') height = startHeight - deltaY;
+
+                width = Math.max(24, Math.min(width, editor.getBody().clientWidth - 32));
+                height = Math.max(24, height);
+
+                if (moveEvent.shiftKey) {
+                  if (side === 'e' || side === 'w') height = width / ratio;
+                  else width = height * ratio;
+                }
+
+                image.style.width = `${Math.round(width)}px`;
+                image.style.height = `${Math.round(height)}px`;
+                positionSideHandles();
+              };
+
+              const documents = [editor.getDoc(), document];
+              const onEnd = () => {
+                documents.forEach((doc) => {
+                  doc.removeEventListener('mousemove', onMove);
+                  doc.removeEventListener('mouseup', onEnd);
+                });
+                editor.undoManager.add();
+                editor.setDirty(true);
+                editor.dispatch('change');
+                editor.nodeChanged();
+                positionSideHandles();
+              };
+
+              documents.forEach((doc) => {
+                doc.addEventListener('mousemove', onMove);
+                doc.addEventListener('mouseup', onEnd);
+              });
+            };
+
+            const showSideHandles = (image: HTMLImageElement) => {
+              removeSideHandles();
+              selectedImage = image;
+
+              const cursors: Record<ResizeSide, string> = {
+                n: 'n-resize',
+                e: 'e-resize',
+                s: 's-resize',
+                w: 'w-resize',
+              };
+
+              (Object.keys(cursors) as ResizeSide[]).forEach((side) => {
+                const handle = editor.getDoc().createElement('span');
+                handle.className = 'mce-word-resize-handle';
+                handle.dataset.resizeSide = side;
+                handle.setAttribute('data-mce-bogus', 'all');
+                handle.setAttribute('contenteditable', 'false');
+                Object.assign(handle.style, {
+                  background: '#ffffff',
+                  border: '2px solid #4d9cff',
+                  borderRadius: '50%',
+                  boxSizing: 'border-box',
+                  cursor: cursors[side],
+                  display: 'block',
+                  height: '11px',
+                  margin: '0',
+                  padding: '0',
+                  position: 'absolute',
+                  width: '11px',
+                  zIndex: '1000',
+                });
+                handle.addEventListener('mousedown', (mouseEvent) =>
+                  startSideResize(side, mouseEvent),
+                );
+                editor.getBody().appendChild(handle);
+              });
+
+              positionSideHandles();
+            };
+
             editor.on('PastePostProcess', (event) => {
               event.node.querySelectorAll('img').forEach((image) => {
                 image.removeAttribute('width');
@@ -92,13 +230,28 @@ export default function LocalRichTextEditor({
               const target = event.target;
               if (target.nodeName !== 'IMG') return;
 
+              showSideHandles(target as HTMLImageElement);
+
               window.requestAnimationFrame(() => {
                 target.scrollIntoView({
                   behavior: 'smooth',
                   block: 'center',
                   inline: 'nearest',
                 });
+                positionSideHandles();
               });
+            });
+
+            editor.on('ObjectResized ResizeEditor ResizeWindow', positionSideHandles);
+            editor.on('NodeChange', () => {
+              if (selectedImage && editor.selection.getNode() !== selectedImage) {
+                selectedImage = null;
+                removeSideHandles();
+              }
+            });
+            editor.on('blur hide remove', () => {
+              selectedImage = null;
+              removeSideHandles();
             });
           },
           image_advtab: true,
@@ -158,9 +311,7 @@ export default function LocalRichTextEditor({
             }
             a { color: #56642b; }
             img {
-              height: auto;
               max-width: 100%;
-              object-fit: contain;
               scroll-margin-block: 48px;
             }
             figure.image { margin: 1rem auto; }
