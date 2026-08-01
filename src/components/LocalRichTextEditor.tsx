@@ -1,4 +1,6 @@
 import { Editor } from '@tinymce/tinymce-react';
+import { useRef } from 'react';
+import type { Editor as TinyMceEditor } from 'tinymce';
 import { uploadImage } from '../services/api';
 
 interface LocalRichTextEditorProps {
@@ -40,6 +42,8 @@ export default function LocalRichTextEditor({
   onChange,
   minHeight = 280,
 }: LocalRichTextEditorProps) {
+  const editorRef = useRef<TinyMceEditor | null>(null);
+
   return (
     <div className="overflow-hidden rounded border border-outline-variant bg-white focus-within:border-[#56642b] focus-within:ring-2 focus-within:ring-[#56642b]/10">
       <Editor
@@ -47,6 +51,9 @@ export default function LocalRichTextEditor({
         licenseKey="gpl"
         value={value}
         rollback={false}
+        onInit={(_event, editor) => {
+          editorRef.current = editor;
+        }}
         onEditorChange={onChange}
         init={{
           base_url: '/tinymce',
@@ -267,6 +274,7 @@ export default function LocalRichTextEditor({
           images_upload_handler: async (blobInfo, progress) => {
             progress(10);
             const blob = blobInfo.blob();
+            const blobUri = blobInfo.blobUri();
             const file = new File(
               [blob],
               blobInfo.filename() || `editor-image-${Date.now()}.${blob.type.split('/')[1] || 'png'}`,
@@ -274,6 +282,22 @@ export default function LocalRichTextEditor({
             );
             progress(30);
             const uploaded = await uploadImage(file);
+
+            const activeEditor = editorRef.current;
+            const pastedImage = activeEditor
+              ? Array.from(activeEditor.getBody().querySelectorAll<HTMLImageElement>('img')).find(
+                  (image) => image.getAttribute('src') === blobUri || image.src === blobUri,
+                )
+              : undefined;
+
+            if (pastedImage) {
+              const displayedSize = pastedImage.getBoundingClientRect();
+              if (displayedSize.width > 0 && displayedSize.height > 0) {
+                pastedImage.style.width = `${Math.round(displayedSize.width)}px`;
+                pastedImage.style.height = `${Math.round(displayedSize.height)}px`;
+              }
+            }
+
             progress(100);
             if (!uploaded.url) throw new Error('Máy chủ không trả về đường dẫn hình ảnh.');
             return uploaded.url;
