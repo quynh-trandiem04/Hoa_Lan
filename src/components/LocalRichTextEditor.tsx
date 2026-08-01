@@ -275,6 +275,48 @@ export default function LocalRichTextEditor({
             progress(10);
             const blob = blobInfo.blob();
             const blobUri = blobInfo.blobUri();
+            const activeEditor = editorRef.current;
+            const editorImages = activeEditor
+              ? Array.from(activeEditor.getBody().querySelectorAll<HTMLImageElement>('img'))
+              : [];
+            const selectedNode = activeEditor?.selection.getNode();
+            const selectedImage =
+              selectedNode?.nodeName === 'IMG' ? (selectedNode as HTMLImageElement) : undefined;
+            const pastedImage =
+              editorImages.find(
+                (image) =>
+                  image.getAttribute('src') === blobUri ||
+                  image.getAttribute('data-mce-src') === blobUri ||
+                  image.src === blobUri,
+              ) ||
+              (selectedImage &&
+              (selectedImage.src.startsWith('blob:') || selectedImage.src.startsWith('data:'))
+                ? selectedImage
+                : undefined) ||
+              [...editorImages]
+                .reverse()
+                .find(
+                  (image) => image.src.startsWith('blob:') || image.src.startsWith('data:'),
+                );
+
+            const displayedSize = pastedImage?.getBoundingClientRect();
+            const preservedSize =
+              displayedSize && displayedSize.width > 0 && displayedSize.height > 0
+                ? {
+                    width: Math.round(displayedSize.width),
+                    height: Math.round(displayedSize.height),
+                  }
+                : undefined;
+            const applyPreservedSize = (image: HTMLImageElement) => {
+              if (!preservedSize) return;
+
+              image.style.setProperty('width', `${preservedSize.width}px`);
+              image.style.setProperty('height', `${preservedSize.height}px`);
+              image.setAttribute('width', String(preservedSize.width));
+              image.setAttribute('height', String(preservedSize.height));
+            };
+
+            if (pastedImage) applyPreservedSize(pastedImage);
             const file = new File(
               [blob],
               blobInfo.filename() || `editor-image-${Date.now()}.${blob.type.split('/')[1] || 'png'}`,
@@ -282,24 +324,50 @@ export default function LocalRichTextEditor({
             );
             progress(30);
             const uploaded = await uploadImage(file);
+            if (!uploaded.url) throw new Error('Máy chủ không trả về đường dẫn hình ảnh.');
+            if (activeEditor && preservedSize) {
+              const body = activeEditor.getBody();
+              const findUploadedImage = () =>
+                Array.from(body.querySelectorAll<HTMLImageElement>('img')).find(
+                  (image) =>
+                    image === pastedImage ||
+                    image.getAttribute('src') === uploaded.url ||
+                    image.getAttribute('data-mce-src') === uploaded.url ||
+                    image.src === uploaded.url,
+                );
+              const restoreUploadedImageSize = () => {
+                const image = findUploadedImage();
+                if (!image) return false;
 
-            const activeEditor = editorRef.current;
-            const pastedImage = activeEditor
-              ? Array.from(activeEditor.getBody().querySelectorAll<HTMLImageElement>('img')).find(
-                  (image) => image.getAttribute('src') === blobUri || image.src === blobUri,
-                )
-              : undefined;
+                applyPreservedSize(image);
+                activeEditor.nodeChanged();
+                return true;
+              };
+              const observer = new MutationObserver((mutations: MutationRecord[]) => {
+                const sourceWasUpdated = mutations.some(
+                  (mutation) =>
+                    mutation.type === 'attributes' &&
+                    (mutation.attributeName === 'src' || mutation.attributeName === 'data-mce-src'),
+                );
 
-            if (pastedImage) {
-              const displayedSize = pastedImage.getBoundingClientRect();
-              if (displayedSize.width > 0 && displayedSize.height > 0) {
-                pastedImage.style.width = `${Math.round(displayedSize.width)}px`;
-                pastedImage.style.height = `${Math.round(displayedSize.height)}px`;
-              }
+                if (sourceWasUpdated && restoreUploadedImageSize()) observer.disconnect();
+              });
+
+              observer.observe(body, {
+                attributes: true,
+                attributeFilter: ['src', 'data-mce-src'],
+                childList: true,
+                subtree: true,
+              });
+
+              pastedImage?.addEventListener('load', restoreUploadedImageSize, { once: true });
+              activeEditor.getWin().setTimeout(() => {
+                restoreUploadedImageSize();
+                observer.disconnect();
+              }, 5000);
             }
 
             progress(100);
-            if (!uploaded.url) throw new Error('Máy chủ không trả về đường dẫn hình ảnh.');
             return uploaded.url;
           },
           autosave_interval: '20s',
