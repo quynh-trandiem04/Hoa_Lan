@@ -11,6 +11,7 @@ import {
 } from '../services/api';
 import CategoryTreeSelect from './CategoryTreeSelect';
 import AdminPagination from './AdminPagination';
+import { useConfirmDialog } from './ConfirmDialog';
 
 interface ArticleCategoryManagerProps {
   section: ArticleSection;
@@ -39,6 +40,7 @@ export default function ArticleCategoryManager({
   onReload,
   notify,
 }: ArticleCategoryManagerProps) {
+  const { confirm: confirmDelete, confirmDialog } = useConfirmDialog();
   const pageSize = 6;
   const [currentPage, setCurrentPage] = useState(1);
   const [editing, setEditing] = useState<ArticleCategory | null>(null);
@@ -127,7 +129,12 @@ export default function ArticleCategoryManager({
   };
 
   const remove = async (category: ArticleCategory) => {
-    if (!window.confirm(`Bạn có chắc muốn xóa danh mục “${category.name}”?`)) return;
+    if (!(await confirmDelete({
+      title: 'Xóa danh mục bài viết?',
+      message: 'Hãy chắc chắn danh mục không còn bài viết hoặc danh mục con trước khi xóa.',
+      itemName: category.name,
+      confirmLabel: 'Xóa danh mục',
+    }))) return;
     try {
       await deleteArticleCategory(section, category.id);
       notify(`Đã xóa danh mục: ${category.name}`, 'success');
@@ -288,6 +295,7 @@ export default function ArticleCategoryManager({
           itemLabel="nhóm danh mục"
         />
       )}
+      {confirmDialog}
     </div>
   );
 }

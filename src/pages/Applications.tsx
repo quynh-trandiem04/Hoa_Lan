@@ -1,6 +1,10 @@
 import PlantingAndCare from './PlantingAndCare';
 
-export default function Applications() {
+interface ApplicationsProps {
+  isAdmin?: boolean;
+}
+
+export default function Applications({ isAdmin = false }: ApplicationsProps) {
   return (
     <PlantingAndCare
       section="application"
@@ -8,6 +12,7 @@ export default function Applications() {
       eyebrow="Giá trị và ứng dụng của hoa lan"
       title="Ứng Dụng"
       description="Khám phá các bài viết về ứng dụng của hoa lan trong đời sống, nghiên cứu và sản xuất."
+      isAdmin={isAdmin}
     />
   );
 }

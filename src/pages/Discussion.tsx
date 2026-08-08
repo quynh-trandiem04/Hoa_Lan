@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, Heart, ImagePlus, LoaderCircle, LockKeyhole, MessageSquare, MoreHorizontal, RefreshCw, Search, Send, Trash2, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Edit, Heart, ImagePlus, LoaderCircle, LockKeyhole, MessageSquare, MoreHorizontal, RefreshCw, Search, Send, Trash2, X } from 'lucide-react';
 import {
   createDiscussion,
   createDiscussionComment,
@@ -11,6 +11,7 @@ import {
   likeDiscussionPost,
   unlikeDiscussionComment,
   unlikeDiscussionPost,
+  updateDiscussion,
   uploadImage,
   type DiscussionPostDto,
   type UploadedImage,
@@ -19,6 +20,7 @@ import {
 import PublicFooter from '../components/PublicFooter';
 import PublicHeader from '../components/PublicHeader';
 import { Toasts, useToasts } from '../components/Toasts';
+import { useConfirmDialog } from '../components/ConfirmDialog';
 
 const LOGIN_URL = `/login?returnUrl=${encodeURIComponent('/discussion')}`;
 const RECENT_COMMENT_LIMIT = 3;
@@ -425,7 +427,12 @@ function PhotoViewerModal({
   );
 }
 
-export default function Discussion() {
+interface DiscussionProps {
+  isAdmin?: boolean;
+}
+
+export default function Discussion({ isAdmin = false }: DiscussionProps) {
+  const { confirm: confirmDelete, confirmDialog } = useConfirmDialog();
   const [posts, setPosts] = useState<DiscussionPostDto[]>([]);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -446,6 +453,11 @@ export default function Discussion() {
   const [targetPostId, setTargetPostId] = useState(() => new URLSearchParams(window.location.search).get('postId') ?? '');
   const [targetCommentId, setTargetCommentId] = useState(() => new URLSearchParams(window.location.search).get('commentId') ?? '');
   const [authorProfiles, setAuthorProfiles] = useState<Record<string, UserListItem>>({});
+  const [editingPost, setEditingPost] = useState<DiscussionPostDto | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const [editImageMarkdown, setEditImageMarkdown] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
   const { toasts, addToast, removeToast } = useToasts();
 
   const loadAuthorProfiles = useCallback(async (discussionPosts: DiscussionPostDto[]) => {
@@ -536,13 +548,49 @@ export default function Discussion() {
 
   const handleDeletePost = async (id: string) => {
     if (!requireLogin()) return;
-    if (!window.confirm('Bạn có chắc chắn muốn xóa bài thảo luận này?')) return;
+    const post = posts.find((item) => item.id === id);
+    if (!(await confirmDelete({
+      title: 'Xóa bài thảo luận?',
+      message: 'Bài viết cùng nội dung thảo luận liên quan sẽ bị gỡ khỏi cộng đồng.',
+      itemName: post?.title,
+      confirmLabel: 'Xóa bài viết',
+    }))) return;
     try {
       await deleteDiscussion(id);
       addToast('Đã xóa bài thảo luận thành công.', 'success');
       void loadPosts(searchTerm);
     } catch (error) {
       addToast(error instanceof Error ? error.message : 'Không thể xóa bài thảo luận.', 'error');
+    }
+  };
+
+  const openEditPost = (post: DiscussionPostDto) => {
+    const body = getDiscussionBody(post.content);
+    setEditingPost(post);
+    setEditTitle(post.title);
+    setEditContent(body.text);
+    setEditImageMarkdown((body.imageUrls ?? []).map((url) => `![Ảnh đính kèm](${url})`).join('\n'));
+    setActiveDropdownId(null);
+  };
+
+  const handleSaveEdit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!editingPost || !editTitle.trim() || !editContent.trim()) {
+      addToast('Vui lòng nhập đầy đủ tiêu đề và nội dung.', 'error');
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      const nextContent = `${editContent.trim()}${editImageMarkdown ? `\n\n${editImageMarkdown}` : ''}`;
+      await updateDiscussion(editingPost.id, { title: editTitle.trim(), content: nextContent });
+      const refreshed = await getDiscussionById(editingPost.id);
+      setPosts((current) => current.map((post) => post.id === refreshed.id ? refreshed : post));
+      setEditingPost(null);
+      addToast('Đã cập nhật bài thảo luận.', 'success');
+    } catch (saveError) {
+      addToast(saveError instanceof Error ? saveError.message : 'Không thể cập nhật bài thảo luận.', 'error');
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -769,6 +817,7 @@ export default function Discussion() {
 
   const composerProfile = readStoredUserProfile();
   const composerFirstName = composerProfile?.fullName?.trim().split(/\s+/).pop() || 'Bạn';
+  const currentUserIsAdmin = isAdmin;
 
   return (
     <div className="min-h-screen bg-[#f7f6f1] text-[#1a1c1b]">
@@ -797,6 +846,13 @@ export default function Discussion() {
             <button className="px-3 text-[#56642b]" aria-label="Tìm kiếm"><Search size={18} /></button>
           </form>
         </div>
+
+        {currentUserIsAdmin && (
+          <div className="mb-6 rounded-xl border border-[#87905f]/35 bg-[#f1f4e7] p-4">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#667234]">Chế độ quản trị</p>
+            <p className="mt-1 text-sm text-[#4f554e]">Admin có thể tạo bài bằng khung đăng bài, đồng thời sửa hoặc xóa mọi bài trong menu tùy chọn.</p>
+          </div>
+        )}
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
           <section className="space-y-5">
@@ -942,6 +998,7 @@ export default function Discussion() {
               const visibleComments = showAllComments
                 ? sortedComments
                 : sortedComments.slice(0, RECENT_COMMENT_LIMIT);
+              const canManagePost = currentUserIsAdmin || composerProfile?.id === post.authorId;
               return (
               <article
                 key={post.id}
@@ -960,7 +1017,7 @@ export default function Discussion() {
                       <time className="text-xs text-[#747878]">{formatDate(post.createdAt)}</time>
                     </div>
                   </div>
-                  <div className="relative">
+                  {canManagePost && <div className="relative">
                     <button
                       onClick={() => setActiveDropdownId(activeDropdownId === post.id ? null : post.id)}
                       className="rounded-full p-2 text-[#747878] transition-colors hover:bg-[#f0f1ec]"
@@ -972,6 +1029,17 @@ export default function Discussion() {
                       <>
                         <div className="fixed inset-0 z-10" onClick={() => setActiveDropdownId(null)}></div>
                         <div className="absolute right-0 top-full z-20 mt-1 w-48 rounded-lg border border-[#e0e1dc] bg-white py-1 shadow-lg">
+                          {currentUserIsAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => openEditPost(post)}
+                              className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-[#56642b] hover:bg-[#f9f9f9]"
+                            >
+                              <Edit size={16} />
+                              <span>Chỉnh sửa bài</span>
+                            </button>
+                          )}
+                          {(currentUserIsAdmin || composerProfile?.id === post.authorId) && (
                           <button
                             onClick={() => {
                               setActiveDropdownId(null);
@@ -982,10 +1050,11 @@ export default function Discussion() {
                             <Trash2 size={16} />
                             <span>Xóa bài viết</span>
                           </button>
+                          )}
                         </div>
                       </>
                     )}
-                  </div>
+                  </div>}
                 </div>
                 <h2 className="font-serif text-xl font-bold">{post.title}</h2>
                 <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#434748]">{postBody.text}</p>
@@ -1103,6 +1172,24 @@ export default function Discussion() {
         </div>
       </main>
       <PublicFooter />
+
+      {currentUserIsAdmin && editingPost && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-label="Chỉnh sửa bài thảo luận">
+          <form onSubmit={handleSaveEdit} className="w-full max-w-2xl overflow-hidden rounded-xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#dedfd9] px-6 py-4">
+              <div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#71803c]">Quản trị nhanh</p><h2 className="font-serif text-2xl font-bold">Chỉnh sửa bài thảo luận</h2></div>
+              <button type="button" onClick={() => setEditingPost(null)} className="rounded-full p-2 text-[#747878] hover:bg-[#f0f1ec]" aria-label="Đóng"><X size={20} /></button>
+            </div>
+            <div className="space-y-4 p-6">
+              <label className="block"><span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-[#666b69]">Tiêu đề *</span><input value={editTitle} onChange={(event) => setEditTitle(event.target.value)} className="w-full rounded-md border border-[#cfd2cb] px-4 py-3 text-sm outline-none focus:border-[#56642b]" /></label>
+              <label className="block"><span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-[#666b69]">Nội dung *</span><textarea value={editContent} onChange={(event) => setEditContent(event.target.value)} rows={10} className="w-full resize-y rounded-md border border-[#cfd2cb] px-4 py-3 text-sm leading-6 outline-none focus:border-[#56642b]" /></label>
+              {editImageMarkdown && <p className="text-xs text-[#747878]">Các ảnh đính kèm hiện có sẽ được giữ nguyên.</p>}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-[#dedfd9] bg-[#fafaf7] px-6 py-4"><button type="button" onClick={() => setEditingPost(null)} disabled={savingEdit} className="rounded-md border border-[#cfd2cb] bg-white px-4 py-2.5 text-xs font-bold uppercase">Hủy</button><button type="submit" disabled={savingEdit} className="inline-flex items-center gap-2 rounded-md bg-[#56642b] px-5 py-2.5 text-xs font-bold uppercase text-white disabled:opacity-60">{savingEdit && <LoaderCircle size={15} className="animate-spin" />}{savingEdit ? 'Đang lưu...' : 'Lưu thay đổi'}</button></div>
+          </form>
+        </div>
+      )}
+      {confirmDialog}
 
       {showLoginPrompt && (
         <div

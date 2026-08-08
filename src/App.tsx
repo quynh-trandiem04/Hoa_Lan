@@ -73,6 +73,7 @@ import DocumentCategoryManager, { type DocumentCategoryValues } from './componen
 import InlineCategoryTreePicker from './components/InlineCategoryTreePicker';
 import AdminDiscussionManager from './components/AdminDiscussionManager';
 import AdminPagination from './components/AdminPagination';
+import { useConfirmDialog } from './components/ConfirmDialog';
 
 const ORCHID_FEATURE_FILTERS = [
   { id: 'Popular', name: 'Lan phổ biến', parentId: null },
@@ -245,8 +246,32 @@ const createSlug = (value: string): string => value
 
 const SHOW_LEGACY_OVERVIEW = false;
 
+type PostLoginScreen = 'home' | 'discussion' | 'profile' | 'planting_and_care' | 'applications' | 'document' | 'list_orchids' | 'search' | 'dashboard';
+
+const getPostLoginScreen = (returnUrl: string | null, token: string | null | undefined): PostLoginScreen => {
+  if ((returnUrl === '/admin/dashboard' || returnUrl === '/dashboard') && isAdminToken(token)) return 'dashboard';
+  if (returnUrl === '/discussion') return 'discussion';
+  if (returnUrl === '/profile') return 'profile';
+  if (returnUrl === '/planting-and-care') return 'planting_and_care';
+  if (returnUrl === '/applications') return 'applications';
+  if (returnUrl === '/document') return 'document';
+  if (returnUrl === '/list-orchids') return 'list_orchids';
+  if (returnUrl === '/search') return 'search';
+  return 'home';
+};
+
+const getRequestedReturnUrl = (): string | null => {
+  const queryReturnUrl = new URLSearchParams(window.location.search).get('returnUrl');
+  if (queryReturnUrl) return queryReturnUrl;
+  if (window.location.pathname === '/admin/dashboard' || window.location.pathname === '/dashboard') {
+    return '/admin/dashboard';
+  }
+  return null;
+};
+
 export default function App() {
   const { toasts, addToast, removeToast } = useToasts();
+  const { confirm: confirmDelete, confirmDialog } = useConfirmDialog();
 
   
   type ScreenType = "home" | "signup" | "login" | "forgot_password" | "dashboard" | "discussion" | "planting_and_care" | "applications" | "document" | "search" | "list_orchids" | "orchid_detail" | "profile";
@@ -476,8 +501,7 @@ export default function App() {
         return;
       }
       if (initialScreen === "login" || initialScreen === "signup") {
-        const returnUrl = new URLSearchParams(window.location.search).get('returnUrl');
-        setScreen(returnUrl === '/discussion' ? 'discussion' : returnUrl === '/profile' ? 'profile' : (isAdminToken(storedToken) ? 'dashboard' : 'home'));
+        setScreen(getPostLoginScreen(getRequestedReturnUrl(), storedToken));
       }
     } else {
       localStorage.removeItem("orchidee_admin_user");
@@ -540,7 +564,7 @@ export default function App() {
       const storage = rememberMe ? localStorage : sessionStorage;
       const token = authData.accessToken || authData.token;
       if (!token) {
-        throw new Error('Máy chủ không trả về access token. Không thể mở trang quản trị.');
+        throw new Error('Máy chủ không trả về access token. Không thể hoàn tất đăng nhập.');
       }
 
       localStorage.removeItem("orchidee_admin_user");
@@ -569,8 +593,7 @@ export default function App() {
 
       setCurrentUser(normalizedEmail);
       setPassword("");
-      const returnUrl = new URLSearchParams(window.location.search).get('returnUrl');
-      setScreen(returnUrl === '/discussion' ? 'discussion' : returnUrl === '/profile' ? 'profile' : (isAdminToken(token) ? 'dashboard' : 'home'));
+      setScreen(getPostLoginScreen(getRequestedReturnUrl(), token));
       addToast("Đăng nhập thành công!", "success");
     } catch (error) {
       addToast(
@@ -610,8 +633,7 @@ export default function App() {
       if (sessionProfile) storage.setItem('orchidee_user', JSON.stringify(sessionProfile));
 
       setCurrentUser(googleEmail);
-      const returnUrl = new URLSearchParams(window.location.search).get('returnUrl');
-      setScreen(returnUrl === '/discussion' ? 'discussion' : returnUrl === '/profile' ? 'profile' : (isAdminToken(token) ? 'dashboard' : 'home'));
+      setScreen(getPostLoginScreen(getRequestedReturnUrl(), token));
       addToast("Đăng nhập Google thành công!", "success");
     } catch (error) {
       addToast(
@@ -649,6 +671,7 @@ export default function App() {
 
   // --- Persistent Storage State ---
   const [orchids, setOrchids] = useState<Orchid[]>([]);
+  const [publicOrchidRevision, setPublicOrchidRevision] = useState(0);
   const [, setLoadingOrchids] = useState(false);
 
   const loadOrchids = async () => {
@@ -1149,7 +1172,10 @@ export default function App() {
 
   const handleDeleteCareArticle = async (id: string) => {
     const articleLabel = currentArticleSection === 'application' ? 'bài ứng dụng' : 'bài hướng dẫn';
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa ${articleLabel} này?`)) return;
+    if (!(await confirmDelete({
+      title: `Xóa ${articleLabel}?`,
+      message: 'Bài viết sẽ bị xóa khỏi website và không thể khôi phục.',
+    }))) return;
     try {
       await deleteSectionArticle(currentArticleSection, id);
       addToast('Xóa thành công', 'info');
@@ -1364,6 +1390,7 @@ export default function App() {
       
       addToast(`Thêm loài lan thành công: ${orchidPayload.name}`, 'success');
       loadOrchids();
+      setPublicOrchidRevision((revision) => revision + 1);
     } catch (error) {
       addToast(error instanceof Error ? error.message : 'Không thể thêm loài lan.', 'error');
       throw error;
@@ -1386,6 +1413,7 @@ export default function App() {
       addToast(`Đã lưu thay đổi cho loài: ${updated.name}`, 'success');
       setEditingOrchid(null);
       loadOrchids();
+      setPublicOrchidRevision((revision) => revision + 1);
     } catch (error) {
       addToast(error instanceof Error ? error.message : 'Không thể cập nhật loài lan.', 'error');
       throw error;
@@ -1393,7 +1421,12 @@ export default function App() {
   };
 
   const handleDeleteOrchid = async (id: string, name: string) => {
-    if (!window.confirm(`Bạn có chắc muốn xóa hoa lan “${name}”?`)) return;
+    if (!(await confirmDelete({
+      title: 'Xóa loài hoa lan?',
+      message: 'Loài lan này sẽ bị gỡ khỏi danh mục và không thể khôi phục.',
+      itemName: name,
+      confirmLabel: 'Xóa hoa lan',
+    }))) return;
     try {
       await deleteOrchid(id);
       
@@ -1409,6 +1442,7 @@ export default function App() {
       
       addToast(`Đã gỡ bỏ: ${name}`, 'info');
       loadOrchids();
+      setPublicOrchidRevision((revision) => revision + 1);
     } catch (error) {
       addToast(error instanceof Error ? error.message : 'Không thể xóa loài lan.', 'error');
     }
@@ -1504,7 +1538,12 @@ export default function App() {
   };
 
   const handleDeleteCategory = async (category: Category) => {
-    if (!window.confirm(`Bạn có chắc muốn xóa danh mục “${category.name}”?`)) return;
+    if (!(await confirmDelete({
+      title: 'Xóa danh mục lan?',
+      message: 'Hãy chắc chắn danh mục không còn dữ liệu phụ thuộc trước khi xóa.',
+      itemName: category.name,
+      confirmLabel: 'Xóa danh mục',
+    }))) return;
     try {
       await deleteCategory(category.id);
       setCategories((current) => current.filter((item) => item.id !== category.id));
@@ -1612,7 +1651,11 @@ export default function App() {
 
   const handleDeleteDocument = async (id: string | undefined) => {
     if (!id) return;
-    if (!window.confirm('Bạn có chắc chắn muốn xóa tài liệu này?')) return;
+    if (!(await confirmDelete({
+      title: 'Xóa tài liệu?',
+      message: 'Tài liệu và tệp đính kèm sẽ bị gỡ khỏi thư viện.',
+      confirmLabel: 'Xóa tài liệu',
+    }))) return;
     try {
       await deleteDocument(id);
       const refreshedDocuments = await getDocuments(docPage, 10);
@@ -1634,7 +1677,12 @@ export default function App() {
       addToast('Không thể xóa tài khoản đang đăng nhập.', 'error');
       return;
     }
-    if (!window.confirm(`Bạn có chắc muốn xóa người dùng “${user.fullName}”?`)) return;
+    if (!(await confirmDelete({
+      title: 'Xóa tài khoản người dùng?',
+      message: 'Người dùng sẽ không thể tiếp tục truy cập bằng tài khoản này.',
+      itemName: user.fullName || user.email,
+      confirmLabel: 'Xóa tài khoản',
+    }))) return;
     try {
       await deleteUser(user.id);
       await loadUserCount(activeTab === 'users' ? searchQuery.trim() : '', userSortOrder);
@@ -1741,7 +1789,12 @@ export default function App() {
   };
 
   const handleDeleteDocumentCategory = async (category: DocumentCategory) => {
-    if (!window.confirm(`Bạn có chắc muốn xóa danh mục tài liệu “${category.name}”?`)) return;
+    if (!(await confirmDelete({
+      title: 'Xóa danh mục tài liệu?',
+      message: 'Hãy chắc chắn danh mục không còn tài liệu hoặc danh mục con trước khi xóa.',
+      itemName: category.name,
+      confirmLabel: 'Xóa danh mục',
+    }))) return;
     try {
       await deleteDocumentCategory(category.id);
       await loadDocumentCategories();
@@ -1853,13 +1906,30 @@ export default function App() {
     setShowProfileCard(false);
   };
 
+  const currentSessionIsAdmin = isStoredSessionAdmin();
+
   return (
     <div className="min-h-screen bg-[#f9f9f7] text-[#1a1c1b] font-sans transition-colors duration-300">
 
       {/* =================== SCREEN 0: HOME =================== */}
       {screen === "home" && <CustomerHome categories={categories} orchids={orchids} onNavigate={(s, id) => setScreen(s as ScreenType, id)} />}
 
-      {screen === "list_orchids" && <ListOrchids categoryId={selectedCategoryId} categories={categories} orchids={orchids} onNavigate={(s, id) => setScreen(s as ScreenType, id)} />}
+      {screen === "list_orchids" && (
+        <ListOrchids
+          categoryId={selectedCategoryId}
+          categories={categories}
+          orchids={orchids}
+          onNavigate={(s, id) => setScreen(s as ScreenType, id)}
+          isAdmin={currentSessionIsAdmin}
+          dataRevision={publicOrchidRevision}
+          onAddOrchid={currentSessionIsAdmin ? () => { setEditingOrchid(null); setOpenAddOrchid(true); } : undefined}
+          onEditOrchid={currentSessionIsAdmin ? handleOpenEditOrchid : undefined}
+          onDeleteOrchid={currentSessionIsAdmin ? handleDeleteOrchid : undefined}
+          onAddCategory={currentSessionIsAdmin ? () => { setEditingCategory(null); setOpenAddCategory(true); } : undefined}
+          onEditCategory={currentSessionIsAdmin ? handleOpenEditCategory : undefined}
+          onDeleteCategory={currentSessionIsAdmin ? handleDeleteCategory : undefined}
+        />
+      )}
       
       {screen === "orchid_detail" && selectedOrchidId && <OrchidDetail id={selectedOrchidId} categories={categories} onNavigate={(s, id) => setScreen(s as ScreenType, id)} />}
 
@@ -4158,13 +4228,35 @@ export default function App() {
       </div>
       )}
 
-          {screen === 'discussion' && <Discussion />}
-          {screen === 'planting_and_care' && <PlantingAndCare />}
-          {screen === 'applications' && <Applications />}
-          {screen === 'document' && <DocumentPage />}
+          {screen === 'discussion' && <Discussion isAdmin={currentSessionIsAdmin} />}
+          {screen === 'planting_and_care' && <PlantingAndCare isAdmin={currentSessionIsAdmin} />}
+          {screen === 'applications' && <Applications isAdmin={currentSessionIsAdmin} />}
+          {screen === 'document' && <DocumentPage isAdmin={currentSessionIsAdmin} />}
           {screen === 'profile' && <CustomerProfile />}
 
+      {screen === 'list_orchids' && currentSessionIsAdmin && (
+        <>
+          <AddOrchidModal
+            isOpen={openAddOrchid}
+            onClose={() => { setOpenAddOrchid(false); setEditingOrchid(null); }}
+            categories={categories}
+            onAddOrchid={handleAddNewOrchid}
+            editOrchidData={editingOrchid}
+            onEditOrchid={handleUpdateOrchid}
+          />
+          <AddCategoryModal
+            isOpen={openAddCategory}
+            onClose={() => { setOpenAddCategory(false); setEditingCategory(null); }}
+            categories={categories}
+            onAddCategory={handleAddCategory}
+            editCategoryData={editingCategory}
+            onEditCategory={handleUpdateCategory}
+          />
+        </>
+      )}
+
       {/* Global notifications for login, signup and dashboard screens. */}
+      {confirmDialog}
       <Toasts toasts={toasts} removeToast={removeToast} />
     </div>
   );

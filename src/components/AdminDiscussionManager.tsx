@@ -19,6 +19,7 @@ import {
   type DiscussionPostDto,
 } from '../services/api';
 import AdminPagination from './AdminPagination';
+import { useConfirmDialog } from './ConfirmDialog';
 
 interface AdminDiscussionManagerProps {
   searchQuery: string;
@@ -55,6 +56,7 @@ export default function AdminDiscussionManager({
   searchQuery,
   notify,
 }: AdminDiscussionManagerProps) {
+  const { confirm: confirmDelete, confirmDialog } = useConfirmDialog();
   const pageSize = 10;
   const [posts, setPosts] = useState<DiscussionPostDto[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -155,7 +157,12 @@ export default function AdminDiscussionManager({
   };
 
   const handleDelete = async (post: DiscussionPostDto) => {
-    if (!window.confirm(`Bạn có chắc muốn xóa bài “${post.title}”? Thao tác này không thể hoàn tác.`)) return;
+    if (!(await confirmDelete({
+      title: 'Xóa bài thảo luận?',
+      message: 'Bài viết cùng nội dung thảo luận liên quan sẽ bị xóa và không thể khôi phục.',
+      itemName: post.title,
+      confirmLabel: 'Xóa bài viết',
+    }))) return;
     setDeletingId(post.id);
     try {
       await deleteDiscussion(post.id);
@@ -354,6 +361,7 @@ export default function AdminDiscussionManager({
           </div>
         </div>
       )}
+      {confirmDialog}
     </div>
   );
 }

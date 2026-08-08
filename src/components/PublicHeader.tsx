@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Bell, ChevronRight, LogOut, MessageSquare, Search, User, X } from 'lucide-react';
+import { Bell, ChevronRight, Flag, LogOut, MessageSquare, Search, User, X } from 'lucide-react';
 import type { ArticleCategory, Category, DocumentCategory } from '../types';
 import { getArticleCategories, getCategories, getDiscussionById, getDiscussions, getDocumentCategories } from '../services/api';
 
@@ -48,6 +48,34 @@ const readCurrentUserAvatar = (): string => {
     return typeof profile.avatarUrl === 'string' ? profile.avatarUrl.trim() : '';
   } catch {
     return '';
+  }
+};
+
+const readCurrentUserIsAdmin = (): boolean => {
+  const token = localStorage.getItem('orchidee_auth_token') || sessionStorage.getItem('orchidee_auth_token');
+  if (!token) return false;
+  try {
+    const encodedPayload = token.split('.')[1];
+    if (!encodedPayload) return false;
+    const normalizedPayload = encodedPayload.replace(/-/g, '+').replace(/_/g, '/');
+    const paddedPayload = normalizedPayload.padEnd(Math.ceil(normalizedPayload.length / 4) * 4, '=');
+    const payloadBytes = Uint8Array.from(atob(paddedPayload), (character) => character.charCodeAt(0));
+    const claims = JSON.parse(new TextDecoder().decode(payloadBytes)) as Record<string, unknown>;
+    const roleKeys = [
+      'role',
+      'roles',
+      'http://schemas.microsoft.com/ws/2008/06/identity/claims/role',
+    ];
+    const roles = roleKeys.flatMap((key) => {
+      const value = claims[key];
+      if (typeof value === 'string') return [value];
+      return Array.isArray(value) ? value.filter((role): role is string => typeof role === 'string') : [];
+    });
+    return roles.some((role) => ['admin', 'administrator', 'systemadmin', 'superadmin'].includes(
+      role.replace(/[\s_-]+/g, '').toLowerCase(),
+    ));
+  } catch {
+    return false;
   }
 };
 
@@ -187,6 +215,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
   const [favoriteCount, setFavoriteCount] = useState(readFavoriteCount);
   const [currentUserName, setCurrentUserName] = useState(readCurrentUserName);
   const [currentUserAvatar, setCurrentUserAvatar] = useState(readCurrentUserAvatar);
+  const [currentUserIsAdmin, setCurrentUserIsAdmin] = useState(readCurrentUserIsAdmin);
   const [notificationMenuOpen, setNotificationMenuOpen] = useState(false);
   const [commentNotifications, setCommentNotifications] = useState<CommentNotification[]>([]);
   const [readCommentNotificationIds, setReadCommentNotificationIds] = useState(() => readNotificationIds(readCurrentUserIdentity()));
@@ -320,16 +349,19 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
       setFavoriteCount(readFavoriteCount());
       setCurrentUserName(readCurrentUserName());
       setCurrentUserAvatar(readCurrentUserAvatar());
+      setCurrentUserIsAdmin(readCurrentUserIsAdmin());
       setReadCommentNotificationIds(readNotificationIds(readCurrentUserIdentity()));
       void loadCommentNotifications();
     };
     window.addEventListener('storage', refreshAccountSummary);
     window.addEventListener('orchidee-favorites-updated', refreshAccountSummary);
     window.addEventListener('orchidee-profile-updated', refreshAccountSummary);
+    window.addEventListener('orchidee-auth-refreshed', refreshAccountSummary);
     return () => {
       window.removeEventListener('storage', refreshAccountSummary);
       window.removeEventListener('orchidee-favorites-updated', refreshAccountSummary);
       window.removeEventListener('orchidee-profile-updated', refreshAccountSummary);
+      window.removeEventListener('orchidee-auth-refreshed', refreshAccountSummary);
     };
   }, [loadCommentNotifications]);
 
@@ -338,6 +370,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
     setFavoriteCount(readFavoriteCount());
     setCurrentUserName(readCurrentUserName());
     setCurrentUserAvatar(readCurrentUserAvatar());
+    setCurrentUserIsAdmin(readCurrentUserIsAdmin());
     setProfileMenuOpen(true);
   };
 
@@ -506,19 +539,30 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
               aria-haspopup="menu"
             >
               {isAuthenticated ? (
-                currentUserAvatar ? (
-                  <img
-                    src={currentUserAvatar}
-                    alt={`Ảnh đại diện của ${currentUserName}`}
-                    className="h-8 w-8 shrink-0 rounded-full border border-[#56642b]/15 object-cover"
-                    referrerPolicy="no-referrer"
-                    onError={() => setCurrentUserAvatar('')}
-                  />
-                ) : (
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#eef1e8] font-sans text-xs font-bold text-[#56642b]">
-                    {currentUserName.trim().charAt(0).toUpperCase()}
-                  </span>
-                )
+                <span className="relative shrink-0">
+                  {currentUserAvatar ? (
+                    <img
+                      src={currentUserAvatar}
+                      alt={`Ảnh đại diện của ${currentUserName}`}
+                      className="h-8 w-8 rounded-full border border-[#56642b]/15 object-cover"
+                      referrerPolicy="no-referrer"
+                      onError={() => setCurrentUserAvatar('')}
+                    />
+                  ) : (
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#eef1e8] font-sans text-xs font-bold text-[#56642b]">
+                      {currentUserName.trim().charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                  {currentUserIsAdmin && (
+                    <span
+                      className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border-2 border-surface-cream bg-[#7151c9] text-white shadow-sm"
+                      title="Tài khoản quản trị viên"
+                      aria-label="Tài khoản quản trị viên"
+                    >
+                      <Flag size={8} fill="currentColor" strokeWidth={2.5} />
+                    </span>
+                  )}
+                </span>
               ) : (
                 <User className="h-5 w-5 shrink-0" />
               )}
@@ -534,7 +578,10 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
                 {isAuthenticated ? (
                   <>
                     <div className="border-b border-[#eeeeea] px-5 py-3">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#899073]">Tài khoản của bạn</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#899073]">Tài khoản của bạn</p>
+                        {currentUserIsAdmin && <span className="inline-flex items-center gap-1 rounded-full bg-[#eee8ff] px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-[#7151c9]"><Flag size={9} fill="currentColor" /> Admin</span>}
+                      </div>
                       <p className="mt-1 truncate font-serif text-sm font-semibold text-[#1a1c1b]" title={currentUserName}>{currentUserName}</p>
                     </div>
                     <a href="/profile" className="block px-5 py-3 font-serif text-sm text-[#1a1c1b] transition-colors hover:bg-[#56642b]/5 hover:text-[#56642b]" role="menuitem">

@@ -1,11 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, CalendarClock, ChevronLeft, ChevronRight, FileText, LoaderCircle, Search, X } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, CalendarClock, ChevronLeft, ChevronRight, Edit, FileText, FolderTree, LoaderCircle, Plus, Search, Trash2, X } from 'lucide-react';
 import type { ArticleCategory, CareArticle } from '../types';
-import { getArticleById, getArticleCategories, getSectionArticles, getUploadedImageUrl, type ArticleSection } from '../services/api';
+import { deleteSectionArticle, getArticleById, getArticleCategories, getSectionArticles, getUploadedImageUrl, type ArticleSection } from '../services/api';
 import PublicFooter from '../components/PublicFooter';
 import PublicHeader from '../components/PublicHeader';
 import InlineTreeMultiSelect from '../components/InlineTreeMultiSelect';
 import PageIntro from '../components/PageIntro';
+import PublicArticleAdminModal from '../components/PublicArticleAdminModal';
+import { useConfirmDialog } from '../components/ConfirmDialog';
+import ArticleCategoryManager from '../components/ArticleCategoryManager';
 
 const articleImageUrl = (article: CareArticle) =>
   article.thumbnailImageUrl || getUploadedImageUrl(article.thumbnailImageId);
@@ -36,6 +39,7 @@ interface PlantingAndCareProps {
   eyebrow?: string;
   title?: string;
   description?: string;
+  isAdmin?: boolean;
 }
 
 export default function PlantingAndCare({
@@ -44,7 +48,9 @@ export default function PlantingAndCare({
   eyebrow = 'Kiến thức chăm sóc hoa lan',
   title = 'Cách Trồng & Chăm Sóc',
   description = 'Các bài hướng dẫn đã xuất bản từ hệ thống quản trị.',
+  isAdmin = false,
 }: PlantingAndCareProps) {
+  const { confirm: confirmDelete, confirmDialog } = useConfirmDialog();
   const [articles, setArticles] = useState<CareArticle[]>([]);
   const [selectedArticle, setSelectedArticle] = useState<CareArticle | null>(null);
   const [openingArticleId, setOpeningArticleId] = useState<string | null>(null);
@@ -58,6 +64,11 @@ export default function PlantingAndCare({
   const [searchTerm, setSearchTerm] = useState(() => new URLSearchParams(window.location.search).get('q') || '');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
   const [currentPage, setCurrentPage] = useState(1);
+  const [adminEditorOpen, setAdminEditorOpen] = useState(false);
+  const [adminEditingArticle, setAdminEditingArticle] = useState<CareArticle | null>(null);
+  const [adminRevision, setAdminRevision] = useState(0);
+  const [adminMessage, setAdminMessage] = useState('');
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
   const linkedArticleId = new URLSearchParams(window.location.search).get('articleId') ?? '';
 
   const categoryOptions = useMemo(() => {
@@ -91,17 +102,20 @@ export default function PlantingAndCare({
     return () => window.clearTimeout(timeout);
   }, [searchTerm]);
 
-  useEffect(() => {
-    let active = true;
-    void getArticleCategories(section, { pageNumber: 1, pageSize: 100, sortBy: 'name' })
-      .then((result) => {
-        if (!active) return;
-        setCategories(result);
-      })
-      .catch(() => { if (active) setCategories([]); })
-      .finally(() => { if (active) setLoadingCategories(false); });
-    return () => { active = false; };
+  const loadArticleCategories = useCallback(async () => {
+    setLoadingCategories(true);
+    try {
+      setCategories(await getArticleCategories(section, { pageNumber: 1, pageSize: 100, sortBy: 'name' }));
+    } catch {
+      setCategories([]);
+    } finally {
+      setLoadingCategories(false);
+    }
   }, [section]);
+
+  useEffect(() => {
+    void loadArticleCategories();
+  }, [loadArticleCategories]);
 
   useEffect(() => {
     let active = true;
@@ -114,7 +128,7 @@ export default function PlantingAndCare({
             articleCategoryId,
             includeDescendants: true,
             searchTerm: debouncedSearchTerm || undefined,
-            isPublished: true,
+            isPublished: isAdmin ? undefined : true,
             pageNumber: 1,
             pageSize: 100,
             sortDescending: true,
@@ -133,7 +147,7 @@ export default function PlantingAndCare({
     };
     void loadArticles();
     return () => { active = false; };
-  }, [section, selectedCategoryIds, debouncedSearchTerm]);
+  }, [section, selectedCategoryIds, debouncedSearchTerm, isAdmin, adminRevision]);
 
   useEffect(() => {
     if (!linkedArticleId) return;
@@ -187,6 +201,40 @@ export default function PlantingAndCare({
     }
   };
 
+  const openAdminEditor = async (article?: CareArticle) => {
+    if (!article?.id) {
+      setAdminEditingArticle(null);
+      setAdminEditorOpen(true);
+      return;
+    }
+    setOpeningArticleId(article.id);
+    try {
+      setAdminEditingArticle(await getArticleById(article.id));
+      setAdminEditorOpen(true);
+    } catch (loadError) {
+      setAdminMessage(loadError instanceof Error ? loadError.message : 'Không thể tải bài viết để chỉnh sửa.');
+    } finally {
+      setOpeningArticleId(null);
+    }
+  };
+
+  const handleAdminDelete = async (article: CareArticle) => {
+    if (!article.id || !(await confirmDelete({
+      title: 'Xóa bài viết?',
+      message: 'Bài viết sẽ bị gỡ khỏi website và không thể khôi phục.',
+      itemName: article.title,
+      confirmLabel: 'Xóa bài viết',
+    }))) return;
+    try {
+      await deleteSectionArticle(section, article.id);
+      if (selectedArticle?.id === article.id) setSelectedArticle(null);
+      setAdminMessage('Đã xóa bài viết.');
+      setAdminRevision((revision) => revision + 1);
+    } catch (deleteError) {
+      setAdminMessage(deleteError instanceof Error ? deleteError.message : 'Không thể xóa bài viết.');
+    }
+  };
+
   const filteredArticles = articles;
   const totalPages = Math.max(1, Math.ceil(filteredArticles.length / PAGE_SIZE));
   const paginatedArticles = filteredArticles.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -216,6 +264,24 @@ export default function PlantingAndCare({
 
         <PageIntro eyebrow={eyebrow} title={title} description={description} />
 
+        {isAdmin && (
+          <div className="mb-8 flex flex-col gap-3 rounded-xl border border-[#87905f]/35 bg-[#f1f4e7] p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#667234]">Chế độ quản trị</p>
+              <p className="mt-1 text-sm text-[#4f554e]">Bạn có thể thêm, sửa và xóa bài viết ngay tại trang này.</p>
+              {adminMessage && <p className="mt-1 text-xs font-semibold text-[#56642b]">{adminMessage}</p>}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => void openAdminEditor()} className="inline-flex items-center justify-center gap-2 rounded-md bg-[#56642b] px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-[#44501f]">
+                <Plus size={16} /> Thêm bài viết
+              </button>
+              <button type="button" onClick={() => setShowCategoryManager(true)} className="inline-flex items-center justify-center gap-2 rounded-md border border-[#56642b] bg-white px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-[#56642b] hover:bg-[#eef1e2]">
+                <FolderTree size={16} /> Quản lý danh mục
+              </button>
+            </div>
+          </div>
+        )}
+
         {selectedArticle ? (
           <article className="w-full">
             {articleImageUrl(selectedArticle) && (
@@ -229,7 +295,7 @@ export default function PlantingAndCare({
 
             <div className="flex flex-wrap items-center gap-3">
               <span className="inline-block rounded bg-[#d6e7a1]/35 px-2.5 py-1 text-[10px] font-bold uppercase text-[#56642b]">
-                Đã xuất bản
+                {selectedArticle.isPublished ? 'Đã xuất bản' : 'Bản nháp'}
               </span>
               {formatPublishedAt(selectedArticle.publishedAt) && (
                 <time className="flex items-center gap-1.5 text-xs text-[#747878]" dateTime={selectedArticle.publishedAt ?? undefined}>
@@ -238,6 +304,12 @@ export default function PlantingAndCare({
                 </time>
               )}
             </div>
+            {isAdmin && (
+              <div className="mt-4 flex gap-2">
+                <button type="button" onClick={() => void openAdminEditor(selectedArticle)} className="inline-flex items-center gap-2 rounded-md border border-[#56642b] px-3 py-2 text-xs font-bold text-[#56642b] hover:bg-[#eef1e2]"><Edit size={15} /> Sửa</button>
+                <button type="button" onClick={() => void handleAdminDelete(selectedArticle)} className="inline-flex items-center gap-2 rounded-md border border-red-200 px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50"><Trash2 size={15} /> Xóa</button>
+              </div>
+            )}
             <h1 className="mt-4 font-serif text-3xl font-bold leading-tight md:text-5xl">{selectedArticle.title}</h1>
             {selectedArticle.summary && (
               <p className="mt-5 border-l-2 border-[#56642b] pl-4 text-sm leading-7 text-[#5d625f]">
@@ -302,7 +374,8 @@ export default function PlantingAndCare({
                   {paginatedArticles.map((article) => {
                     const imageUrl = articleImageUrl(article);
                     return (
-                      <button key={article.id} onClick={() => void openArticle(article)} disabled={openingArticleId === article.id} className="group overflow-hidden rounded-md border border-[#747878]/10 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:cursor-wait disabled:opacity-70 sm:flex sm:min-h-48">
+                      <div key={article.id} className="relative overflow-hidden rounded-md border border-[#747878]/10 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                      <button onClick={() => void openArticle(article)} disabled={openingArticleId === article.id} className="group w-full text-left disabled:cursor-wait disabled:opacity-70 sm:flex sm:min-h-48">
                         {imageUrl ? (
                           <img src={imageUrl} alt={article.title} className="h-40 w-full shrink-0 bg-white object-cover sm:h-auto sm:w-40 lg:w-44" referrerPolicy="no-referrer" />
                         ) : (
@@ -310,7 +383,7 @@ export default function PlantingAndCare({
                         )}
                         <div className="flex min-w-0 flex-1 flex-col p-4">
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#56642b]">Đã xuất bản</span>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#56642b]">{article.isPublished ? 'Đã xuất bản' : 'Bản nháp'}</span>
                             {formatPublishedAt(article.publishedAt) && (
                               <time className="flex items-center gap-1 text-[10px] text-[#747878]" dateTime={article.publishedAt ?? undefined}>
                                 <CalendarClock size={12} />
@@ -323,6 +396,13 @@ export default function PlantingAndCare({
                           <span className="mt-auto pt-3 text-[10px] font-bold uppercase tracking-wider text-[#56642b]">{openingArticleId === article.id ? 'Đang tải...' : 'Đọc tiếp →'}</span>
                         </div>
                       </button>
+                      {isAdmin && (
+                        <div className="absolute right-2 top-2 z-10 flex gap-1 rounded-md bg-white/95 p-1 shadow-md">
+                          <button type="button" onClick={() => void openAdminEditor(article)} className="rounded p-2 text-[#56642b] hover:bg-[#eef1e2]" title="Sửa bài viết"><Edit size={15} /></button>
+                          <button type="button" onClick={() => void handleAdminDelete(article)} className="rounded p-2 text-red-600 hover:bg-red-50" title="Xóa bài viết"><Trash2 size={15} /></button>
+                        </div>
+                      )}
+                      </div>
                     );
                   })}
                 </div>
@@ -348,6 +428,37 @@ export default function PlantingAndCare({
         )}
       </main>
       <PublicFooter />
+      {isAdmin && (
+        <PublicArticleAdminModal
+          section={section}
+          article={adminEditingArticle}
+          categories={categories}
+          isOpen={adminEditorOpen}
+          onClose={() => { setAdminEditorOpen(false); setAdminEditingArticle(null); }}
+          onSaved={(message) => { setAdminMessage(message); setAdminRevision((revision) => revision + 1); }}
+        />
+      )}
+      {isAdmin && showCategoryManager && (
+        <div className="fixed inset-0 z-[90] bg-[#111412]/55 p-4 backdrop-blur-[2px]" role="dialog" aria-modal="true" aria-label={`Quản lý danh mục ${breadcrumbLabel}`}>
+          <div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-[#f9f9f7] shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#dedfd9] bg-white px-6 py-4">
+              <div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#71803c]">Quản trị nhanh</p><h2 className="font-serif text-2xl font-bold">Danh mục {breadcrumbLabel}</h2></div>
+              <button type="button" onClick={() => setShowCategoryManager(false)} className="rounded-full p-2 text-[#747878] hover:bg-[#f0f1ec]" aria-label="Đóng"><X size={20} /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 md:p-7">
+              <ArticleCategoryManager
+                section={section}
+                title={section === 'application' ? 'Quản lý danh mục ứng dụng' : 'Quản lý danh mục trồng & chăm sóc'}
+                categories={categories}
+                loading={loadingCategories}
+                onReload={loadArticleCategories}
+                notify={(message) => setAdminMessage(message)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+      {confirmDialog}
     </div>
   );
 }

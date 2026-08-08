@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, ChevronLeft, ChevronRight, X, Heart, HelpCircle, ArrowLeft, Grid2X2, List } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, X, Heart, HelpCircle, ArrowLeft, Edit, Grid2X2, List, Plus, Settings, Trash2 } from 'lucide-react';
 import OrchidCard from '../components/OrchidCard';
 import { Category, Orchid, Region, BloomSeason, FlowerColor } from '../types';
 import SearchModal from '../components/SearchModal';
@@ -14,9 +14,30 @@ interface ListOrchidsProps {
   categories: Category[];
   orchids: Orchid[];
   onNavigate: (screen: string, id?: string) => void;
+  isAdmin?: boolean;
+  dataRevision?: number;
+  onAddOrchid?: () => void;
+  onEditOrchid?: (id: string) => void | Promise<void>;
+  onDeleteOrchid?: (id: string, name: string) => void | Promise<void>;
+  onAddCategory?: () => void;
+  onEditCategory?: (id: string) => void | Promise<void>;
+  onDeleteCategory?: (category: Category) => void | Promise<void>;
 }
 
-export default function ListOrchids({ categoryId, categories, orchids, onNavigate }: ListOrchidsProps) {
+export default function ListOrchids({
+  categoryId,
+  categories,
+  orchids,
+  onNavigate,
+  isAdmin = false,
+  dataRevision = 0,
+  onAddOrchid,
+  onEditOrchid,
+  onDeleteOrchid,
+  onAddCategory,
+  onEditCategory,
+  onDeleteCategory,
+}: ListOrchidsProps) {
   // Search and Filter states
   const [searchQuery, setSearchQuery] = useState(() => new URLSearchParams(window.location.search).get('q') ?? '');
   const [apiOrchids, setApiOrchids] = useState<Orchid[]>(orchids);
@@ -33,6 +54,7 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(() =>
     localStorage.getItem('orchidee-orchid-view') === 'list' ? 'list' : 'grid'
   );
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
 
   // Bookmark state (saved in localStorage)
   const [savedOrchids, setSavedOrchids] = useState<string[]>([]);
@@ -118,7 +140,7 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
       active = false;
       window.clearTimeout(timer);
     };
-  }, [searchQuery, selectedCategories, categories, selectedRegions, selectedSeasons, selectedColors, sortOrder, currentPage, showSavedOnly, savedOrchids]);
+  }, [searchQuery, selectedCategories, categories, selectedRegions, selectedSeasons, selectedColors, sortOrder, currentPage, showSavedOnly, savedOrchids, dataRevision]);
 
   useEffect(() => {
     localStorage.setItem('orchidee-orchid-sort', sortOrder);
@@ -249,6 +271,19 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
           title="Từ Điển Hoa Lan"
           description="Khám phá vẻ đẹp kỳ diệu và sự đa dạng sinh học của thế giới hoa lan thông qua kho lưu trữ thực vật học cao cấp của chúng tôi."
         />
+
+        {isAdmin && (
+          <div className="mb-8 flex flex-col gap-3 rounded-xl border border-[#87905f]/35 bg-[#f1f4e7] p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#667234]">Chế độ quản trị</p>
+              <p className="mt-1 text-sm text-[#4f554e]">Thêm, sửa hoặc xóa loài lan và danh mục ngay tại trang công khai.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={onAddOrchid} className="inline-flex items-center gap-2 rounded-md bg-[#56642b] px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-[#44501f]"><Plus size={16} /> Thêm loài lan</button>
+              <button type="button" onClick={() => setShowCategoryManager(true)} className="inline-flex items-center gap-2 rounded-md border border-[#56642b] bg-white px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-[#56642b] hover:bg-[#eef1e2]"><Settings size={16} /> Quản lý danh mục</button>
+            </div>
+          </div>
+        )}
 
         {/* Content Layout: Left Sidebar + Right Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
@@ -452,6 +487,7 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
                 : 'grid grid-cols-1 gap-5 xl:grid-cols-2'
               }>
                 {paginatedOrchids.map((orchid) => (
+                  <div key={orchid.id ?? orchid.slug} className="relative">
                   <OrchidCard
                     key={orchid.id}
                     orchid={orchid}
@@ -460,6 +496,13 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
                     onToggleBookmark={handleToggleBookmark}
                     variant={viewMode}
                   />
+                  {isAdmin && orchid.id && (
+                    <div className="absolute right-2 top-2 z-10 flex gap-1 rounded-md bg-white/95 p-1 shadow-md">
+                      <button type="button" onClick={(event) => { event.stopPropagation(); void onEditOrchid?.(orchid.id!); }} className="rounded p-2 text-[#56642b] hover:bg-[#eef1e2]" title="Sửa loài lan"><Edit size={15} /></button>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); void onDeleteOrchid?.(orchid.id!, orchid.name); }} className="rounded p-2 text-red-600 hover:bg-red-50" title="Xóa loài lan"><Trash2 size={15} /></button>
+                    </div>
+                  )}
+                  </div>
                 ))}
               </div>
             )}
@@ -511,6 +554,28 @@ export default function ListOrchids({ categoryId, categories, orchids, onNavigat
         </div>
       </div>
       <PublicFooter />
+
+      {isAdmin && showCategoryManager && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-label="Quản lý danh mục lan">
+          <div className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#dedfd9] px-6 py-4">
+              <div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#71803c]">Quản trị nhanh</p><h2 className="font-serif text-2xl font-bold">Danh mục lan</h2></div>
+              <button type="button" onClick={() => setShowCategoryManager(false)} className="rounded-full p-2 text-[#747878] hover:bg-[#f0f1ec]" aria-label="Đóng"><X size={20} /></button>
+            </div>
+            <div className="flex items-center justify-between border-b border-[#dedfd9] bg-[#fafaf7] px-6 py-3 text-sm text-[#666b69]"><span>{categories.length} danh mục</span><button type="button" onClick={() => { setShowCategoryManager(false); onAddCategory?.(); }} className="inline-flex items-center gap-2 rounded-md bg-[#56642b] px-3 py-2 text-xs font-bold uppercase text-white"><Plus size={15} /> Thêm danh mục</button></div>
+            <div className="overflow-y-auto p-4">
+              {categoryOptions.map(({ category, depth }) => (
+                <div key={category.id} className="flex items-center gap-3 border-b border-[#eeeeea] px-3 py-3" style={{ paddingLeft: `${12 + depth * 24}px` }}>
+                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{category.name}</p><p className="line-clamp-1 text-xs text-[#747878]">{category.description || 'Chưa có mô tả'} · {category.orchidCount ?? 0} loài</p></div>
+                  <button type="button" onClick={() => { setShowCategoryManager(false); void onEditCategory?.(category.id); }} className="rounded p-2 text-[#56642b] hover:bg-[#eef1e2]" title="Sửa danh mục"><Edit size={16} /></button>
+                  <button type="button" onClick={() => void onDeleteCategory?.(category)} className="rounded p-2 text-red-600 hover:bg-red-50" title="Xóa danh mục"><Trash2 size={16} /></button>
+                </div>
+              ))}
+              {categories.length === 0 && <p className="py-12 text-center text-sm text-[#747878]">Chưa có danh mục.</p>}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,13 +1,25 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Calendar, ChevronLeft, ChevronRight, Download, Eye, FileText, HardDrive, LoaderCircle, Search, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, Calendar, ChevronLeft, ChevronRight, Download, Edit, Eye, FileText, FolderTree, HardDrive, LoaderCircle, Plus, Search, Trash2, Upload, X } from 'lucide-react';
 import type { DocumentCategory, DocumentItem } from '../types';
-import { getDocumentCategories, getDocuments } from '../services/api';
+import { createDocument, createDocumentCategory, deleteDocument, deleteDocumentCategory, getDocumentCategories, getDocuments, updateDocument, updateDocumentCategory } from '../services/api';
 import InlineTreeMultiSelect from '../components/InlineTreeMultiSelect';
 import PublicFooter from '../components/PublicFooter';
 import PublicHeader from '../components/PublicHeader';
 import PageIntro from '../components/PageIntro';
+import { useConfirmDialog } from '../components/ConfirmDialog';
+import DocumentCategoryManager, { type DocumentCategoryValues } from '../components/DocumentCategoryManager';
 
 const PAGE_SIZE = 6;
+
+const slugify = (value: string) => value
+  .replace(/đ/g, 'd')
+  .replace(/Đ/g, 'D')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .trim()
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-|-$/g, '');
 
 const formatFileSize = (bytes: number) => {
   if (!bytes) return 'Không rõ';
@@ -21,7 +33,12 @@ const formatDate = (value?: string) => {
   return Number.isNaN(date.getTime()) ? 'Không rõ' : date.toLocaleDateString('vi-VN');
 };
 
-export default function DocumentPage() {
+interface DocumentPageProps {
+  isAdmin?: boolean;
+}
+
+export default function DocumentPage({ isAdmin = false }: DocumentPageProps) {
+  const { confirm: confirmDelete, confirmDialog } = useConfirmDialog();
   const initialParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [categories, setCategories] = useState<DocumentCategory[]>([]);
@@ -35,6 +52,16 @@ export default function DocumentPage() {
     (initialParams.get('cat') ?? '').split(',').filter(Boolean)
   );
   const [currentPage, setCurrentPage] = useState(1);
+  const [adminEditorOpen, setAdminEditorOpen] = useState(false);
+  const [editingDocument, setEditingDocument] = useState<DocumentItem | null>(null);
+  const [adminTitle, setAdminTitle] = useState('');
+  const [adminDescription, setAdminDescription] = useState('');
+  const [adminCategoryId, setAdminCategoryId] = useState('');
+  const [adminFile, setAdminFile] = useState<File | null>(null);
+  const [adminSaving, setAdminSaving] = useState(false);
+  const [adminMessage, setAdminMessage] = useState('');
+  const [adminRevision, setAdminRevision] = useState(0);
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
 
   const categoryOptions = useMemo(() => {
     const childrenByParent = new Map<string | null, DocumentCategory[]>();
@@ -56,21 +83,21 @@ export default function DocumentPage() {
     return result;
   }, [categories]);
 
-  useEffect(() => {
-    let active = true;
+  const loadDocumentCategories = useCallback(async () => {
     setLoadingCategories(true);
-    void getDocumentCategories({ pageNumber: 1, pageSize: 100, sortBy: 'name', sortDescending: false })
-      .then((result) => {
-        if (active) setCategories(result.items ?? []);
-      })
-      .catch(() => {
-        if (active) setCategories([]);
-      })
-      .finally(() => {
-        if (active) setLoadingCategories(false);
-      });
-    return () => { active = false; };
+    try {
+      const result = await getDocumentCategories({ pageNumber: 1, pageSize: 100, sortBy: 'name', sortDescending: false });
+      setCategories(result.items ?? []);
+    } catch {
+      setCategories([]);
+    } finally {
+      setLoadingCategories(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadDocumentCategories();
+  }, [loadDocumentCategories]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -119,7 +146,7 @@ export default function DocumentPage() {
       });
 
     return () => { active = false; };
-  }, [categories, selectedCategoryIds, debouncedSearchTerm]);
+  }, [categories, selectedCategoryIds, debouncedSearchTerm, adminRevision]);
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -166,6 +193,106 @@ export default function DocumentPage() {
     }
   };
 
+  const openAdminEditor = (document?: DocumentItem) => {
+    setEditingDocument(document ?? null);
+    setAdminTitle(document?.title ?? '');
+    setAdminDescription(document?.description ?? '');
+    setAdminCategoryId(document?.categoryId ?? '');
+    setAdminFile(null);
+    setError('');
+    setAdminEditorOpen(true);
+  };
+
+  const handleAdminSave = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!adminTitle.trim() || (!editingDocument && !adminFile)) {
+      setError(editingDocument ? 'Vui lòng nhập tiêu đề tài liệu.' : 'Vui lòng nhập tiêu đề và chọn tệp.');
+      return;
+    }
+    if (adminFile && adminFile.size > 50 * 1024 * 1024) {
+      setError('Tệp tài liệu không được vượt quá 50 MB.');
+      return;
+    }
+    setAdminSaving(true);
+    setError('');
+    try {
+      if (editingDocument?.id) {
+        await updateDocument(editingDocument.id, {
+          title: adminTitle.trim(),
+          description: adminDescription.trim(),
+          categoryId: adminCategoryId || null,
+        });
+        setAdminMessage('Đã cập nhật tài liệu.');
+      } else {
+        await createDocument({
+          file: adminFile!,
+          title: adminTitle.trim(),
+          description: adminDescription.trim(),
+          categoryId: adminCategoryId || null,
+        });
+        setAdminMessage('Đã tải tài liệu mới lên.');
+      }
+      setAdminEditorOpen(false);
+      setEditingDocument(null);
+      setAdminFile(null);
+      setAdminRevision((revision) => revision + 1);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Không thể lưu tài liệu.');
+    } finally {
+      setAdminSaving(false);
+    }
+  };
+
+  const handleAdminDelete = async (document: DocumentItem) => {
+    if (!document.id || !(await confirmDelete({
+      title: 'Xóa tài liệu?',
+      message: 'Tài liệu và tệp đính kèm sẽ bị gỡ khỏi thư viện.',
+      itemName: document.title,
+      confirmLabel: 'Xóa tài liệu',
+    }))) return;
+    try {
+      await deleteDocument(document.id);
+      setAdminMessage('Đã xóa tài liệu.');
+      setAdminRevision((revision) => revision + 1);
+    } catch (deleteError) {
+      setAdminMessage(deleteError instanceof Error ? deleteError.message : 'Không thể xóa tài liệu.');
+    }
+  };
+
+  const handleCreateDocumentCategory = async (values: DocumentCategoryValues) => {
+    await createDocumentCategory({
+      name: values.name.trim(),
+      description: values.description.trim(),
+      slug: values.slug || slugify(values.name),
+      parentId: values.parentId,
+    });
+    setAdminMessage(`Đã tạo danh mục: ${values.name}`);
+    await loadDocumentCategories();
+  };
+
+  const handleUpdateDocumentCategory = async (id: string, values: DocumentCategoryValues) => {
+    await updateDocumentCategory(id, {
+      name: values.name.trim(),
+      description: values.description.trim(),
+      slug: values.slug || slugify(values.name),
+      parentId: values.parentId,
+    });
+    setAdminMessage(`Đã cập nhật danh mục: ${values.name}`);
+    await loadDocumentCategories();
+  };
+
+  const handleDeleteDocumentCategory = async (category: DocumentCategory) => {
+    if (!(await confirmDelete({
+      title: 'Xóa danh mục tài liệu?',
+      message: 'Hãy chắc chắn danh mục không còn tài liệu hoặc danh mục con trước khi xóa.',
+      itemName: category.name,
+      confirmLabel: 'Xóa danh mục',
+    }))) return;
+    await deleteDocumentCategory(category.id);
+    setAdminMessage(`Đã xóa danh mục: ${category.name}`);
+    await loadDocumentCategories();
+  };
+
   return (
     <div className="min-h-screen bg-[#f9f9f7] text-[#1a1c1b]">
       <PublicHeader />
@@ -182,6 +309,20 @@ export default function DocumentPage() {
           title="Thư Viện Tài Liệu Hoa Lan"
           description="Nơi lưu trữ các nghiên cứu khoa học, sách chuyên khảo và tài liệu kỹ thuật về các loài lan, cung cấp nền tảng kiến thức chuyên sâu cho giới học thuật và người yêu lan."
         />
+
+        {isAdmin && (
+          <div className="mb-8 flex flex-col gap-3 rounded-xl border border-[#87905f]/35 bg-[#f1f4e7] p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#667234]">Chế độ quản trị</p>
+              <p className="mt-1 text-sm text-[#4f554e]">Thêm, sửa hoặc xóa tài liệu trực tiếp trong thư viện.</p>
+              {adminMessage && <p className="mt-1 text-xs font-semibold text-[#56642b]">{adminMessage}</p>}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => openAdminEditor()} className="inline-flex items-center justify-center gap-2 rounded-md bg-[#56642b] px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-[#44501f]"><Plus size={16} /> Thêm tài liệu</button>
+              <button type="button" onClick={() => setShowCategoryManager(true)} className="inline-flex items-center justify-center gap-2 rounded-md border border-[#56642b] bg-white px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-[#56642b] hover:bg-[#eef1e2]"><FolderTree size={16} /> Quản lý danh mục</button>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-12">
           <aside className="space-y-8 lg:col-span-3">
@@ -302,6 +443,13 @@ export default function DocumentPage() {
                         >
                           <Eye size={15} /> Xem trước
                         </a>
+                        {isAdmin && (
+                          <>
+                            <span className="h-5 w-px bg-[#747878]/20" />
+                            <button type="button" onClick={() => openAdminEditor(document)} className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#56642b] hover:underline"><Edit size={15} /> Sửa</button>
+                            <button type="button" onClick={() => void handleAdminDelete(document)} className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-red-600 hover:underline"><Trash2 size={15} /> Xóa</button>
+                          </>
+                        )}
                       </div>
                     </article>
                   );
@@ -356,6 +504,52 @@ export default function DocumentPage() {
       </main>
 
       <PublicFooter />
+
+      {isAdmin && adminEditorOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-label={editingDocument ? 'Chỉnh sửa tài liệu' : 'Thêm tài liệu'}>
+          <form onSubmit={handleAdminSave} className="w-full max-w-2xl overflow-hidden rounded-xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#dedfd9] px-6 py-4">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#71803c]">Quản trị nhanh</p>
+                <h2 className="font-serif text-2xl font-bold">{editingDocument ? 'Chỉnh sửa tài liệu' : 'Thêm tài liệu mới'}</h2>
+              </div>
+              <button type="button" onClick={() => setAdminEditorOpen(false)} className="rounded-full p-2 text-[#747878] hover:bg-[#f0f1ec]" aria-label="Đóng"><X size={20} /></button>
+            </div>
+            <div className="space-y-4 p-6">
+              {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+              <label className="block"><span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-[#666b69]">Tiêu đề *</span><input value={adminTitle} onChange={(event) => setAdminTitle(event.target.value)} className="w-full rounded-md border border-[#cfd2cb] px-4 py-3 text-sm outline-none focus:border-[#56642b]" /></label>
+              <label className="block"><span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-[#666b69]">Mô tả</span><textarea value={adminDescription} onChange={(event) => setAdminDescription(event.target.value)} rows={4} className="w-full rounded-md border border-[#cfd2cb] px-4 py-3 text-sm outline-none focus:border-[#56642b]" /></label>
+              <label className="block"><span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-[#666b69]">Danh mục</span><select value={adminCategoryId} onChange={(event) => setAdminCategoryId(event.target.value)} className="w-full rounded-md border border-[#cfd2cb] bg-white px-4 py-3 text-sm outline-none"><option value="">Không chọn danh mục</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+              {editingDocument ? (
+                <div className="rounded-lg border border-[#dedfd9] bg-[#fafaf7] px-4 py-3 text-sm"><strong>Tệp hiện tại:</strong> {editingDocument.originalName}</div>
+              ) : (
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[#87905f] bg-[#f7f8f1] px-5 py-8 text-sm font-semibold text-[#56642b] hover:bg-[#eef1e2]"><Upload size={20} />{adminFile?.name ?? 'Chọn tệp tài liệu (tối đa 50 MB)'}<input type="file" className="hidden" onChange={(event) => setAdminFile(event.target.files?.[0] ?? null)} /></label>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-[#dedfd9] bg-[#fafaf7] px-6 py-4"><button type="button" onClick={() => setAdminEditorOpen(false)} disabled={adminSaving} className="rounded-md border border-[#cfd2cb] bg-white px-4 py-2.5 text-xs font-bold uppercase">Hủy</button><button type="submit" disabled={adminSaving} className="inline-flex items-center gap-2 rounded-md bg-[#56642b] px-5 py-2.5 text-xs font-bold uppercase text-white disabled:opacity-60">{adminSaving && <LoaderCircle size={15} className="animate-spin" />}{adminSaving ? 'Đang lưu...' : 'Lưu tài liệu'}</button></div>
+          </form>
+        </div>
+      )}
+      {isAdmin && showCategoryManager && (
+        <div className="fixed inset-0 z-[90] bg-[#111412]/55 p-4 backdrop-blur-[2px]" role="dialog" aria-modal="true" aria-label="Quản lý danh mục tài liệu">
+          <div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-[#f9f9f7] shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#dedfd9] bg-white px-6 py-4">
+              <div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#71803c]">Quản trị nhanh</p><h2 className="font-serif text-2xl font-bold">Danh mục tài liệu</h2></div>
+              <button type="button" onClick={() => setShowCategoryManager(false)} className="rounded-full p-2 text-[#747878] hover:bg-[#f0f1ec]" aria-label="Đóng"><X size={20} /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 md:p-7">
+              <DocumentCategoryManager
+                categories={categories}
+                loading={loadingCategories}
+                onCreate={handleCreateDocumentCategory}
+                onUpdate={handleUpdateDocumentCategory}
+                onDelete={handleDeleteDocumentCategory}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+      {confirmDialog}
     </div>
   );
 }
