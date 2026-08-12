@@ -463,8 +463,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
           >
             {searchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
           </button>
-          {isAuthenticated && (
-            <div ref={notificationMenuRef} className="relative flex h-full items-center">
+          <div ref={notificationMenuRef} className="relative flex h-full items-center">
               <button
                 type="button"
                 onClick={toggleNotificationMenu}
@@ -491,7 +490,13 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
                     {unreadNotificationCount > 0 && <span className="rounded-full bg-red-50 px-2 py-1 text-[10px] font-bold text-red-600">{unreadNotificationCount} mới</span>}
                   </div>
                   <div className="max-h-96 overflow-y-auto">
-                    {loadingNotifications && commentNotifications.length === 0 ? (
+                    {!isAuthenticated ? (
+                      <div className="px-5 py-10 text-center text-[#747878]">
+                        <Bell className="mx-auto mb-2 h-7 w-7 opacity-40" />
+                        <p className="text-xs">Đăng nhập để nhận thông báo.</p>
+                        <a href="/login" className="mt-3 inline-block text-xs font-bold text-[#56642b] hover:underline">Đăng nhập</a>
+                      </div>
+                    ) : loadingNotifications && commentNotifications.length === 0 ? (
                       <p className="px-5 py-8 text-center text-xs text-[#747878]">Đang tải thông báo...</p>
                     ) : commentNotifications.length === 0 ? (
                       <div className="px-5 py-10 text-center text-[#747878]">
@@ -519,8 +524,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
                   <a href="/discussion" className="block border-t border-[#eeeeea] px-5 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-[#56642b] hover:bg-[#56642b]/5">Xem trang thảo luận</a>
                 </div>
               )}
-            </div>
-          )}
+          </div>
           <div
             ref={profileMenuRef}
             className="relative flex h-full items-center"
