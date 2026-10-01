@@ -137,7 +137,9 @@ type MenuCategory =
   | Pick<ArticleCategory, 'id' | 'name' | 'parentId'>
   | Pick<DocumentCategory, 'id' | 'name' | 'parentId'>;
 
-const CascadingMenuDropdown = ({ categories, rootNames, basePath }: { categories: MenuCategory[], rootNames?: string[], basePath: string }) => {
+const CascadingMenuDropdown = ({ categories, rootNames, basePath, onOpen }: { categories: MenuCategory[], rootNames?: string[], basePath: string, onOpen?: () => void }) => {
+  const [activeLevel1Id, setActiveLevel1Id] = useState<string | null>(null);
+  const [activeLevel2Id, setActiveLevel2Id] = useState<string | null>(null);
   const root = useMemo(
     () => rootNames?.length
       ? categories.find((category) => rootNames.some((name) => category.name.toLowerCase() === name.toLowerCase()) && !category.parentId)
@@ -150,57 +152,80 @@ const CascadingMenuDropdown = ({ categories, rootNames, basePath }: { categories
       : categories.filter((category) => !category.parentId),
     [categories, root],
   );
+  const activeLevel1 = level1Cats.find((category) => category.id === activeLevel1Id);
+  const level2Cats = activeLevel1
+    ? categories.filter((category) => category.parentId === activeLevel1.id)
+    : [];
+  const activeLevel2 = level2Cats.find((category) => category.id === activeLevel2Id);
+  const level3Cats = activeLevel2
+    ? categories.filter((category) => category.parentId === activeLevel2.id)
+    : [];
   
   return (
-    <div className="invisible absolute left-0 top-[calc(100%-7px)] z-50 min-w-[260px] rounded border border-[#747878]/10 bg-surface-cream/95 shadow-xl opacity-0 backdrop-blur-md transition-all duration-200 group-hover:visible group-hover:opacity-100">
-      <ul className="flex flex-col py-2">
+    <div
+      onMouseEnter={onOpen}
+      onMouseLeave={() => {
+        setActiveLevel1Id(null);
+        setActiveLevel2Id(null);
+      }}
+      className="invisible absolute left-0 top-[calc(100%-7px)] z-50 w-[260px] rounded border border-[#747878]/10 bg-surface-cream/95 shadow-xl opacity-0 backdrop-blur-md transition-all duration-200 group-hover:visible group-hover:opacity-100"
+    >
+      <ul className="flex max-h-[calc(100vh-5rem)] flex-col overflow-y-auto overscroll-contain py-2">
         {level1Cats.map(cat => {
           const children = categories.filter(c => c.parentId === cat.id);
           const hasChildren = children.length > 0;
           return (
-            <li key={cat.id} className="group/item relative">
+            <li
+              key={cat.id}
+              onMouseEnter={() => {
+                setActiveLevel1Id(hasChildren ? cat.id : null);
+                setActiveLevel2Id(null);
+              }}
+            >
               <a href={`${basePath}?cat=${encodeURIComponent(cat.id)}`} className="flex items-center justify-between w-full px-5 py-3 text-[14px] font-sans text-[#1a1c1b] transition-colors hover:bg-[#56642b]/5 hover:text-botanical-green">
                 {cat.name}
                 {hasChildren && <ChevronRight className="h-3.5 w-3.5 text-outline" />}
               </a>
-              
-              {hasChildren && (
-                <div className="invisible absolute left-[100%] top-0 z-50 min-w-[260px] rounded border border-[#747878]/10 bg-surface-cream/95 shadow-xl opacity-0 backdrop-blur-md transition-all duration-200 group-hover/item:visible group-hover/item:opacity-100">
-                  <ul className="flex flex-col py-2">
-                    {children.map(child => {
-                      const grandChildren = categories.filter(c => c.parentId === child.id);
-                      const hasGrandChildren = grandChildren.length > 0;
-                      return (
-                        <li key={child.id} className="group/subitem relative">
-                          <a href={`${basePath}?cat=${encodeURIComponent(child.id)}`} className="flex items-center justify-between w-full px-5 py-2.5 text-[14px] font-sans text-[#434748] transition-colors hover:bg-[#56642b]/5 hover:text-botanical-green">
-                            {child.name}
-                            {hasGrandChildren && <ChevronRight className="h-3.5 w-3.5 text-outline" />}
-                          </a>
-                          
-                          {hasGrandChildren && (
-                            <div className="invisible absolute left-[100%] top-0 z-50 min-w-[260px] rounded border border-[#747878]/10 bg-surface-cream/95 shadow-xl opacity-0 backdrop-blur-md transition-all duration-200 group-hover/subitem:visible group-hover/subitem:opacity-100">
-                              <ul className="flex flex-col py-2">
-                                {grandChildren.map(grandChild => (
-                                  <li key={grandChild.id}>
-                                    <a href={`${basePath}?cat=${encodeURIComponent(grandChild.id)}`} className="block w-full px-5 py-2.5 text-[14px] font-sans text-[#434748] transition-colors hover:bg-[#56642b]/5 hover:text-botanical-green">
-                                      {grandChild.name}
-                                    </a>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              )}
             </li>
           );
         })}
         {level1Cats.length === 0 && <li className="px-5 py-2 text-xs text-[#747878]">Chưa có danh mục</li>}
       </ul>
+
+      {activeLevel1 && level2Cats.length > 0 && (
+        <div className="absolute left-full top-0 z-50 w-[320px] rounded border border-[#747878]/10 bg-surface-cream/95 shadow-xl backdrop-blur-md">
+          <ul className="flex max-h-[calc(100vh-5rem)] flex-col overflow-y-auto overscroll-contain py-2">
+            {level2Cats.map(child => {
+              const hasGrandChildren = categories.some(category => category.parentId === child.id);
+              return (
+                <li
+                  key={child.id}
+                  onMouseEnter={() => setActiveLevel2Id(hasGrandChildren ? child.id : null)}
+                >
+                  <a href={`${basePath}?cat=${encodeURIComponent(child.id)}`} className="flex w-full items-center justify-between px-5 py-2.5 font-sans text-[14px] text-[#434748] transition-colors hover:bg-[#56642b]/5 hover:text-botanical-green">
+                    {child.name}
+                    {hasGrandChildren && <ChevronRight className="h-3.5 w-3.5 text-outline" />}
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+
+          {activeLevel2 && level3Cats.length > 0 && (
+            <div className="absolute left-full top-0 z-50 w-[280px] rounded border border-[#747878]/10 bg-surface-cream/95 shadow-xl backdrop-blur-md">
+              <ul className="flex max-h-[calc(100vh-5rem)] flex-col overflow-y-auto overscroll-contain py-2">
+                {level3Cats.map(grandChild => (
+                  <li key={grandChild.id}>
+                    <a href={`${basePath}?cat=${encodeURIComponent(grandChild.id)}`} className="block w-full px-5 py-2.5 font-sans text-[14px] text-[#434748] transition-colors hover:bg-[#56642b]/5 hover:text-botanical-green">
+                      {grandChild.name}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -226,10 +251,28 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
   const notificationMenuRef = useRef<HTMLDivElement>(null);
   const notificationMenuOpenRef = useRef(false);
   const profileCloseTimerRef = useRef<number | null>(null);
+  const menuCategoryLoadsRef = useRef(new Set<string>());
   const path = window.location.pathname;
 
+  const loadMenuCategories = useCallback(async (menu: 'cultivation' | 'application' | 'document') => {
+    if (menuCategoryLoadsRef.current.has(menu)) return;
+    menuCategoryLoadsRef.current.add(menu);
+    try {
+      if (menu === 'document') {
+        const result = await getDocumentCategories({ pageNumber: 1, pageSize: 100, sortBy: 'name', sortDescending: false });
+        setDocumentCategories(result.items ?? []);
+      } else {
+        const result = await getArticleCategories(menu, { pageNumber: 1, pageSize: 100, sortBy: 'name' });
+        if (menu === 'application') setApplicationCategories(result);
+        else setCultivationCategories(result);
+      }
+    } catch {
+      menuCategoryLoadsRef.current.delete(menu);
+    }
+  }, []);
+
   useEffect(() => {
-    if (suppliedCategories) return;
+    if (suppliedCategories?.length) return;
     let active = true;
     void getCategories({ pageNumber: 1, pageSize: 100 })
       .then((result) => { if (active) setLoadedCategories(result.items); })
@@ -238,33 +281,17 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
   }, [suppliedCategories]);
 
   useEffect(() => {
-    let active = true;
+    // Load both article menus so navigating between public pages never shows
+    // an empty dropdown while the other section is still being fetched.
     void Promise.all([
-      getArticleCategories('cultivation', { pageNumber: 1, pageSize: 100, sortBy: 'name' }),
-      getArticleCategories('application', { pageNumber: 1, pageSize: 100, sortBy: 'name' }),
-    ]).then(([cultivation, application]) => {
-      if (!active) return;
-      setCultivationCategories(cultivation);
-      setApplicationCategories(application);
-    }).catch(() => {
-      if (!active) return;
-      setCultivationCategories([]);
-      setApplicationCategories([]);
-    });
-    return () => { active = false; };
-  }, []);
+      loadMenuCategories('cultivation'),
+      loadMenuCategories('application'),
+    ]);
+  }, [loadMenuCategories]);
 
   useEffect(() => {
-    let active = true;
-    void getDocumentCategories({ pageNumber: 1, pageSize: 100, sortBy: 'name', sortDescending: false })
-      .then((result) => {
-        if (active) setDocumentCategories(result.items ?? []);
-      })
-      .catch(() => {
-        if (active) setDocumentCategories([]);
-      });
-    return () => { active = false; };
-  }, []);
+    void loadMenuCategories('document');
+  }, [loadMenuCategories]);
 
   const loadCommentNotifications = useCallback(async () => {
     const hasToken = Boolean(localStorage.getItem('orchidee_auth_token') || sessionStorage.getItem('orchidee_auth_token'));
@@ -320,13 +347,21 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
   }, []);
 
   useEffect(() => {
+    // Notifications are only relevant on pages where the user can review
+    // discussions/account activity. Avoid loading the discussion feed from
+    // unrelated public pages such as Planting & Care.
+    if (path !== '/discussion' && path !== '/profile') {
+      setCommentNotifications([]);
+      setLoadingNotifications(false);
+      return;
+    }
     const initialLoad = window.setTimeout(() => void loadCommentNotifications(), 0);
     const interval = window.setInterval(() => void loadCommentNotifications(), 60_000);
     return () => {
       window.clearTimeout(initialLoad);
       window.clearInterval(interval);
     };
-  }, [loadCommentNotifications]);
+  }, [loadCommentNotifications, path]);
 
   useEffect(() => {
     if (searchOpen) searchInputRef.current?.focus();
@@ -351,7 +386,9 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
       setCurrentUserAvatar(readCurrentUserAvatar());
       setCurrentUserIsAdmin(readCurrentUserIsAdmin());
       setReadCommentNotificationIds(readNotificationIds(readCurrentUserIdentity()));
-      void loadCommentNotifications();
+      if (path === '/discussion' || path === '/profile') {
+        void loadCommentNotifications();
+      }
     };
     window.addEventListener('storage', refreshAccountSummary);
     window.addEventListener('orchidee-favorites-updated', refreshAccountSummary);
@@ -363,7 +400,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
       window.removeEventListener('orchidee-profile-updated', refreshAccountSummary);
       window.removeEventListener('orchidee-auth-refreshed', refreshAccountSummary);
     };
-  }, [loadCommentNotifications]);
+  }, [loadCommentNotifications, path]);
 
   const openProfileMenu = () => {
     if (profileCloseTimerRef.current) window.clearTimeout(profileCloseTimerRef.current);
@@ -414,7 +451,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
     || sessionStorage.getItem('orchidee_auth_token'),
   );
   const unreadNotificationCount = commentNotifications.filter((notification) => !readCommentNotificationIds.includes(notification.id)).length;
-  const orchidCategories = suppliedCategories ?? loadedCategories;
+  const orchidCategories = suppliedCategories?.length ? suppliedCategories : loadedCategories;
 
   return (
     <header className="sticky top-0 z-50 h-16 w-full border-b border-[#56642b]/10 bg-surface-cream/95 backdrop-blur-md">
@@ -424,33 +461,33 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
         <nav className="hidden h-full items-center space-x-4 md:flex">
           <a href="/" className={`font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors ${path === '/' ? activeClass : normalClass}`}>Trang chủ</a>
 
-          <div className="group relative flex h-full items-center">
+          <div className="group relative flex h-full items-center" onMouseEnter={() => void loadMenuCategories('document')}>
             <a href="/list-orchids" className={`flex cursor-pointer items-center gap-1 font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors ${isCatalog ? activeClass : normalClass}`}>
               Danh mục lan <ChevronRight className="h-3.5 w-3.5 rotate-90" />
             </a>
             <CascadingMenuDropdown categories={orchidCategories} rootNames={['Danh mục lan']} basePath="/list-orchids" />
           </div>
 
-          <div className="group relative flex h-full items-center">
+          <div className="group relative flex h-full items-center" onMouseEnter={() => void loadMenuCategories('application')}>
             <a href="/planting-and-care" className={`flex cursor-pointer items-center gap-1 font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors ${path === '/planting-and-care' ? activeClass : normalClass}`}>
               Cách trồng và chăm sóc <ChevronRight className="h-3.5 w-3.5 rotate-90" />
             </a>
-            <CascadingMenuDropdown categories={cultivationCategories} basePath="/planting-and-care" />
+            <CascadingMenuDropdown categories={cultivationCategories} basePath="/planting-and-care" onOpen={() => void loadMenuCategories('cultivation')} />
           </div>
 
-          <div className="group relative flex h-full items-center">
+          <div className="group relative flex h-full items-center" onMouseEnter={() => void loadMenuCategories('application')}>
             <a href="/applications" className={`flex cursor-pointer items-center gap-1 font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors ${path === '/applications' ? activeClass : normalClass}`}>
               Ứng dụng <ChevronRight className="h-3.5 w-3.5 rotate-90" />
             </a>
-            <CascadingMenuDropdown categories={applicationCategories} basePath="/applications" />
+            <CascadingMenuDropdown categories={applicationCategories} basePath="/applications" onOpen={() => void loadMenuCategories('application')} />
           </div>
           <div className="group relative flex h-full items-center">
             <a href="/document" className={`flex cursor-pointer items-center gap-1 font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors ${path === '/document' ? activeClass : normalClass}`}>
               Tài liệu <ChevronRight className="h-3.5 w-3.5 rotate-90" />
             </a>
-            <CascadingMenuDropdown categories={documentCategories} basePath="/document" />
+            <CascadingMenuDropdown categories={documentCategories} basePath="/document" onOpen={() => void loadMenuCategories('document')} />
           </div>
-          <a href="/discussion" className={`font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors ${path === '/discussion' ? activeClass : normalClass}`}>Thảo luận</a>
+          <a href="/discussion" className={`font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors ${path === '/discussion' ? activeClass : normalClass}`}>Diễn đàn</a>
         </nav>
 
         <div className="flex h-full items-center space-x-5">
@@ -626,7 +663,7 @@ export default function PublicHeader({ categories: suppliedCategories }: PublicH
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               className="min-w-0 flex-1 px-3 py-2 text-sm outline-none"
-              placeholder="Tìm lan, tài liệu, cách trồng, ứng dụng..."
+              placeholder="Tìm lan, tài liệu, cách trồng, tin tức..."
               aria-label="Từ khóa tìm kiếm toàn hệ thống"
             />
             <button type="submit" className="rounded-md bg-[#56642b] px-4 py-2 text-xs font-bold uppercase tracking-wider text-white">Tìm</button>

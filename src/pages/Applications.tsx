@@ -8,10 +8,10 @@ export default function Applications({ isAdmin = false }: ApplicationsProps) {
   return (
     <PlantingAndCare
       section="application"
-      breadcrumbLabel="Ứng dụng"
-      eyebrow="Giá trị và ứng dụng của hoa lan"
-      title="Ứng Dụng"
-      description="Khám phá các bài viết về ứng dụng của hoa lan trong đời sống, nghiên cứu và sản xuất."
+      breadcrumbLabel="Tin tức"
+      eyebrow="Tin tức về hoa lan"
+      title="Tin Tức"
+      description="Khám phá các bài viết và thông tin mới về hoa lan."
       isAdmin={isAdmin}
     />
   );

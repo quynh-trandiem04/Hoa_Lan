@@ -9,6 +9,7 @@ import {
 } from '../services/api';
 import type { Orchid } from '../types';
 import { getOrchidImageUrls } from '../utils/orchidImages';
+import { renderInlineMarkup } from '../utils/inlineMarkup';
 import { Toasts, useToasts } from './Toasts';
 
 interface CustomerProfileModalProps {
@@ -239,7 +240,7 @@ export default function CustomerProfileModal({ open, onClose, standalone = false
                   <a href={`/orchids/${orchid.id}`} className="h-28 w-28 shrink-0 bg-[#eeeeea]"><img src={getOrchidImageUrls(orchid)[0]} alt={orchid.name} className="h-full w-full object-cover" referrerPolicy="no-referrer" /></a>
                   <div className="min-w-0 flex-1 p-3">
                     <a href={`/orchids/${orchid.id}`} className="line-clamp-2 font-serif text-base font-bold hover:text-[#56642b]">{orchid.name}</a>
-                    <p className="mt-1 truncate text-xs italic text-[#747878]">{orchid.englishName}</p>
+                     <p className="mt-1 truncate text-xs text-[#747878]">{renderInlineMarkup(orchid.englishName)}</p>
                     <button
                       type="button"
                       onClick={() => orchid.id && removeFavorite(orchid.id)}

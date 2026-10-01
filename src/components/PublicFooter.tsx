@@ -16,7 +16,7 @@ export default function PublicFooter() {
           <ul className="space-y-3 text-sm">
             <li><a href="/list-orchids" className="text-on-surface-variant transition-colors hover:text-botanical-green">Danh mục hoa lan</a></li>
             <li><a href="/planting-and-care" className="text-on-surface-variant transition-colors hover:text-botanical-green">Cách trồng và chăm sóc</a></li>
-            <li><a href="/applications" className="text-on-surface-variant transition-colors hover:text-botanical-green">Ứng dụng</a></li>
+            <li><a href="/applications" className="text-on-surface-variant transition-colors hover:text-botanical-green">Tin tức</a></li>
             <li><a href="/document" className="text-on-surface-variant transition-colors hover:text-botanical-green">Tài liệu</a></li>
           </ul>
         </div>

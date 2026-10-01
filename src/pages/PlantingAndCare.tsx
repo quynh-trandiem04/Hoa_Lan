@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, CalendarClock, ChevronLeft, ChevronRight, Edit, FileText, FolderTree, LoaderCircle, Plus, Search, Trash2, X } from 'lucide-react';
 import type { ArticleCategory, CareArticle } from '../types';
-import { deleteSectionArticle, getArticleById, getArticleCategories, getSectionArticles, getUploadedImageUrl, type ArticleSection } from '../services/api';
+import { deleteSectionArticle, getArticleById, getArticleCategories, getSectionArticlesPage, getUploadedImageUrl, type ArticleSection } from '../services/api';
 import PublicFooter from '../components/PublicFooter';
 import PublicHeader from '../components/PublicHeader';
 import InlineTreeMultiSelect from '../components/InlineTreeMultiSelect';
 import PageIntro from '../components/PageIntro';
+import { getPaginationItems } from '../utils/pagination';
 import PublicArticleAdminModal from '../components/PublicArticleAdminModal';
 import { useConfirmDialog } from '../components/ConfirmDialog';
 import ArticleCategoryManager from '../components/ArticleCategoryManager';
@@ -64,6 +65,7 @@ export default function PlantingAndCare({
   const [searchTerm, setSearchTerm] = useState(() => new URLSearchParams(window.location.search).get('q') || '');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [adminEditorOpen, setAdminEditorOpen] = useState(false);
   const [adminEditingArticle, setAdminEditingArticle] = useState<CareArticle | null>(null);
   const [adminRevision, setAdminRevision] = useState(0);
@@ -124,18 +126,21 @@ export default function PlantingAndCare({
       setError('');
       try {
         const categoryRequests = selectedCategoryIds.length > 0 ? selectedCategoryIds : [undefined];
-        const results = await Promise.all(categoryRequests.map((articleCategoryId) => getSectionArticles(section, {
+        const results = await Promise.all(categoryRequests.map((articleCategoryId) => getSectionArticlesPage(section, {
             articleCategoryId,
             includeDescendants: true,
             searchTerm: debouncedSearchTerm || undefined,
             isPublished: isAdmin ? undefined : true,
-            pageNumber: 1,
-            pageSize: 100,
+            pageNumber: currentPage,
+            pageSize: PAGE_SIZE,
             sortDescending: true,
           })));
         const uniqueArticles = new Map<string, CareArticle>();
-        results.flat().forEach((article) => uniqueArticles.set(article.id || article.title, article));
-        if (active) setArticles([...uniqueArticles.values()]);
+        results.flatMap((result) => result.items).forEach((article) => uniqueArticles.set(article.id || article.title, article));
+        if (active) {
+          setArticles([...uniqueArticles.values()]);
+          setTotalPages(Math.max(1, Math.max(...results.map((result) => result.totalPages), 1)));
+        }
       } catch (loadError) {
         if (active) {
           setError(loadError instanceof Error ? loadError.message : 'Không thể tải danh sách bài viết.');
@@ -147,7 +152,7 @@ export default function PlantingAndCare({
     };
     void loadArticles();
     return () => { active = false; };
-  }, [section, selectedCategoryIds, debouncedSearchTerm, isAdmin, adminRevision]);
+  }, [section, selectedCategoryIds, debouncedSearchTerm, isAdmin, adminRevision, currentPage]);
 
   useEffect(() => {
     if (!linkedArticleId) return;
@@ -236,8 +241,7 @@ export default function PlantingAndCare({
   };
 
   const filteredArticles = articles;
-  const totalPages = Math.max(1, Math.ceil(filteredArticles.length / PAGE_SIZE));
-  const paginatedArticles = filteredArticles.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const paginatedArticles = filteredArticles;
 
   return (
     <div className="min-h-screen bg-[#f9f9f7] text-[#1a1c1b]">
@@ -413,7 +417,9 @@ export default function PlantingAndCare({
                   <button disabled={currentPage === 1} onClick={() => setCurrentPage((page) => Math.max(page - 1, 1))} className={`flex items-center justify-center rounded-md border border-[#747878]/20 p-2 transition-all ${currentPage === 1 ? 'cursor-not-allowed bg-transparent text-[#747878]/30' : 'bg-white text-[#1a1c1b] hover:border-botanical-green hover:shadow-sm'}`}>
                     <ChevronLeft size={16} />
                   </button>
-                  {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+                  {getPaginationItems(currentPage, totalPages).map((page, index) => page === 'ellipsis' ? (
+                    <span key={`ellipsis-${index}`} className="flex h-9 w-5 items-center justify-center text-xs text-[#747878]">…</span>
+                  ) : (
                     <button key={page} onClick={() => setCurrentPage(page)} className={`flex h-9 w-9 items-center justify-center rounded-md border font-sans text-xs font-semibold tracking-wider transition-all ${currentPage === page ? 'border-botanical-green bg-botanical-green text-white shadow-sm' : 'border-[#747878]/20 bg-white text-[#1a1c1b] hover:border-botanical-green'}`}>
                       {page}
                     </button>

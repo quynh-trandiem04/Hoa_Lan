@@ -192,9 +192,9 @@ function PostImageGrid({ images, onImageClick }: { images: string[], onImageClic
   const count = images.length;
   if (count === 0) return null;
 
-  const renderImage = (index: number, extraClass = '') => (
+  const renderImage = (index: number, extraClass = '', imageClass = 'h-full w-full object-cover transition-transform duration-300 group-hover:scale-105') => (
     <div key={index} className={`relative cursor-pointer overflow-hidden group ${extraClass}`} onClick={() => onImageClick(index)}>
-      <img src={images[index]} alt={`Ảnh ${index + 1}`} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+      <img src={images[index]} alt={`Ảnh ${index + 1}`} className={imageClass} />
       {index === 4 && count > 5 && (
         <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
           <span className="text-white text-3xl font-bold">+{count - 4}</span>
@@ -204,7 +204,7 @@ function PostImageGrid({ images, onImageClick }: { images: string[], onImageClic
   );
 
   if (count === 1) {
-    return <div className="mt-4 rounded-xl overflow-hidden border border-[#e0e1dc]">{renderImage(0, 'max-h-[500px] aspect-auto')}</div>;
+    return <div className="mt-4 rounded-xl overflow-hidden border border-[#e0e1dc] bg-[#f7f8f4]">{renderImage(0, '', 'block h-auto w-full object-contain')}</div>;
   }
   
   if (count === 2) {

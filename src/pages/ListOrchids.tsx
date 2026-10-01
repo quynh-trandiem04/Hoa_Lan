@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Search, ChevronLeft, ChevronRight, X, Heart, HelpCircle, ArrowLeft, Edit, Grid2X2, List, Plus, Settings, Trash2 } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, X, Heart, ArrowLeft, Edit, Grid2X2, List, Plus, Settings, Trash2 } from 'lucide-react';
 import OrchidCard from '../components/OrchidCard';
-import { Category, Orchid, Region, BloomSeason, FlowerColor } from '../types';
+import { Category, Orchid, BloomSeason, FlowerColor } from '../types';
 import SearchModal from '../components/SearchModal';
 import PublicFooter from '../components/PublicFooter';
 import PublicHeader from '../components/PublicHeader';
 import { getOrchidById, getOrchidsPage } from '../services/api';
 import InlineTreeMultiSelect from '../components/InlineTreeMultiSelect';
 import PageIntro from '../components/PageIntro';
+import { getPaginationItems } from '../utils/pagination';
 
 interface ListOrchidsProps {
   categoryId?: string | null;
@@ -44,9 +45,10 @@ export default function ListOrchids({
   const [isSearching, setIsSearching] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<Record<string, boolean>>({});
-  const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
   const [selectedSeasons, setSelectedSeasons] = useState<string[]>([]);
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
+  const [showPopularOnly, setShowPopularOnly] = useState(false);
+  const [showFragrantOnly, setShowFragrantOnly] = useState(false);
   const [showSavedOnly, setShowSavedOnly] = useState(false);
   const [sortOrder, setSortOrder] = useState<'az' | 'za'>(() =>
     localStorage.getItem('orchidee-orchid-sort') === 'za' ? 'za' : 'az'
@@ -113,9 +115,10 @@ export default function ListOrchids({
         pageSize: PAGE_SIZE,
         searchTerm: query || undefined,
         categoryIds: [...requestedCategoryIds],
-        regions: selectedRegions,
         bloomSeasons: selectedSeasons,
         colors: selectedColors,
+        isPopular: showPopularOnly ? true : undefined,
+        hasFragrance: showFragrantOnly ? true : undefined,
         sortBy: 'name',
         sortDescending: sortOrder === 'za'
       })
@@ -140,7 +143,7 @@ export default function ListOrchids({
       active = false;
       window.clearTimeout(timer);
     };
-  }, [searchQuery, selectedCategories, categories, selectedRegions, selectedSeasons, selectedColors, sortOrder, currentPage, showSavedOnly, savedOrchids, dataRevision]);
+  }, [searchQuery, selectedCategories, categories, selectedSeasons, selectedColors, showPopularOnly, showFragrantOnly, sortOrder, currentPage, showSavedOnly, savedOrchids, dataRevision]);
 
   useEffect(() => {
     localStorage.setItem('orchidee-orchid-sort', sortOrder);
@@ -221,7 +224,7 @@ export default function ListOrchids({
   // Reset pagination when filter parameters shift
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedCategories, showSavedOnly, selectedRegions, selectedSeasons, selectedColors, sortOrder]);
+  }, [searchQuery, selectedCategories, showSavedOnly, selectedSeasons, selectedColors, showPopularOnly, showFragrantOnly, sortOrder]);
 
   const handleClearFilters = () => {
     setSearchQuery('');
@@ -230,9 +233,10 @@ export default function ListOrchids({
       resetCats[cat.id] = false;
     });
     setSelectedCategories(resetCats);
-    setSelectedRegions([]);
     setSelectedSeasons([]);
     setSelectedColors([]);
+    setShowPopularOnly(false);
+    setShowFragrantOnly(false);
     setShowSavedOnly(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -320,17 +324,24 @@ export default function ListOrchids({
               />
             </div>
 
-            {/* Filter group: Region */}
+            {/* Filter group: Featured traits */}
             <div className="space-y-4">
-              <h4 className="border-b border-[#747878]/10 pb-2 text-[11px] font-bold uppercase tracking-widest text-[#1a1c1b]">KHU VỰC PHÂN BỐ</h4>
+              <h4 className="border-b border-[#747878]/10 pb-2 text-[11px] font-bold uppercase tracking-widest text-[#1a1c1b]">TIÊU CHÍ NỔI BẬT</h4>
               <InlineTreeMultiSelect
-                options={Object.entries(Region).map(([value, label]) => ({ value, label }))}
-                values={selectedRegions}
+                options={[
+                  { value: 'popular', label: 'Lan phổ biến' },
+                  { value: 'fragrant', label: 'Có mùi hương' },
+                ]}
+                values={[
+                  ...(showPopularOnly ? ['popular'] : []),
+                  ...(showFragrantOnly ? ['fragrant'] : []),
+                ]}
                 onChange={(values) => {
-                  setSelectedRegions(values);
+                  setShowPopularOnly(values.includes('popular'));
+                  setShowFragrantOnly(values.includes('fragrant'));
                   scrollToPageTop();
                 }}
-                allLabel="Tất cả khu vực"
+                allLabel="Tất cả tiêu chí"
               />
             </div>
 
@@ -356,7 +367,7 @@ export default function ListOrchids({
                   <label key={key} className="flex items-center gap-2 cursor-pointer group" title={key}>
                     <div className={`w-6 h-6 rounded-full border shadow-sm flex items-center justify-center transition-all ${selectedColors.includes(key) ? 'ring-2 ring-offset-1 ring-[#56642b] scale-110' : 'border-[#747878]/20 group-hover:scale-110'}`} style={{ backgroundColor: value }}>
                       {selectedColors.includes(key) && (
-                        <div className={`w-2 h-2 rounded-full ${value === '#FFFFFF' || value === '#FFFDD0' ? 'bg-[#56642b]' : 'bg-white'}`}></div>
+                        <div className={`w-2 h-2 rounded-full ${value === '#FFFFFF' ? 'bg-[#56642b]' : 'bg-white'}`}></div>
                       )}
                     </div>
                     <input
@@ -399,19 +410,8 @@ export default function ListOrchids({
               </p>
             </div>
 
-            {/* Additional informational card block */}
-            <div className="bg-white border border-[#747878]/10 p-5 rounded-md space-y-2">
-              <h5 className="text-[10px] font-bold tracking-wider text-[#1a1c1b]/60 font-sans flex items-center gap-1">
-                <HelpCircle size={12} className="text-antique-gold" />
-                ĐẶC ĐIỂM SINH TRƯỞNG
-              </h5>
-              <p className="text-[11px] font-sans text-[#747878] leading-relaxed italic">
-                Các tiêu chí bổ sung đang được cập nhật từ đội ngũ chuyên gia...
-              </p>
-            </div>
-
             {/* Reset Filter Button */}
-            {(searchQuery || Object.values(selectedCategories).some(Boolean) || selectedRegions.length > 0 || selectedSeasons.length > 0 || selectedColors.length > 0 || showSavedOnly) && (
+            {(searchQuery || Object.values(selectedCategories).some(Boolean) || selectedSeasons.length > 0 || selectedColors.length > 0 || showPopularOnly || showFragrantOnly || showSavedOnly) && (
               <button
                 onClick={handleClearFilters}
                 className="w-full text-center border border-dashed border-red-200 hover:border-red-500 hover:bg-red-50/50 text-red-600 rounded-md py-2.5 text-[10px] uppercase tracking-widest font-semibold font-sans transition-all duration-300"
@@ -432,6 +432,16 @@ export default function ListOrchids({
                 {showSavedOnly && (
                   <span className="bg-[#56642b]/10 text-botanical-green px-2 py-0.5 text-[10px] rounded-[2px] font-semibold">
                     MỤC ĐÃ LƯU
+                  </span>
+                )}
+                {showPopularOnly && (
+                  <span className="rounded-[2px] bg-[#56642b]/10 px-2 py-0.5 text-[10px] font-semibold text-botanical-green">
+                    LAN PHỔ BIẾN
+                  </span>
+                )}
+                {showFragrantOnly && (
+                  <span className="rounded-[2px] bg-[#56642b]/10 px-2 py-0.5 text-[10px] font-semibold text-botanical-green">
+                    CÓ MÙI HƯƠNG
                   </span>
                 )}
                 <label className="sr-only" htmlFor="orchid-sort">Sắp xếp danh sách hoa lan</label>
@@ -483,11 +493,11 @@ export default function ListOrchids({
               </div>
             ) : (
               <div className={viewMode === 'grid'
-                ? 'grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 md:gap-8'
+                ? 'grid auto-rows-[410px] grid-cols-1 items-stretch gap-6 sm:grid-cols-2 lg:grid-cols-3 md:gap-8'
                 : 'grid grid-cols-1 gap-5 xl:grid-cols-2'
               }>
                 {paginatedOrchids.map((orchid) => (
-                  <div key={orchid.id ?? orchid.slug} className="relative">
+                  <div key={orchid.id ?? orchid.slug} className="relative h-full">
                   <OrchidCard
                     key={orchid.id}
                     orchid={orchid}
@@ -522,17 +532,19 @@ export default function ListOrchids({
                   <ChevronLeft size={16} />
                 </button>
 
-                {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNum) => (
+                {getPaginationItems(currentPage, totalPages).map((page, index) => page === 'ellipsis' ? (
+                  <span key={`ellipsis-${index}`} className="flex h-9 w-5 items-center justify-center text-xs text-[#747878]">…</span>
+                ) : (
                   <button
-                    key={pageNum}
-                    onClick={() => setCurrentPage(pageNum)}
-                    className={`w-9 h-9 rounded-md border text-xs font-sans font-semibold tracking-wider transition-all flex items-center justify-center ${
-                      currentPage === pageNum
-                        ? 'bg-botanical-green border-botanical-green text-white shadow-sm'
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`flex h-9 w-9 items-center justify-center rounded-md border text-xs font-sans font-semibold tracking-wider transition-all ${
+                      currentPage === page
+                        ? 'border-botanical-green bg-botanical-green text-white shadow-sm'
                         : 'border-[#747878]/20 bg-white text-[#1a1c1b] hover:border-botanical-green'
                     }`}
                   >
-                    {pageNum}
+                    {page}
                   </button>
                 ))}
 

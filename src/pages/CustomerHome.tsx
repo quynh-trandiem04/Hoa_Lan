@@ -21,6 +21,7 @@ import BotAdvisor from "../components/BotAdvisor";
 
 import SearchModal from "../components/SearchModal";
 import PublicHeader from "../components/PublicHeader";
+import { renderInlineMarkup } from '../utils/inlineMarkup';
 import PublicFooter from "../components/PublicFooter";
 
 interface CustomerHomeProps {
@@ -49,7 +50,10 @@ export default function CustomerHome({ categories, orchids, onNavigate }: Custom
     return left.displayOrder - right.displayOrder;
   });
   const totalCards = featuredOrchids.length;
-  // We can show indices. On desktop, show 3 items. On mobile, show 1.
+  const visibleCards = 3;
+  const cardWidth = 320;
+  const cardGap = 24;
+  const maxSliderIndex = Math.max(totalCards - visibleCards, 0);
   const cardsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -73,12 +77,12 @@ export default function CustomerHome({ categories, orchids, onNavigate }: Custom
 
   const handleNextSlide = () => {
     if (totalCards === 0) return;
-    setSliderIndex((prev) => (prev + 1) % totalCards);
+    setSliderIndex((prev) => (prev >= maxSliderIndex ? 0 : prev + 1));
   };
 
   const handlePrevSlide = () => {
     if (totalCards === 0) return;
-    setSliderIndex((prev) => (prev - 1 + totalCards) % totalCards);
+    setSliderIndex((prev) => (prev <= 0 ? maxSliderIndex : prev - 1));
   };
 
   const handleToggleFavorite = (id: string) => {
@@ -178,7 +182,7 @@ export default function CustomerHome({ categories, orchids, onNavigate }: Custom
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="font-display-serif text-4xl md:text-6xl text-white mb-6 leading-[1.12] drop-shadow-md max-w-3xl mx-auto"
+            className="font-display-serif text-3xl md:text-5xl text-white mb-6 leading-[1.12] drop-shadow-md max-w-4xl mx-auto"
           >
             Hoa Lan – Kiệt Tác Của Thiên Nhiên Và Dấu Ấn Thời Gian
           </motion.h1>
@@ -322,14 +326,16 @@ export default function CustomerHome({ categories, orchids, onNavigate }: Custom
             <button 
               onClick={handlePrevSlide}
               aria-label="Previous card"
-              className="w-12 h-12 border border-outline-variant/50 flex items-center justify-center hover:border-botanical-green hover:text-botanical-green transition-all rounded bg-white cursor-pointer active:scale-95"
+              disabled={maxSliderIndex === 0}
+              className="w-12 h-12 border border-outline-variant/50 flex items-center justify-center hover:border-botanical-green hover:text-botanical-green transition-all rounded bg-white cursor-pointer active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
             <button 
               onClick={handleNextSlide}
               aria-label="Next card"
-              className="w-12 h-12 border border-outline-variant/50 flex items-center justify-center hover:border-botanical-green hover:text-botanical-green transition-all rounded bg-white cursor-pointer active:scale-95"
+              disabled={maxSliderIndex === 0}
+              className="w-12 h-12 border border-outline-variant/50 flex items-center justify-center hover:border-botanical-green hover:text-botanical-green transition-all rounded bg-white cursor-pointer active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <ChevronRight className="w-5 h-5" />
             </button>
@@ -340,18 +346,18 @@ export default function CustomerHome({ categories, orchids, onNavigate }: Custom
         <div className="px-6 md:px-16 max-w-7xl mx-auto overflow-hidden">
           <motion.div 
             ref={cardsRef}
-            className="flex gap-8 transition-all duration-500 ease-out py-2"
-            animate={{ x: -(sliderIndex * 412) }}
-            style={{ width: `${Math.max(totalCards, 1) * 412}px`, maxWidth: "none" }}
+            className="flex gap-6 transition-all duration-500 ease-out py-2"
+            animate={{ x: -(sliderIndex * (cardWidth + cardGap)) }}
+            style={{ width: `${Math.max(totalCards, 1) * cardWidth + Math.max(totalCards - 1, 0) * cardGap}px`, maxWidth: "none" }}
           >
             {featuredOrchids.map((item) => (
               <div 
                 key={item.id} 
-                className="w-full sm:w-[380px] shrink-0 group flex flex-col justify-between"
-                style={{ width: "380px" }}
+                className="w-[320px] shrink-0 group flex flex-col justify-between"
+                style={{ width: `${cardWidth}px` }}
               >
                 <div>
-                  <div className="aspect-square bg-white overflow-hidden luxury-shadow mb-5 rounded border border-surface-container relative">
+                  <div className="aspect-[4/3] bg-white overflow-hidden luxury-shadow mb-5 rounded border border-surface-container relative">
                     {item.imageUrls?.[0] ? (
                       <img 
                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
@@ -364,11 +370,18 @@ export default function CustomerHome({ categories, orchids, onNavigate }: Custom
                         Chưa có hình ảnh
                       </div>
                     )}
-                    {item.isPopular && (
-                      <span className="absolute top-3 left-3 px-2 py-0.5 bg-[#56642b]/90 text-white font-sans text-[9px] uppercase tracking-wider rounded">
-                        Phổ biến
-                      </span>
-                    )}
+                    <div className="absolute left-0 top-3 z-10 flex flex-col items-start gap-1.5">
+                      {item.isPopular && (
+                        <span className="relative box-border inline-flex h-7 w-fit min-w-0 max-w-none items-center whitespace-nowrap rounded-r-md bg-botanical-green px-3 font-sans text-[10px] font-bold uppercase tracking-wider text-white shadow-md after:pointer-events-none after:absolute after:left-0 after:top-full after:border-r-[9px] after:border-t-[9px] after:border-r-transparent after:border-t-[#3f4b1f] after:content-['']">
+                          PHỔ BIẾN
+                        </span>
+                      )}
+                      {item.hasFragrance && (
+                        <span className="relative box-border inline-flex h-7 w-fit min-w-0 max-w-none items-center whitespace-nowrap rounded-r-md bg-antique-gold px-3 font-sans text-[10px] font-bold uppercase tracking-wider text-white shadow-md after:pointer-events-none after:absolute after:left-0 after:top-full after:border-r-[9px] after:border-t-[9px] after:border-r-transparent after:border-t-[#a07700] after:content-['']">
+                          CÓ HƯƠNG THƠM
+                        </span>
+                      )}
+                    </div>
                     {item.id && (
                       <button
                         type="button"
@@ -386,8 +399,8 @@ export default function CustomerHome({ categories, orchids, onNavigate }: Custom
                   <h3 className="font-serif text-xl text-charcoal-text mb-1">
                     {item.name}
                   </h3>
-                  <p className="text-[11px] font-mono uppercase text-[#735c00] tracking-wider mb-2.5">
-                    {item.englishName}
+                   <p className="text-[11px] font-mono text-[#735c00] tracking-wider mb-2.5">
+                     {renderInlineMarkup(item.englishName)}
                   </p>
                   <p className="font-sans text-xs text-on-surface-variant line-clamp-2 leading-relaxed">
                     {item.shortDescription}

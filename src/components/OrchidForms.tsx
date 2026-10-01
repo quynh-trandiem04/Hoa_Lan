@@ -12,6 +12,7 @@ import { getOrchidImageUrls } from '../utils/orchidImages';
 import { toRichTextHtml } from '../utils/richText';
 import CategoryTreeSelect from './CategoryTreeSelect';
 import LocalRichTextEditor from './LocalRichTextEditor';
+import { htmlToInlineMarkup, inlineMarkupToHtml } from '../utils/inlineMarkup';
 
 const flowerColorLabels: Record<string, string> = {
   RED: 'Đỏ',
@@ -20,10 +21,7 @@ const flowerColorLabels: Record<string, string> = {
   WHITE: 'Trắng',
   PINK: 'Hồng',
   PURPLE: 'Tím',
-  GREEN: 'Xanh lá',
   LIGHT_GREEN: 'Xanh nhạt',
-  BLUE: 'Xanh dương',
-  CREAM: 'Kem',
   BROWN: 'Nâu',
   BLACK: 'Đen',
 };
@@ -62,7 +60,6 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
   const [hasFragrance, setHasFragrance] = useState(false);
   const [isPopular, setIsPopular] = useState(false);
   const [slug, setSlug] = useState('');
-  const [regions, setRegions] = useState<string[]>([]);
   const [bloomSeasons, setBloomSeasons] = useState<string[]>([]);
   const [colors, setColors] = useState<string[]>([]);
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
@@ -72,6 +69,7 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
   const imageFileInputRef = useRef<HTMLInputElement>(null);
+  const englishNameInputRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (editOrchidData) {
@@ -83,7 +81,6 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
       setHasFragrance(editOrchidData.hasFragrance);
       setIsPopular(editOrchidData.isPopular);
       setSlug(editOrchidData.slug);
-      setRegions((editOrchidData.regions || []) as string[]);
       setBloomSeasons((editOrchidData.bloomSeasons || []) as string[]);
       setColors((editOrchidData.colors || []) as string[]);
       const existingUrls = getOrchidImageUrls(editOrchidData);
@@ -101,13 +98,17 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
       setHasFragrance(false);
       setIsPopular(false);
       setSlug('');
-      setRegions([]);
       setBloomSeasons([]);
       setColors([]);
       setUploadedImages([]);
     }
     setExpandedCategoryIds(new Set());
   }, [editOrchidData, isOpen, categories]);
+
+  useEffect(() => {
+    const editor = englishNameInputRef.current;
+    if (editor && document.activeElement !== editor) editor.innerHTML = inlineMarkupToHtml(englishName);
+  }, [englishName, isOpen]);
 
   const categoryTree = useMemo(() => {
     const childrenByParent = new Map<string | null, Category[]>();
@@ -168,6 +169,26 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
     );
   };
 
+  const wrapEnglishName = (tag: 'b' | 'i') => {
+    const editor = englishNameInputRef.current;
+    if (!editor) return;
+    editor.focus();
+    document.execCommand(tag === 'b' ? 'bold' : 'italic');
+    setEnglishName(htmlToInlineMarkup(editor.innerHTML));
+  };
+
+  const handleEnglishNamePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    const html = event.clipboardData.getData('text/html');
+    if (!html) return;
+    event.preventDefault();
+    const editor = englishNameInputRef.current;
+    if (!editor) return;
+    editor.focus();
+    const markup = htmlToInlineMarkup(html);
+    document.execCommand('insertHTML', false, inlineMarkupToHtml(markup));
+    setEnglishName(htmlToInlineMarkup(editor.innerHTML));
+  };
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -201,7 +222,7 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
       hasFragrance,
       isPopular,
       slug: finalSlug,
-      regions: regions as (keyof typeof Region)[],
+      regions: (editOrchidData?.regions || []) as (keyof typeof Region)[],
       bloomSeasons: bloomSeasons as (keyof typeof BloomSeason)[],
       colors: colors as (keyof typeof FlowerColor)[],
       uploadedImageIds: uploadedImages.map((image) => image.id),
@@ -337,26 +358,6 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
                 </button>
               </div>
 
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-[#3f433f]">Khu vực phân bố</h4>
-                <div className="flex flex-wrap gap-2">
-                  {Object.entries(Region).map(([key, value]) => {
-                    const selected = regions.includes(key);
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => setRegions((current) => selected ? current.filter((item) => item !== key) : [...current, key])}
-                        className={`flex min-h-9 items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs transition-colors ${selected ? 'border-[#87905f]/60 bg-[#f2f4e9] text-[#56642b]' : 'border-outline-variant bg-white text-charcoal-text hover:border-[#87905f]/50'}`}
-                        aria-pressed={selected}
-                      >
-                        {selected && <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#667234] text-white"><Check className="h-2.5 w-2.5" strokeWidth={3} /></span>}
-                        {value}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
             </div>
           </section>
 
@@ -416,7 +417,12 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
               </div>
               <div className="space-y-1">
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-outline">Tên tiếng Anh / Danh pháp khoa học *</label>
-                <input type="text" value={englishName} onChange={(e) => setEnglishName(e.target.value)} placeholder="Dendrobium nobile Lindl." className="w-full rounded border border-outline-variant bg-surface-container-low px-3 py-2 text-sm italic focus:border-[#56642b] focus:outline-none" />
+                <div ref={englishNameInputRef} contentEditable suppressContentEditableWarning role="textbox" aria-label="Tên tiếng Anh hoặc danh pháp khoa học" onInput={(event) => setEnglishName(htmlToInlineMarkup(event.currentTarget.innerHTML))} onPaste={handleEnglishNamePaste} data-placeholder="Dendrobium nobile Lindl." className="min-h-10 w-full rounded border border-outline-variant bg-surface-container-low px-3 py-2 text-sm focus:border-[#56642b] focus:outline-none empty:before:pointer-events-none empty:before:text-[#747878] empty:before:content-[attr(data-placeholder)]" />
+                <div className="mt-1 flex items-center gap-1" aria-label="Định dạng tên khoa học">
+                  <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => wrapEnglishName('b')} className="h-7 min-w-7 rounded border border-outline-variant px-2 text-xs font-bold text-[#3f433f] hover:border-[#56642b] hover:bg-[#56642b]/5" title="In đậm phần đang chọn">B</button>
+                  <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => wrapEnglishName('i')} className="h-7 min-w-7 rounded border border-outline-variant px-2 font-serif text-sm font-bold italic text-[#3f433f] hover:border-[#56642b] hover:bg-[#56642b]/5" title="In nghiêng phần đang chọn">I</button>
+                  <span className="ml-1 text-[10px] text-outline">Bôi đen chữ rồi chọn định dạng</span>
+                </div>
               </div>
             </div>
           </section>
@@ -477,7 +483,7 @@ export const AddOrchidModal: React.FC<AddOrchidModalProps> = ({
                 {uploadedImages.map((image) => (
                   <div key={image.id} className="relative border border-outline-variant rounded-lg overflow-hidden bg-surface-container-low min-h-28">
                     {image.url ? (
-                      <img src={image.url} alt={image.fileName || 'Ảnh hoa lan'} className="w-full h-28 object-cover" referrerPolicy="no-referrer" />
+                      <img src={image.url} alt={image.fileName || 'Ảnh hoa lan'} className="aspect-[4/3] w-full object-contain bg-white" referrerPolicy="no-referrer" />
                     ) : (
                       <div className="h-28 p-3 flex items-center justify-center text-center text-[10px] text-outline break-all">
                         Ảnh đã liên kết<br />{image.id}

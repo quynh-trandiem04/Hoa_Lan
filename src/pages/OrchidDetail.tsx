@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { Heart, UserCheck } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ChevronLeft, ChevronRight, Heart, UserCheck, X } from 'lucide-react';
 import { Category, Orchid, Region, BloomSeason, FlowerColor } from '../types';
 import SearchModal from '../components/SearchModal';
 import { getOrchidImageUrls } from '../utils/orchidImages';
 import { getOrchidById } from '../services/api';
 import PublicFooter from '../components/PublicFooter';
 import PublicHeader from '../components/PublicHeader';
+import { renderInlineMarkup } from '../utils/inlineMarkup';
 import { toRichTextHtml } from '../utils/richText';
 
 interface OrchidDetailProps {
@@ -21,11 +22,19 @@ export default function OrchidDetail({ id, categories, onNavigate }: OrchidDetai
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [activeImageIdx, setActiveImageIdx] = useState(0);
+  const [thumbnailStart, setThumbnailStart] = useState(0);
+  const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
+  const [magnifier, setMagnifier] = useState<{ x: number; y: number; xPercent: number; yPercent: number } | null>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const viewerImageRef = useRef<HTMLImageElement>(null);
   
   // Fetch orchid data
   useEffect(() => {
     let cancelled = false;
     setActiveImageIdx(0);
+    setThumbnailStart(0);
+    setIsImageViewerOpen(false);
+    setMagnifier(null);
     setOrchid(null);
     setLoadError('');
     void getOrchidById(id)
@@ -48,6 +57,21 @@ export default function OrchidDetail({ id, categories, onNavigate }: OrchidDetai
     }
     return () => { cancelled = true; };
   }, [id]);
+
+  useEffect(() => {
+    if (!isImageViewerOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsImageViewerOpen(false);
+      if (event.key === 'ArrowLeft' && images.length > 1) {
+        setActiveImageIdx((current) => (current - 1 + images.length) % images.length);
+      }
+      if (event.key === 'ArrowRight' && images.length > 1) {
+        setActiveImageIdx((current) => (current + 1) % images.length);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isImageViewerOpen]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -95,6 +119,42 @@ export default function OrchidDetail({ id, categories, onNavigate }: OrchidDetai
 
   // Format images
   const images = getOrchidImageUrls(orchid);
+  const maxThumbnailStart = Math.max(0, images.length - 4);
+  const visibleImages = images.slice(thumbnailStart, thumbnailStart + 4);
+
+  const shiftThumbnails = (direction: -1 | 1) => {
+    setThumbnailStart((current) => Math.min(maxThumbnailStart, Math.max(0, current + direction)));
+  };
+
+  const handleImageMouseMove = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const image = imageRef.current;
+    if (!image) return;
+    const bounds = image.getBoundingClientRect();
+    const x = Math.max(0, Math.min(bounds.width, event.clientX - bounds.left));
+    const y = Math.max(0, Math.min(bounds.height, event.clientY - bounds.top));
+    setMagnifier({
+      x: event.clientX - event.currentTarget.getBoundingClientRect().left,
+      y: event.clientY - event.currentTarget.getBoundingClientRect().top,
+      xPercent: (x / bounds.width) * 100,
+      yPercent: (y / bounds.height) * 100,
+    });
+  };
+
+  const handleViewerMouseMove = (event: React.MouseEvent<HTMLImageElement>) => {
+    const image = viewerImageRef.current;
+    if (!image) return;
+    const bounds = image.getBoundingClientRect();
+    const containerBounds = event.currentTarget.parentElement?.getBoundingClientRect();
+    if (!containerBounds || !bounds.width || !bounds.height) return;
+    const x = Math.max(0, Math.min(bounds.width, event.clientX - bounds.left));
+    const y = Math.max(0, Math.min(bounds.height, event.clientY - bounds.top));
+    setMagnifier({
+      x: event.clientX - containerBounds.left,
+      y: event.clientY - containerBounds.top,
+      xPercent: (x / bounds.width) * 100,
+      yPercent: (y / bounds.height) * 100,
+    });
+  };
 
   return (
     <div className="bg-[#f9f9f7] min-h-screen text-[#1a1c1b] font-sans">
@@ -106,6 +166,73 @@ export default function OrchidDetail({ id, categories, onNavigate }: OrchidDetai
         onClose={() => setIsSearchModalOpen(false)} 
         onNavigate={onNavigate} 
       />
+
+      {isImageViewerOpen && images.length > 0 && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-[#111412]/85 p-4 backdrop-blur-sm md:p-8"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Xem ảnh ${activeImageIdx + 1} của ${orchid.name}`}
+          onClick={() => setIsImageViewerOpen(false)}
+        >
+          <button
+            type="button"
+            onClick={() => setIsImageViewerOpen(false)}
+            className="absolute right-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white transition hover:rotate-90 hover:bg-white/20 md:right-7 md:top-7"
+            aria-label="Đóng ảnh phóng lớn"
+          >
+            <X size={23} strokeWidth={1.8} />
+          </button>
+
+          <div className="relative flex h-full w-full items-center justify-center" onClick={(event) => event.stopPropagation()}>
+            {images.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setActiveImageIdx((current) => (current - 1 + images.length) % images.length)}
+                  className="absolute left-0 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white shadow-lg transition hover:bg-white/25 md:left-2 md:h-14 md:w-14"
+                  aria-label="Xem ảnh trước"
+                >
+                  <ChevronLeft size={30} strokeWidth={1.8} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveImageIdx((current) => (current + 1) % images.length)}
+                  className="absolute right-0 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white shadow-lg transition hover:bg-white/25 md:right-2 md:h-14 md:w-14"
+                  aria-label="Xem ảnh tiếp theo"
+                >
+                  <ChevronRight size={30} strokeWidth={1.8} />
+                </button>
+              </>
+            )}
+            <img
+              ref={viewerImageRef}
+              src={images[activeImageIdx] ?? images[0]}
+              alt={orchid.name}
+              referrerPolicy="no-referrer"
+              onMouseMove={handleViewerMouseMove}
+              onMouseLeave={() => setMagnifier(null)}
+              className="max-h-full max-w-full cursor-zoom-in rounded-lg object-contain shadow-2xl"
+            />
+            {magnifier && (
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute hidden h-60 w-60 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-white/95 bg-no-repeat shadow-[0_8px_30px_rgba(0,0,0,0.45)] ring-1 ring-black/30 lg:block"
+                style={{
+                  left: magnifier.x,
+                  top: magnifier.y,
+                  backgroundImage: `url(${images[activeImageIdx] ?? images[0]})`,
+                  backgroundSize: '350% 350%',
+                  backgroundPosition: `${magnifier.xPercent}% ${magnifier.yPercent}%`,
+                }}
+              />
+            )}
+            <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/55 px-3 py-1.5 text-xs font-medium text-white/90">
+              {activeImageIdx + 1} / {images.length}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 md:px-16 py-8">
         
@@ -152,14 +279,37 @@ export default function OrchidDetail({ id, categories, onNavigate }: OrchidDetai
           
           {/* Left Column: Interactive Image Slider */}
           <div className="lg:col-span-7 flex flex-col space-y-4">
-            <div className="aspect-[4/3] bg-white border border-[#747878]/10 overflow-hidden rounded-md relative shadow-sm">
+            <div className="flex min-h-[320px] items-center justify-center rounded-md border border-[#747878]/10 bg-white shadow-sm">
               {images.length > 0 ? (
-                <img
-                  src={images[activeImageIdx] ?? images[0]}
-                  alt={orchid.name}
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-contain transition-all duration-500 ease-out"
-                />
+                <button
+                  type="button"
+                  onClick={() => setIsImageViewerOpen(true)}
+                  onMouseMove={handleImageMouseMove}
+                  onMouseLeave={() => setMagnifier(null)}
+                  className="group relative flex max-h-[70vh] max-w-full cursor-zoom-in items-center justify-center rounded-md focus:outline-none focus:ring-2 focus:ring-botanical-green focus:ring-offset-2"
+                  aria-label="Xem ảnh phóng lớn"
+                >
+                  <img
+                    ref={imageRef}
+                    src={images[activeImageIdx] ?? images[0]}
+                    alt={orchid.name}
+                    referrerPolicy="no-referrer"
+                    className="block max-h-[70vh] max-w-full object-contain transition-all duration-500 ease-out"
+                  />
+                  {magnifier && (
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute hidden h-52 w-52 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-white/95 bg-no-repeat shadow-[0_8px_28px_rgba(0,0,0,0.35)] ring-1 ring-black/20 lg:block"
+                      style={{
+                        left: magnifier.x,
+                        top: magnifier.y,
+                        backgroundImage: `url(${images[activeImageIdx] ?? images[0]})`,
+                        backgroundSize: '350% 350%',
+                        backgroundPosition: `${magnifier.xPercent}% ${magnifier.yPercent}%`,
+                      }}
+                    />
+                  )}
+                </button>
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-sm text-[#747878]">
                   Loài lan này chưa có hình ảnh
@@ -169,11 +319,16 @@ export default function OrchidDetail({ id, categories, onNavigate }: OrchidDetai
             
             {/* Thumbnails Row */}
             {images.length > 1 && (
-              <div className="grid grid-cols-4 gap-3">
-                {images.slice(0, 4).map((imgUrl, idx) => (
+              <div className="relative">
+                <div className="grid grid-cols-4 gap-3">
+                {visibleImages.map((imgUrl, visibleIdx) => {
+                  const idx = thumbnailStart + visibleIdx;
+                  return (
                   <button
                     key={imgUrl}
-                    onClick={() => setActiveImageIdx(idx)}
+                    onClick={() => {
+                      setActiveImageIdx(idx);
+                    }}
                     className={`aspect-[4/3] rounded-md overflow-hidden bg-surface-container border-2 transition-all duration-300 cursor-pointer ${
                       idx === activeImageIdx ? 'border-botanical-green opacity-100' : 'border-transparent opacity-60 hover:opacity-100'
                     }`}
@@ -185,7 +340,35 @@ export default function OrchidDetail({ id, categories, onNavigate }: OrchidDetai
                       className="w-full h-full object-contain bg-white"
                     />
                   </button>
-                ))}
+                  );
+                })}
+                </div>
+
+                {images.length > 4 && (
+                  <button
+                    type="button"
+                    onClick={() => shiftThumbnails(-1)}
+                    disabled={thumbnailStart === 0}
+                    className="absolute left-1 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-[#747878]/15 bg-white/95 text-[#56642b] shadow-sm transition hover:bg-[#f0f2e8] disabled:cursor-not-allowed disabled:opacity-30"
+                    aria-label="Xem các ảnh trước"
+                    title="Xem các ảnh trước"
+                  >
+                    <ChevronLeft size={20} strokeWidth={1.8} />
+                  </button>
+                )}
+
+                {images.length > 4 && (
+                  <button
+                    type="button"
+                    onClick={() => shiftThumbnails(1)}
+                    disabled={thumbnailStart === maxThumbnailStart}
+                    className="absolute right-1 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-[#747878]/15 bg-white/95 text-[#56642b] shadow-sm transition hover:bg-[#f0f2e8] disabled:cursor-not-allowed disabled:opacity-30"
+                    aria-label="Xem các ảnh tiếp theo"
+                    title="Xem các ảnh tiếp theo"
+                  >
+                    <ChevronRight size={20} strokeWidth={1.8} />
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -197,8 +380,8 @@ export default function OrchidDetail({ id, categories, onNavigate }: OrchidDetai
                 <h1 className="font-serif text-3xl md:text-4xl text-charcoal-text tracking-tight font-medium">
                   {orchid.name}
                 </h1>
-                <p className="font-serif italic text-lg text-[#735c00] mt-1">
-                  {orchid.englishName}
+                <p className="font-serif text-lg text-[#735c00] mt-1">
+                  {renderInlineMarkup(orchid.englishName)}
                 </p>
               </div>
 

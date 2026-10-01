@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { LoaderCircle, X } from "lucide-react";
 import type { Orchid } from "../types";
 import { getOrchids } from "../services/api";
+import { renderInlineMarkup } from '../utils/inlineMarkup';
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -104,7 +105,7 @@ export default function SearchModal({ isOpen, onClose, onNavigate }: SearchModal
                     >
                       <div>
                         <p className="font-semibold">{item.name}</p>
-                        <p className="text-[10px] text-on-surface-variant/70 italic">{item.englishName}</p>
+                        <p className="text-[10px] text-on-surface-variant/70">{renderInlineMarkup(item.englishName)}</p>
                       </div>
                       {item.hasFragrance && <span className="text-[10px] uppercase font-semibold text-antique-gold">Có hương thơm</span>}
                     </div>

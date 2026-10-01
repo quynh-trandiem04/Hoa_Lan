@@ -4,6 +4,7 @@ import type { CareArticle, DocumentItem, Orchid } from '../types';
 import { getDocuments, getOrchids, getSectionArticles } from '../services/api';
 import PublicFooter from '../components/PublicFooter';
 import PublicHeader from '../components/PublicHeader';
+import { renderInlineMarkup } from '../utils/inlineMarkup';
 
 interface SearchResults {
   orchids: Orchid[];
@@ -85,7 +86,7 @@ export default function GlobalSearch() {
             value={input}
             onChange={(event) => setInput(event.target.value)}
             className="min-w-0 flex-1 bg-transparent px-4 py-3.5 text-sm outline-none"
-            placeholder="Tìm loài lan, tài liệu, cách trồng và ứng dụng..."
+            placeholder="Tìm loài lan, tài liệu, cách trồng và tin tức..."
             autoFocus
           />
           <button type="submit" className="shrink-0 bg-[#56642b] px-6 text-xs font-bold uppercase tracking-wider text-white hover:bg-[#445022]">Tìm kiếm</button>
@@ -113,7 +114,7 @@ export default function GlobalSearch() {
                   {results.orchids.map((orchid) => (
                     <a key={orchid.id} href={`/orchids/${encodeURIComponent(orchid.id ?? '')}`} className="border border-[#e0e1dc] bg-white p-5 transition-all hover:border-[#899073] hover:shadow-md">
                       <h3 className="font-serif text-lg font-bold">{orchid.name}</h3>
-                      {orchid.englishName && <p className="mt-1 text-xs italic text-[#899073]">{orchid.englishName}</p>}
+                      {orchid.englishName && <p className="mt-1 text-xs text-[#899073]">{renderInlineMarkup(orchid.englishName)}</p>}
                       <p className="mt-3 line-clamp-2 text-sm leading-6 text-[#666b69]">{orchid.shortDescription}</p>
                     </a>
                   ))}
@@ -152,7 +153,7 @@ export default function GlobalSearch() {
 
             {results.applications.length > 0 && (
               <section>
-                <h2 className="mb-4 flex items-center gap-2 font-serif text-xl font-bold"><Sparkles size={19} className="text-[#56642b]" /> Ứng dụng <span className="text-sm font-normal text-[#899073]">({results.applications.length})</span></h2>
+                <h2 className="mb-4 flex items-center gap-2 font-serif text-xl font-bold"><Sparkles size={19} className="text-[#56642b]" /> Tin tức <span className="text-sm font-normal text-[#899073]">({results.applications.length})</span></h2>
                 <div className="grid gap-4 md:grid-cols-2">
                   {results.applications.map((article) => (
                     <a key={article.id} href={`/applications?articleId=${encodeURIComponent(article.id ?? '')}`} className="border border-[#e0e1dc] bg-white p-5 transition-all hover:border-[#899073] hover:shadow-md">

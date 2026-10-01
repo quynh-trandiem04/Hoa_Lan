@@ -814,7 +814,7 @@ export const getDocumentCategories = async (
   const params = new URLSearchParams();
   if (query.parentId) params.set('ParentId', query.parentId);
   params.set('PageNumber', String(query.pageNumber ?? 1));
-  params.set('PageSize', String(query.pageSize ?? 100));
+  params.set('PageSize', String(query.pageSize ?? 20));
   if (query.searchTerm) params.set('SearchTerm', query.searchTerm);
   if (query.sortBy) params.set('SortBy', query.sortBy);
   if (query.sortDescending !== undefined) params.set('SortDescending', String(query.sortDescending));
@@ -1082,6 +1082,7 @@ export interface SectionArticlePayload {
   summary: string;
   content: string;
   thumbnailImageId: string | null;
+  thumbnailImageUrl?: string;
   isPublished: boolean;
   articleCategoryIds: string[];
   orchidIds: string[];
@@ -1205,6 +1206,23 @@ export const getSectionArticles = async (
   query: SectionArticleQuery = {},
   categoryId?: string,
 ): Promise<CareArticle[]> => {
+  const result = await getSectionArticlesPage(section, query, categoryId);
+  return result.items;
+};
+
+export interface SectionArticlePage {
+  items: CareArticle[];
+  pageNumber: number;
+  totalPages: number;
+  totalCount: number;
+  pageSize: number;
+}
+
+export const getSectionArticlesPage = async (
+  section: ArticleSection,
+  query: SectionArticleQuery = {},
+  categoryId?: string,
+): Promise<SectionArticlePage> => {
   const params = new URLSearchParams();
   appendSectionArticleQuery(params, query);
   const prefix = categoryId ? `/${encodeURIComponent(categoryId)}` : '';
@@ -1212,10 +1230,17 @@ export const getSectionArticles = async (
   const value = body !== null && typeof body === 'object' && 'data' in body
     ? (body as { data: unknown }).data
     : body;
-  const items = Array.isArray(value)
-    ? value
-    : (value as { items?: Array<Partial<CareArticle> & { id: string; title: string }> } | null)?.items ?? [];
-  return items.map((item) => normalizeArticle(item));
+  const payload = Array.isArray(value)
+    ? { items: value, pageNumber: query.pageNumber ?? 1, totalPages: value.length < (query.pageSize ?? 20) ? 1 : query.pageNumber ?? 1, totalCount: value.length, pageSize: query.pageSize ?? 20 }
+    : value as { items?: Array<Partial<CareArticle> & { id: string; title: string }>; pageNumber?: number; totalPages?: number; totalCount?: number; pageSize?: number } | null;
+  const items = payload?.items ?? [];
+  return {
+    items: items.map((item) => normalizeArticle(item)),
+    pageNumber: payload?.pageNumber ?? query.pageNumber ?? 1,
+    totalPages: payload?.totalPages ?? 1,
+    totalCount: payload?.totalCount ?? items.length,
+    pageSize: payload?.pageSize ?? query.pageSize ?? 20,
+  };
 };
 
 export const createSectionArticle = (
@@ -1300,11 +1325,16 @@ const readImageUrlCache = (): Record<string, CachedImage> => {
 
 export const getUploadedImageUrl = (imageId: string | null | undefined): string => {
   if (!imageId) return '';
-  return readImageUrlCache()[imageId]?.url ?? '';
+  const url = readImageUrlCache()[imageId]?.url ?? '';
+  if (!url) return '';
+  if (/^https?:\/\//i.test(url) || /^blob:/i.test(url)) return url;
+  return url.startsWith('/')
+    ? (url.startsWith(API_BASE_URL) ? url : `${API_BASE_URL}${url}`)
+    : url;
 };
 
 const rememberUploadedImage = (image: UploadedImage) => {
-  if (typeof window === 'undefined' || !/^https?:\/\//i.test(image.url)) return;
+  if (typeof window === 'undefined' || !image.url || /^blob:/i.test(image.url)) return;
   try {
     const cache = readImageUrlCache();
     cache[image.id] = { url: image.url, publicId: image.publicId };

@@ -2,6 +2,7 @@ import React from 'react';
 import { Heart } from 'lucide-react';
 import { Orchid } from '../types';
 import { getOrchidImageUrls } from '../utils/orchidImages';
+import { renderInlineMarkup } from '../utils/inlineMarkup';
 
 interface OrchidCardProps {
   orchid: Orchid;
@@ -23,10 +24,10 @@ const OrchidCard: React.FC<OrchidCardProps> = ({
   return (
     <div 
       onClick={() => orchid.id && onSelect(orchid.id)}
-      className={`group bg-white border border-[#747878]/10 hover:border-[#56642b]/30 rounded-md overflow-hidden flex transition-all duration-500 cursor-pointer hover:shadow-xl hover:-translate-y-1 ${isList ? 'min-h-52 flex-row' : 'flex-col'}`}
+      className={`group h-full bg-white border border-[#747878]/10 hover:border-[#56642b]/30 rounded-md overflow-hidden flex transition-all duration-500 cursor-pointer hover:shadow-xl hover:-translate-y-1 ${isList ? 'min-h-52 flex-row' : 'flex-col'}`}
     >
       {/* Image container */}
-      <div className={`relative shrink-0 bg-surface-container overflow-hidden ${isList ? 'w-[38%] min-w-32 border-r border-[#747878]/10' : 'aspect-[4/3] border-b border-[#747878]/10'}`}>
+      <div className={`relative shrink-0 bg-surface-container overflow-hidden ${isList ? 'w-[38%] min-w-32 border-r border-[#747878]/10' : 'h-56 border-b border-[#747878]/10'}`}>
         <img
           src={getOrchidImageUrls(orchid)[0] || 'https://images.unsplash.com/photo-1525310072745-f49212b5ac6d?auto=format&fit=crop&w=800&q=80'}
           alt={orchid.name}
@@ -35,14 +36,14 @@ const OrchidCard: React.FC<OrchidCardProps> = ({
         />
         
         {/* Floating Badges */}
-        <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
+        <div className="absolute left-0 top-3 z-10 flex flex-col items-start gap-1.5">
           {orchid.isPopular && (
-            <span className="bg-botanical-green text-white text-[9px] tracking-widest uppercase font-semibold font-sans px-2.5 py-1 rounded-[2px] shadow-sm">
-              ĐƯỢC ƯU CHUỘNG
+            <span className="relative box-border inline-flex h-7 w-fit min-w-0 max-w-none items-center whitespace-nowrap rounded-r-md bg-botanical-green px-3 font-sans text-[10px] font-bold uppercase tracking-wider text-white shadow-md after:pointer-events-none after:absolute after:left-0 after:top-full after:border-r-[9px] after:border-t-[9px] after:border-r-transparent after:border-t-[#3f4b1f] after:content-['']">
+              PHỔ BIẾN
             </span>
           )}
           {orchid.hasFragrance && (
-            <span className="bg-antique-gold text-white text-[9px] tracking-widest uppercase font-semibold font-sans px-2.5 py-1 rounded-[2px] shadow-sm">
+            <span className="relative box-border inline-flex h-7 w-fit min-w-0 max-w-none items-center whitespace-nowrap rounded-r-md bg-antique-gold px-3 font-sans text-[10px] font-bold uppercase tracking-wider text-white shadow-md after:pointer-events-none after:absolute after:left-0 after:top-full after:border-r-[9px] after:border-t-[9px] after:border-r-transparent after:border-t-[#a07700] after:content-['']">
               CÓ HƯƠNG THƠM
             </span>
           )}
@@ -67,19 +68,19 @@ const OrchidCard: React.FC<OrchidCardProps> = ({
       </div>
 
       {/* Content description */}
-      <div className={`flex flex-col flex-grow ${isList ? 'min-w-0 p-4 sm:p-5' : 'p-5'}`}>
+      <div className={`flex min-h-0 flex-col flex-grow ${isList ? 'min-w-0 p-4 sm:p-5' : 'p-4'}`}>
         {/* Title and genus */}
-        <div className="mb-3">
+        <div className="mb-2 min-h-[58px]">
           <h3 className={`font-serif text-charcoal-text font-medium leading-snug group-hover:text-botanical-green transition-colors ${isList ? 'text-base sm:text-lg' : 'text-lg'}`}>
             {orchid.name}
           </h3>
-          <p className="font-serif italic text-xs text-[#747878] mt-1 uppercase tracking-wider font-light">
-            {orchid.englishName}
+          <p className="font-serif text-xs text-[#747878] mt-1 tracking-wider font-light">
+            {renderInlineMarkup(orchid.englishName)}
           </p>
         </div>
 
         {/* Description Snippet */}
-        <div className={`text-[11px] text-[#747878] font-sans mt-auto line-clamp-3 ${isList ? 'mb-3' : 'mb-5'}`}>
+        <div className={`h-[38px] overflow-hidden text-[11px] leading-[19px] text-[#747878] font-sans mt-2 line-clamp-2 ${isList ? 'mb-3' : 'mb-3'}`}>
           {orchid.shortDescription}
         </div>
 

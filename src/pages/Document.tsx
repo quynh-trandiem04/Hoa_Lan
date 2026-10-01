@@ -6,6 +6,7 @@ import InlineTreeMultiSelect from '../components/InlineTreeMultiSelect';
 import PublicFooter from '../components/PublicFooter';
 import PublicHeader from '../components/PublicHeader';
 import PageIntro from '../components/PageIntro';
+import { getPaginationItems } from '../utils/pagination';
 import { useConfirmDialog } from '../components/ConfirmDialog';
 import DocumentCategoryManager, { type DocumentCategoryValues } from '../components/DocumentCategoryManager';
 
@@ -41,6 +42,7 @@ export default function DocumentPage({ isAdmin = false }: DocumentPageProps) {
   const { confirm: confirmDelete, confirmDialog } = useConfirmDialog();
   const initialParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
   const [categories, setCategories] = useState<DocumentCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingCategories, setLoadingCategories] = useState(true);
@@ -126,7 +128,7 @@ export default function DocumentPage({ isAdmin = false }: DocumentPageProps) {
 
     const categoryRequests = requestedCategoryIds.size > 0 ? [...requestedCategoryIds] : [undefined];
     void Promise.all(categoryRequests.map((categoryId) =>
-      getDocuments(1, 100, debouncedSearchTerm || undefined, undefined, categoryId)
+      getDocuments(currentPage, PAGE_SIZE, debouncedSearchTerm || undefined, undefined, categoryId)
     ))
       .then((results) => {
         if (!active) return;
@@ -135,6 +137,7 @@ export default function DocumentPage({ isAdmin = false }: DocumentPageProps) {
           uniqueDocuments.set(document.id ?? document.url, document);
         });
         setDocuments([...uniqueDocuments.values()]);
+        setTotalPages(Math.max(1, Math.max(...results.map((result) => result.totalPages), 1)));
       })
       .catch((loadError) => {
         if (!active) return;
@@ -146,7 +149,7 @@ export default function DocumentPage({ isAdmin = false }: DocumentPageProps) {
       });
 
     return () => { active = false; };
-  }, [categories, selectedCategoryIds, debouncedSearchTerm, adminRevision]);
+  }, [categories, selectedCategoryIds, debouncedSearchTerm, adminRevision, currentPage]);
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -155,8 +158,7 @@ export default function DocumentPage({ isAdmin = false }: DocumentPageProps) {
     window.history.replaceState(null, '', `/document${params.size ? `?${params.toString()}` : ''}`);
   }, [searchTerm, selectedCategoryIds]);
 
-  const totalPages = Math.max(1, Math.ceil(documents.length / PAGE_SIZE));
-  const paginatedDocuments = documents.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const paginatedDocuments = documents;
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
@@ -471,7 +473,9 @@ export default function DocumentPage({ isAdmin = false }: DocumentPageProps) {
                 >
                   <ChevronLeft size={16} />
                 </button>
-                {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+                {getPaginationItems(currentPage, totalPages).map((page, index) => page === 'ellipsis' ? (
+                  <span key={`ellipsis-${index}`} className="flex h-9 w-5 items-center justify-center text-xs text-[#747878]">…</span>
+                ) : (
                   <button
                     key={page}
                     type="button"

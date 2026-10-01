@@ -46,7 +46,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 // Domain Imports
 import { Orchid, Question, Category, CommunityPost, CareArticle, PaginatedDocuments, DocumentItem, Region, BloomSeason, FlowerColor, type ArticleCategory, type DocumentCategory } from './types';
-import { login, register, loginWithGoogle, refreshStoredAuthSession, getCategories, createCategory, getCategoryById, updateCategory, deleteCategory, getArticleById, getSectionArticles, createSectionArticle, updateSectionArticle, deleteSectionArticle, getArticleCategories, getOrchids, getOrchidById, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, updateDocument, deleteDocument, getDocumentCategories, createDocumentCategory, updateDocumentCategory, deleteDocumentCategory, uploadImage, getUploadedImageUrl, getUsers, createUser, updateUser, deleteUser, resetUserPassword, getDiscussions, type ArticleSection, type DiscussionPostDto, type LoginResponse, type UserListItem } from './services/api';
+import { login, register, loginWithGoogle, refreshStoredAuthSession, getCategories, createCategory, getCategoryById, updateCategory, deleteCategory, getArticleById, getSectionArticles, getSectionArticlesPage, createSectionArticle, updateSectionArticle, deleteSectionArticle, getArticleCategories, getOrchids, getOrchidById, createOrchid, updateOrchid, deleteOrchid, getDocuments, createDocument, updateDocument, deleteDocument, getDocumentCategories, createDocumentCategory, updateDocumentCategory, deleteDocumentCategory, uploadImage, getUploadedImageUrl, getUsers, createUser, updateUser, deleteUser, resetUserPassword, getDiscussions, type ArticleSection, type DiscussionPostDto, type LoginResponse, type UserListItem } from './services/api';
 import { getOrchidImageUrls } from './utils/orchidImages';
 import {
   INITIAL_QUESTIONS,
@@ -72,6 +72,7 @@ import LocalRichTextEditor from './components/LocalRichTextEditor';
 import DocumentCategoryManager, { type DocumentCategoryValues } from './components/DocumentCategoryManager';
 import InlineCategoryTreePicker from './components/InlineCategoryTreePicker';
 import AdminDiscussionManager from './components/AdminDiscussionManager';
+import { renderInlineMarkup } from './utils/inlineMarkup';
 import AdminPagination from './components/AdminPagination';
 import { useConfirmDialog } from './components/ConfirmDialog';
 
@@ -87,7 +88,7 @@ const ORCHID_SORT_OPTIONS = [
 
 const ORCHID_COLOR_LABELS: Record<string, string> = {
   RED: 'Đỏ', ORANGE: 'Cam', YELLOW: 'Vàng', WHITE: 'Trắng', PINK: 'Hồng', PURPLE: 'Tím',
-  GREEN: 'Xanh lá', LIGHT_GREEN: 'Xanh nhạt', BLUE: 'Xanh dương', CREAM: 'Kem', BROWN: 'Nâu', BLACK: 'Đen',
+  LIGHT_GREEN: 'Xanh nhạt', BROWN: 'Nâu', BLACK: 'Đen',
 };
 
 const decodeJwtPayload = (token: string): Record<string, unknown> | null => {
@@ -249,7 +250,10 @@ const SHOW_LEGACY_OVERVIEW = false;
 type PostLoginScreen = 'home' | 'discussion' | 'profile' | 'planting_and_care' | 'applications' | 'document' | 'list_orchids' | 'search' | 'dashboard';
 
 const getPostLoginScreen = (returnUrl: string | null, token: string | null | undefined): PostLoginScreen => {
-  if ((returnUrl === '/admin/dashboard' || returnUrl === '/dashboard') && isAdminToken(token)) return 'dashboard';
+  // Admin sessions always stay in the admin area after signing in. This also
+  // prevents a stale/public returnUrl from sending an administrator to the
+  // customer-facing screens.
+  if (isAdminToken(token)) return 'dashboard';
   if (returnUrl === '/discussion') return 'discussion';
   if (returnUrl === '/profile') return 'profile';
   if (returnUrl === '/planting-and-care') return 'planting_and_care';
@@ -667,7 +671,7 @@ export default function App() {
     window.location.replace('/login');
   };
 
-  const BG_IMAGE_URL = "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?auto=format&fit=crop&q=80&w=1200";
+  const BG_IMAGE_URL = "/images/orchid-auth-background.png";
 
   // --- Persistent Storage State ---
   const [orchids, setOrchids] = useState<Orchid[]>([]);
@@ -695,8 +699,9 @@ export default function App() {
   };
 
   useEffect(() => {
-    loadOrchids();
-  }, []);
+    if (screen !== 'home') return;
+    void loadOrchids();
+  }, [screen]);
 
   const [questions, setQuestions] = useState<Question[]>(() => {
     const saved = localStorage.getItem('ol_questions');
@@ -816,9 +821,15 @@ export default function App() {
   }, [activeTab, docPage]);
 
   useEffect(() => {
+    if (screen !== 'dashboard' || activeTab !== 'overview') return;
     void loadDocuments(1);
     void loadDocumentCategories();
-  }, []);
+  }, [screen, activeTab]);
+
+  useEffect(() => {
+    if (screen !== 'dashboard' || activeTab !== 'document_categories') return;
+    void loadDocumentCategories();
+  }, [screen, activeTab]);
 
   useEffect(() => {
     if (screen === 'dashboard' && currentUser) {
@@ -851,11 +862,12 @@ export default function App() {
       }
     };
 
+    if (!['home', 'list_orchids', 'orchid_detail', 'search', 'dashboard'].includes(screen)) return;
     void loadCategories();
     return () => {
       isActive = false;
     };
-  }, [addToast]);
+  }, [addToast, screen]);
 
   const [communityPosts, setCommunityPosts] = useState<CommunityPost[]>(() => {
     const saved = localStorage.getItem('ol_community_posts');
@@ -959,6 +971,7 @@ export default function App() {
 
   // --- Care Guide state (API) ---
   const [careArticles, setCareArticles] = useState<CareArticle[]>([]);
+  const [careArticleTotal, setCareArticleTotal] = useState(0);
   const [articleCounts, setArticleCounts] = useState<Record<ArticleSection, number>>({
     cultivation: 0,
     application: 0,
@@ -1005,7 +1018,7 @@ export default function App() {
     } finally {
       setLoadingArticleCategories((current) => ({ ...current, [section]: false }));
     }
-  }, [addToast]);
+  }, [addToast, screen]);
 
   useEffect(() => {
     if (screen !== 'dashboard') return;
@@ -1037,14 +1050,15 @@ export default function App() {
     } else if (activeTab === 'application_cats') {
       void loadArticleCategories('application');
     }
-  }, [activeTab, loadArticleCategories]);
+  }, [activeTab, careArticlePage, loadArticleCategories]);
 
   const loadCareArticles = async (section: ArticleSection = currentArticleSection) => {
     setLoadingCareArticles(true);
     try {
-      const data = await getSectionArticles(section, { pageNumber: 1, pageSize: 100 });
-      setCareArticles(data);
-      setArticleCounts((current) => ({ ...current, [section]: data.length }));
+      const data = await getSectionArticlesPage(section, { pageNumber: careArticlePage, pageSize: adminPageSize });
+      setCareArticles(data.items);
+      setCareArticleTotal(data.totalCount);
+      setArticleCounts((current) => ({ ...current, [section]: data.totalCount }));
     } catch (error) {
       addToast(error instanceof Error ? error.message : 'Không thể tải danh sách bài viết.', 'error');
     } finally {
@@ -1171,7 +1185,7 @@ export default function App() {
   };
 
   const handleDeleteCareArticle = async (id: string) => {
-    const articleLabel = currentArticleSection === 'application' ? 'bài ứng dụng' : 'bài hướng dẫn';
+    const articleLabel = currentArticleSection === 'application' ? 'bài tin tức' : 'bài hướng dẫn';
     if (!(await confirmDelete({
       title: `Xóa ${articleLabel}?`,
       message: 'Bài viết sẽ bị xóa khỏi website và không thể khôi phục.',
@@ -1828,8 +1842,8 @@ export default function App() {
     [adminPageSize, filteredUsers, userPage],
   );
   const pagedCareArticles = useMemo(
-    () => careArticles.slice((careArticlePage - 1) * adminPageSize, careArticlePage * adminPageSize),
-    [adminPageSize, careArticlePage, careArticles],
+    () => careArticles,
+    [careArticles],
   );
 
   useEffect(() => {
@@ -1869,8 +1883,8 @@ export default function App() {
   }, [adminPageSize, filteredUsers.length]);
 
   useEffect(() => {
-    setCareArticlePage((page) => Math.min(page, Math.max(1, Math.ceil(careArticles.length / adminPageSize))));
-  }, [adminPageSize, careArticles.length]);
+    setCareArticlePage((page) => Math.min(page, Math.max(1, Math.ceil(careArticleTotal / adminPageSize))));
+  }, [adminPageSize, careArticleTotal]);
 
   const currentUserProfile = users.find((user) =>
     user.email.toLowerCase() === currentUser?.toLowerCase()
@@ -1945,10 +1959,10 @@ export default function App() {
               
               {/* Form Header */}
               <div className="space-y-1.5">
-                <h1 className="font-serif text-[32px] leading-[40px] font-normal text-[#1a1c1b]">
+                <h1 className="font-display-serif text-[36px] leading-[1.15] font-medium tracking-[-0.02em] text-[#1a1c1b]">
                   Tạo tài khoản mới
                 </h1>
-                <p className="text-sm leading-6 text-[#5a5c5b] font-light">
+                <p className="max-w-[390px] text-[15px] leading-7 text-[#666b69]">
                   Trở thành thành viên để lưu trữ tài liệu, đánh dấu loài lan yêu thích và kết nối với các chuyên gia.
                 </p>
               </div>
@@ -2095,10 +2109,6 @@ export default function App() {
               className="absolute inset-0 w-full h-full object-cover scale-105 transition-transform duration-1000 select-none hover:scale-100"
               referrerPolicy="no-referrer"
             />
-            {/* Shadow gradients / atmospheric film filters over image */}
-            <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-emerald-950/20 to-black/60 mix-blend-multiply"></div>
-            <div className="absolute inset-0 bg-[#56642b]/15 mix-blend-color"></div>
-
             {/* "Orchids" White brand-text at absolute top left */}
             <div className="absolute top-12 left-12 z-20">
               <button onClick={() => setScreen("home")} className="orchids-logo text-[32px] text-white cursor-pointer hover:opacity-90 transition-opacity">Orchids</button>
@@ -2132,9 +2142,6 @@ export default function App() {
               className="absolute inset-0 w-full h-full object-cover scale-105 transition-transform duration-1000 select-none hover:scale-100"
               referrerPolicy="no-referrer"
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-emerald-950/20 to-black/60 mix-blend-multiply"></div>
-            <div className="absolute inset-0 bg-[#56642b]/15 mix-blend-color"></div>
-
             {/* "Orchids" White logo top left */}
             <div className="absolute top-12 left-12 z-20">
               <button onClick={() => setScreen("home")} className="orchids-logo text-[32px] text-white cursor-pointer hover:opacity-90 transition-opacity">Orchids</button>
@@ -2156,10 +2163,10 @@ export default function App() {
               
               {/* Form Title & Description */}
               <div className="space-y-1.5">
-                <h1 className="font-serif text-[32px] leading-[40px] font-normal text-[#1a1c1b]">
+                <h1 className="font-display-serif text-[36px] leading-[1.15] font-medium tracking-[-0.02em] text-[#1a1c1b]">
                   Chào mừng quay trở lại
                 </h1>
-                <p className="text-sm text-[#5a5c5b] font-light">
+                <p className="max-w-[390px] text-[15px] leading-7 text-[#666b69]">
                   Vui lòng đăng nhập để tiếp tục tra cứu và lưu trữ tài liệu quý giá.
                 </p>
               </div>
@@ -2287,9 +2294,6 @@ export default function App() {
               className="absolute inset-0 w-full h-full object-cover scale-105 transition-transform duration-1000 select-none hover:scale-100"
               referrerPolicy="no-referrer"
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-emerald-950/20 to-black/60 mix-blend-multiply"></div>
-            <div className="absolute inset-0 bg-[#56642b]/15 mix-blend-color"></div>
-
             {/* "Orchids" White logo top left */}
             <div className="absolute top-12 left-12 z-20">
               <button onClick={() => setScreen("home")} className="orchids-logo text-[32px] text-white cursor-pointer hover:opacity-90 transition-opacity">Orchids</button>
@@ -2311,10 +2315,10 @@ export default function App() {
               
               {/* Form Title & Description */}
               <div className="space-y-1.5">
-                <h1 className="font-serif text-[32px] leading-[40px] font-normal text-[#1a1c1b]">
+                <h1 className="font-display-serif text-[36px] leading-[1.15] font-medium tracking-[-0.02em] text-[#1a1c1b]">
                   Quên mật khẩu?
                 </h1>
-                <p className="text-sm text-[#5a5c5b] font-light">
+                <p className="max-w-[390px] text-[15px] leading-7 text-[#666b69]">
                   Nhập địa chỉ email của bạn để nhận liên kết đặt lại mật khẩu.
                 </p>
               </div>
@@ -2418,7 +2422,7 @@ export default function App() {
 
           <button
             onClick={() => handleAdminMenuClick('applications')}
-            title={!isSidebarOpen ? 'Ứng dụng' : undefined}
+            title={!isSidebarOpen ? 'Tin tức' : undefined}
             className={`order-20 flex w-full items-center rounded px-4 py-3 text-left transition-all duration-300 ${isSidebarOpen ? 'gap-3' : 'justify-center'} ${
               ['applications', 'application_cats'].includes(activeTab)
                 ? 'bg-[#d6e7a1]/20 font-bold text-[#56642b]'
@@ -2426,7 +2430,7 @@ export default function App() {
             }`}
           >
             <Sparkles className="h-5 w-5 shrink-0" />
-            <span className={`${isSidebarOpen ? 'block' : 'hidden'} text-xs font-semibold uppercase tracking-wider`}>Ứng dụng</span>
+            <span className={`${isSidebarOpen ? 'block' : 'hidden'} text-xs font-semibold uppercase tracking-wider`}>Tin tức</span>
             <ChevronRight className={`${isSidebarOpen ? 'block' : 'hidden'} ml-auto h-4 w-4 transition-transform ${expandedAdminMenus.applications ? 'rotate-90' : ''}`} />
           </button>
 
@@ -2486,7 +2490,7 @@ export default function App() {
             }`}
           >
             <FolderKanban className="h-5 w-5 shrink-0" />
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Danh mục ứng dụng</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Danh mục tin tức</span>
             <span className="ml-auto text-[10px] font-mono bg-surface-container-high px-2 py-0.5 rounded text-outline font-bold">
               {applicationCategories.length}
             </span>
@@ -2534,7 +2538,7 @@ export default function App() {
             }`}
           >
             <Sparkles className="w-5 h-5 shrink-0" />
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Quản lý ứng dụng</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Quản lý tin tức</span>
             <span className="ml-auto text-[10px] font-mono bg-surface-container-high px-2 py-0.5 rounded text-outline font-bold">
               {articleCounts.application}
             </span>
@@ -2719,7 +2723,7 @@ export default function App() {
                         {adminSearchResults.orchids.slice(0, 2).map((orchid) => (
                           <button key={orchid.id} type="button" onMouseDown={() => { setActiveTab('orchids'); setSearchQuery(orchid.name); setShowSearchOverlay(false); }} className="flex w-full items-center gap-2 rounded p-1.5 text-left transition-colors hover:bg-surface-container">
                             <img src={getOrchidImageUrls(orchid)[0] || "https://images.unsplash.com/photo-1525310072745-f49212b5ac6d?q=80&w=300"} className="h-7 w-7 rounded object-cover" alt="" referrerPolicy="no-referrer" />
-                            <span className="min-w-0 flex-1"><strong className="block truncate text-xs">{orchid.name}</strong><span className="block truncate text-[10px] italic text-outline">Loài lan · {orchid.englishName}</span></span>
+                             <span className="min-w-0 flex-1"><strong className="block truncate text-xs">{orchid.name}</strong><span className="block truncate text-[10px] text-outline">Loài lan · {renderInlineMarkup(orchid.englishName)}</span></span>
                           </button>
                         ))}
 
@@ -2740,7 +2744,7 @@ export default function App() {
                         {adminSearchResults.applications.slice(0, 2).map((article) => (
                           <button key={article.id} type="button" onMouseDown={() => { setActiveTab('applications'); setSearchQuery(article.title); setShowSearchOverlay(false); }} className="flex w-full items-center gap-2 rounded p-1.5 text-left transition-colors hover:bg-surface-container">
                             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-[#eef1e2] text-[#56642b]"><Sparkles className="h-3.5 w-3.5" /></span>
-                            <span className="min-w-0 flex-1"><strong className="block truncate text-xs">{article.title}</strong><span className="block text-[10px] text-outline">Bài viết ứng dụng</span></span>
+                        <span className="min-w-0 flex-1"><strong className="block truncate text-xs">{article.title}</strong><span className="block text-[10px] text-outline">Bài viết tin tức</span></span>
                           </button>
                         ))}
 
@@ -2933,7 +2937,7 @@ export default function App() {
                             </div>
                             <div className="flex-1 min-w-0 pr-12">
                               <p className="font-bold text-xs text-on-surface truncate">{orc.name}</p>
-                              <p className="text-[11px] text-outline italic truncate leading-tight mt-0.5">{orc.englishName}</p>
+                               <p className="text-[11px] text-outline truncate leading-tight mt-0.5">{renderInlineMarkup(orc.englishName)}</p>
                               <span className="inline-block mt-1 text-[9px] font-mono tracking-tighter bg-antique-gold/15 text-antique-gold px-1.5 py-0.5 rounded">
                                 {orc.isPopular ? 'Phổ biến' : 'Thông thường'}
                               </span>
@@ -3335,8 +3339,8 @@ export default function App() {
                               {categories.find(c => c.id === orc.categoryIds[0])?.name || 'Chưa phân loại'}
                             </span>
                           </div>
-                          <p className="text-[11px] text-[#56642b] italic font-semibold truncate leading-none mt-0.5">
-                            {orc.englishName}
+                           <p className="text-[11px] text-[#56642b] font-semibold truncate leading-none mt-0.5">
+                             {renderInlineMarkup(orc.englishName)}
                           </p>
                           <p className="text-xs text-[#434748] mt-2 line-clamp-2 leading-relaxed">
                             {orc.shortDescription}
@@ -3832,11 +3836,11 @@ export default function App() {
               <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-end">
                 <div>
                   <h2 className="font-serif text-3xl font-semibold text-on-surface">
-                    {activeTab === 'applications' ? 'Ứng dụng' : 'Hướng dẫn trồng & chăm sóc'}
+                    {activeTab === 'applications' ? 'Tin tức' : 'Hướng dẫn trồng & chăm sóc'}
                   </h2>
                   <p className="mt-1 text-sm text-on-surface-variant">
                     {activeTab === 'applications'
-                      ? 'Biên soạn và quản lý các bài viết về ứng dụng của hoa lan trong đời sống.'
+                      ? 'Biên soạn và quản lý các bài viết tin tức về hoa lan.'
                       : 'Biên soạn và quản lý các hướng dẫn trồng, chăm sóc và bảo tồn hoa lan.'}
                   </p>
                 </div>
@@ -3851,7 +3855,7 @@ export default function App() {
                     className="flex shrink-0 cursor-pointer items-center gap-2 rounded-lg bg-botanical-green px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-white transition-all hover:shadow"
                   >
                     <FilePlus className="h-4 w-4" />
-                    {activeTab === 'applications' ? 'Viết bài ứng dụng mới' : 'Viết hướng dẫn mới'}
+                    {activeTab === 'applications' ? 'Viết bài tin tức mới' : 'Viết hướng dẫn mới'}
                   </button>
                 )}
               </div>
@@ -3865,8 +3869,8 @@ export default function App() {
                   <div className="flex justify-between items-center pb-3 border-b border-outline-variant">
                     <h3 className="font-serif text-xl font-bold text-on-surface">
                       {editingCareArticle
-                        ? (activeTab === 'applications' ? 'Cập nhật bài ứng dụng' : 'Cập nhật hướng dẫn')
-                        : (activeTab === 'applications' ? 'Soạn bài ứng dụng mới' : 'Soạn thảo hướng dẫn mới')}
+                        ? (activeTab === 'applications' ? 'Cập nhật bài tin tức' : 'Cập nhật hướng dẫn')
+                        : (activeTab === 'applications' ? 'Soạn bài tin tức mới' : 'Soạn thảo hướng dẫn mới')}
                     </h3>
                     <button
                       onClick={() => {
@@ -4093,7 +4097,7 @@ export default function App() {
                     </div>
                   ) : careArticles.length === 0 ? (
                     <div className="rounded-xl border border-dashed border-outline-variant bg-white py-14 text-center text-sm text-outline">
-                      {activeTab === 'applications' ? 'Chưa có bài ứng dụng nào.' : 'Chưa có bài hướng dẫn nào.'}
+                      {activeTab === 'applications' ? 'Chưa có bài tin tức nào.' : 'Chưa có bài hướng dẫn nào.'}
                     </div>
                   ) : (
                     <div className="flex flex-1 flex-col gap-5">
@@ -4148,10 +4152,10 @@ export default function App() {
                       </div>
                       <AdminPagination
                         currentPage={careArticlePage}
-                        totalItems={careArticles.length}
+                        totalItems={careArticleTotal}
                         pageSize={adminPageSize}
                         onPageChange={setCareArticlePage}
-                        itemLabel={activeTab === 'applications' ? 'bài ứng dụng' : 'bài hướng dẫn'}
+                        itemLabel={activeTab === 'applications' ? 'bài tin tức' : 'bài hướng dẫn'}
                       />
                     </div>
                   )}

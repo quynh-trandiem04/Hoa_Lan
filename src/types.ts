@@ -28,10 +28,7 @@ export enum FlowerColor {
   WHITE = "#FFFFFF",
   PINK = "#FFC0CB",
   PURPLE = "#800080",
-  GREEN = "#008000",
   LIGHT_GREEN = "#90EE90",
-  BLUE = "#0000FF",
-  CREAM = "#FFFDD0",
   BROWN = "#A52A2A",
   BLACK = "#000000"
 }

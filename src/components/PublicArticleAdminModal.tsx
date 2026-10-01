@@ -42,6 +42,7 @@ export default function PublicArticleAdminModal({
   const [summary, setSummary] = useState('');
   const [content, setContent] = useState('');
   const [thumbnailImageId, setThumbnailImageId] = useState('');
+  const [thumbnailImageUrl, setThumbnailImageUrl] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [isPublished, setIsPublished] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -55,6 +56,7 @@ export default function PublicArticleAdminModal({
     setSummary(article?.summary ?? '');
     setContent(article?.content ?? '');
     setThumbnailImageId(article?.thumbnailImageId ?? '');
+    setThumbnailImageUrl(article?.thumbnailImageUrl || getUploadedImageUrl(article?.thumbnailImageId));
     setCategoryId(article?.articleCategoryIds?.[0] ?? article?.categories?.[0]?.id ?? article?.categoryId ?? '');
     setIsPublished(article?.isPublished ?? true);
     setError('');
@@ -76,6 +78,7 @@ export default function PublicArticleAdminModal({
       summary: summary.trim(),
       content: content.trim(),
       thumbnailImageId: thumbnailImageId.trim() || null,
+      ...(thumbnailImageUrl.startsWith('http') ? { thumbnailImageUrl } : {}),
       isPublished,
       articleCategoryIds: categoryId ? [categoryId] : [],
       orchidIds: article?.orchidIds ?? [],
@@ -106,6 +109,7 @@ export default function PublicArticleAdminModal({
     try {
       const uploaded = await uploadImage(file);
       setThumbnailImageId(uploaded.id);
+      setThumbnailImageUrl(uploaded.url);
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : 'Không thể tải ảnh đại diện.');
     } finally {
@@ -151,18 +155,30 @@ export default function PublicArticleAdminModal({
             <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-[#666b69]">Nội dung *</span>
             <LocalRichTextEditor value={content} onChange={setContent} minHeight={260} />
           </div>
-          <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-[#666b69]">ID ảnh đại diện</span>
-              <input value={thumbnailImageId} onChange={(event) => setThumbnailImageId(event.target.value)} className="w-full rounded-md border border-[#cfd2cb] px-4 py-3 text-sm outline-none focus:border-[#56642b]" />
-            </label>
-            <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-[#56642b] px-4 py-3 text-xs font-bold uppercase text-[#56642b] hover:bg-[#eef1e2]">
-              {uploading ? <LoaderCircle size={16} className="animate-spin" /> : <Upload size={16} />}
-              {uploading ? 'Đang tải...' : 'Tải ảnh'}
-              <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={(event) => void handleThumbnail(event)} />
-            </label>
+          <div>
+            <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#666b69]">ẢNH ĐẠI DIỆN</span>
+            <div className="relative flex min-h-36 items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-[#c8cbc4] bg-white p-5">
+              {thumbnailImageUrl ? (
+                <div className="relative h-36 w-full max-w-sm overflow-hidden rounded-lg border border-[#dedfd9] bg-[#f7f7f3]">
+                  <img src={thumbnailImageUrl} alt="Ảnh đại diện" className="h-full w-full object-contain" />
+                  <label className="absolute bottom-2 left-1/2 inline-flex -translate-x-1/2 cursor-pointer items-center gap-2 rounded-md bg-[#56642b] px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#465422]">
+                    {uploading ? <LoaderCircle size={14} className="animate-spin" /> : <Upload size={14} />}
+                    {uploading ? 'Đang tải...' : 'Chọn ảnh khác'}
+                    <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={(event) => void handleThumbnail(event)} />
+                  </label>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-2 text-center">
+                  <Upload className="h-7 w-7 text-[#667234]" />
+                  <label className="inline-flex cursor-pointer items-center justify-center rounded-md bg-[#56642b] px-7 py-2.5 text-sm font-bold text-white hover:bg-[#465422]">
+                    {uploading ? 'Đang tải...' : 'Chọn ảnh từ máy tính'}
+                    <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={(event) => void handleThumbnail(event)} />
+                  </label>
+                  <span className="text-xs text-[#858a84]">JPG, PNG, WEBP hoặc GIF (tối đa 10 MB/ảnh)</span>
+                </div>
+              )}
+            </div>
           </div>
-          {thumbnailImageId && <img src={getUploadedImageUrl(thumbnailImageId)} alt="Ảnh đại diện" className="max-h-44 rounded-lg border border-[#dedfd9] object-contain" />}
           <label className="inline-flex items-center gap-3 text-sm font-semibold">
             <input type="checkbox" checked={isPublished} onChange={(event) => setIsPublished(event.target.checked)} className="h-4 w-4 accent-[#56642b]" />
             Xuất bản bài viết
